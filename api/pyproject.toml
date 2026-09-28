@@ -1,0 +1,73 @@
+[project]
+name = "controle-casa-api"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "sqlalchemy>=2.0.36",
+    "psycopg[binary]>=3.2.3",
+    "alembic>=1.14.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.27.0",
+    "testcontainers[postgres]>=4.8.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+ignore = [
+    # Nomes de domínio são em português e os textos de erro vão para a UI —
+    # acento e "›" em string não são ambiguidade a corrigir.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # `V` e `VO` são apelidos deliberados das views: as queries de analytics
+    # ficam ilegíveis com `vw_transacoes_completa.c.valor` repetido.
+    "N812",
+    # `PgUUID` distingue o tipo do Postgres do `uuid.UUID` do Python.
+    "N811",
+    # `ErroDominio` é a base dos erros de domínio; sufixo "Error" em inglês
+    # brigaria com o resto do vocabulário do projeto.
+    "N818",
+    # `Generic[T]` em vez de PEP 695: Pydantic v2 lida melhor com a forma
+    # clássica em modelos genéricos.
+    "UP046",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"alembic/versions/*" = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+warn_unused_ignores = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["testcontainers.*"]
+ignore_missing_imports = true
+
+# `anthropic` é dependência opcional: só entra em jogo com INSIGHTS_BACKEND=api.
+# Quem gera o relatório pelo CLI do Claude Code não precisa instalar o pacote,
+# então o import é adiado e o mypy não tem stub para resolver.
+[[tool.mypy.overrides]]
+module = ["anthropic.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,0 +1,16 @@
+/* Único ponto de entrada de CSS da aplicação — importado por `main.tsx`. */
+
+@import "tailwindcss";
+
+/* Fontes auto-hospedadas: o sistema roda em Docker na máquina do usuário e não
+   deve depender de CDN em runtime (ver CLAUDE.md — "não vai pra internet"). */
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-sans/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+
+@import "./tokens.css";
+@import "./theme.css";

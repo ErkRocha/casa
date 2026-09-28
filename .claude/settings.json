@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "TodoWrite",
+
+      "Bash(python *)",
+      "Bash(py *)",
+      "Bash(pytest *)",
+      "Bash(ruff *)",
+      "Bash(mypy *)",
+      "Bash(alembic *)",
+      "Bash(uvicorn *)",
+      "Bash(pip *)",
+
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+
+      "Bash(psql *)",
+      "Bash(pg_ctl *)",
+      "Bash(initdb *)",
+      "Bash(createdb *)",
+      "Bash(pg_isready *)",
+
+      "Bash(curl *)",
+      "Bash(make *)",
+      "Bash(docker *)",
+      "Bash(git *)",
+
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(cd *)",
+      "Bash(echo *)",
+      "Bash(grep *)",
+      "Bash(sed *)",
+      "Bash(find *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(mkdir *)",
+      "Bash(touch *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(tar *)",
+      "Bash(sleep *)",
+      "Bash(export *)",
+      "Bash(printf *)",
+      "Bash(jq *)",
+      "Bash(bash *)",
+
+      "PowerShell",
+
+      "Bash(/c/Users/erikf/.controle-casa-dev/venv/Scripts/python.exe *)",
+      "Bash(/c/Users/erikf/.controle-casa-dev/pgsql/bin/*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)",
+      "Bash(git push --force*)",
+      "Bash(docker compose down -v*)"
+    ]
+  }
+}

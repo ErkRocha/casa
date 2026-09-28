@@ -1,0 +1,150 @@
+/* ---------------------------------------------------------------------------
+ * Design tokens — extraídos de `Sistema Financeiro.dc.html` (Claude Design).
+ *
+ * Fonte da verdade: as funções `buildTheme(mode)` e `buildStyles(c)` do
+ * protótipo. Os valores aqui são cópia fiel; a tradução para React não deve
+ * reintroduzir número mágico — se um valor não estiver neste arquivo, ele não
+ * pertence ao design.
+ *
+ * Modo claro vive em `:root`. Modo escuro sobrescreve as mesmas variáveis em
+ * `.dark` (ver `theme.css`), então nenhum componente precisa saber qual tema
+ * está ativo.
+ * ------------------------------------------------------------------------- */
+
+/* `static` é obrigatório aqui, não estilo.
+ *
+ * Por padrão o Tailwind v4 só emite a variável de um token se alguma classe
+ * utilitária a usar. Boa parte destas cores é referenciada só por `var()`
+ * dentro de `style={{...}}` — gráfico, swatch, barra — e o scanner não
+ * enxerga isso. Sem `static`, `--color-cat-2` some do CSS, `background:
+ * var(--color-cat-2)` vira transparente e as barras do gráfico ficam
+ * invisíveis no tema claro (no escuro não, porque `theme.css` redeclara as
+ * mesmas variáveis em CSS puro — o que torna o bug ainda mais confuso).
+ */
+@theme static {
+  /* --- Tipografia ------------------------------------------------------- */
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  /* O protótipo usa uma escala densa, com meios-pixels. Nomes por papel, não
+     por tamanho, para o componente declarar intenção. */
+  --text-tag: 9.5px;
+  --text-label: 10px;
+  --text-label-lg: 10.5px;
+  --text-caption: 11px;
+  --text-caption-lg: 11.5px;
+  --text-body-sm: 12px;
+  --text-body: 12.5px;
+  --text-body-lg: 13px; /* base do `S.page` */
+  --text-title-sm: 14px;
+  --text-title: 15px;
+  --text-title-lg: 16px;
+  --text-display-sm: 22px;
+  --text-display: 24px;
+
+  --tracking-tight: -0.01em;
+  --tracking-label: 0.03em;
+  --tracking-label-wide: 0.04em;
+  --tracking-caps: 0.05em;
+  --tracking-caps-wide: 0.06em;
+
+  /* --- Espaçamento ------------------------------------------------------
+   * O protótipo anda de 2 em 2px (4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24,
+   * 28, 32, 64). Ancorar a escala do Tailwind em 2px reproduz todos esses
+   * valores exatamente: p-2 = 4px, p-5 = 10px, p-9 = 18px, p-14 = 28px.
+   * Atenção: um número de utilitário vale METADE do px habitual do Tailwind.
+   */
+  --spacing: 2px;
+
+  /* --- Raio ------------------------------------------------------------- */
+  --radius-xs: 2px; /* barras de gráfico, swatches, card da tabela */
+  --radius-sm: 3px; /* logo, checkbox */
+  --radius-md: 4px; /* cards, chips, badges */
+  --radius-lg: 5px; /* botões, inputs */
+  --radius-xl: 6px; /* popovers */
+  --radius-2xl: 8px; /* modal */
+
+  /* --- Elevação --------------------------------------------------------- */
+  --shadow-popover: 0 12px 28px rgba(0, 0, 0, 0.28);
+  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.4);
+
+  /* --- Cor: superfícies (modo claro) ------------------------------------ */
+  --color-bg: oklch(0.985 0.001 260);
+  --color-surface-sunken: oklch(0.96 0.002 260);
+  --color-surface: oklch(0.925 0.003 260);
+  --color-border: oklch(0.82 0.004 260);
+  --color-border-faint: oklch(0.89 0.003 260);
+
+  /* --- Cor: texto ------------------------------------------------------- */
+  --color-text-primary: rgba(0, 0, 0, 0.88);
+  --color-text-secondary: rgba(0, 0, 0, 0.55);
+  --color-text-tertiary: rgba(0, 0, 0, 0.35);
+
+  /* --- Cor: ação -------------------------------------------------------- */
+  --color-accent: oklch(0.56 0.16 50);
+  --color-accent-soft: oklch(0.93 0.05 50);
+  --color-accent-fg: oklch(0.99 0.005 50);
+
+  /* --- Cor: semântica financeira ---------------------------------------
+   * `income` e `expense` são status, não séries. Nunca reaproveitar como
+   * "cor 4" de um gráfico categórico.
+   */
+  --color-income: oklch(0.5 0.1 175);
+  --color-income-soft: oklch(0.93 0.04 175);
+  --color-expense: oklch(0.55 0.14 50);
+  --color-expense-soft: oklch(0.93 0.05 50);
+  --color-alert: oklch(0.56 0.16 50);
+  --color-alert-soft: oklch(0.93 0.05 50);
+
+  /* --- Cor: séries por pessoa -------------------------------------------
+   * Os três baldes de `vw_gasto_por_pessoa` (D-03): pessoa A, pessoa B e
+   * conjunto. Uma única matiz (205) variando em L e C — é a identidade
+   * categórica do sistema e a ordem é fixa, nunca ciclada.
+   *
+   * Ressalva medida (ΔE OKLab ×100, pares adjacentes na pilha A→B→C):
+   *   claro  A–B 34.0 ok · B–C 12.4 ABAIXO do piso 15 · A–C 27.9 ok
+   *   escuro A–B 20.0 ok · B–C 16.6 ok               · A–C 11.2 ok*
+   * O par B–C no modo claro fica abaixo do piso de visão normal. Toda série
+   * de pessoa é rotulada diretamente (legenda + cards + tooltip), então a
+   * identidade nunca depende só da cor — mas vale rever esse par no Claude
+   * Design. Ver nota no README de analytics.
+   */
+  --color-person-a: oklch(0.74 0.05 205);
+  --color-person-a-soft: oklch(0.94 0.02 205);
+  --color-person-b: oklch(0.4 0.055 205);
+  --color-person-b-soft: oklch(0.92 0.025 205);
+  --color-person-c: oklch(0.48 0.15 205);
+  --color-person-c-soft: oklch(0.92 0.03 205);
+
+  /* Texto sobre um preenchimento de série. */
+  --color-on-color: oklch(0.99 0 0);
+
+  /* --- Cor: rampa sequencial de categoria -------------------------------
+   * `monoColor()` do protótipo: matiz 262, L de 0.34 a 0.82 e C caindo de
+   * 0.16 a 0.02 conforme clareia. No protótipo o passo era escolhido pela
+   * POSIÇÃO da categoria na lista ordenada por valor — o que repinta as
+   * sobreviventes a cada filtro. Aqui a rampa é fixa em 9 passos e cada
+   * categoria recebe um passo estável pelo seu id (ver `chart-palette.ts`).
+   */
+  --color-cat-1: oklch(0.34 0.16 262);
+  --color-cat-2: oklch(0.4 0.1425 262);
+  --color-cat-3: oklch(0.46 0.125 262);
+  --color-cat-4: oklch(0.52 0.1075 262);
+  --color-cat-5: oklch(0.58 0.09 262);
+  --color-cat-6: oklch(0.64 0.0725 262);
+  --color-cat-7: oklch(0.7 0.055 262);
+  --color-cat-8: oklch(0.76 0.0375 262);
+  --color-cat-9: oklch(0.82 0.02 262);
+
+  /* --- Geometria de gráfico --------------------------------------------
+   * Alturas fixas herdadas do protótipo, para o React não inventar as suas.
+   */
+  --chart-plot-height: 150px; /* `trackH` — altura útil das barras */
+  --chart-area-height: 174px; /* `S.chartArea` — plot + folga do rótulo */
+  --chart-axis-width: 50px; /* recuo do eixo Y */
+  --chart-bar-gap: 6px;
+  --chart-bar-width: 58%; /* `S.barStack` dentro da coluna */
+  --chart-split-height: 22px; /* barra 100% empilhada de pessoas */
+  --chart-meter-height: 6px; /* trilho de orçamento dentro da meta */
+  --chart-meter-height-over: 8px; /* trilho de orçamento estourado */
+}

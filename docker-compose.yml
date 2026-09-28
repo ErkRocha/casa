@@ -1,0 +1,59 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: casa_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      # Publicado só no loopback: o sistema não vai pra internet.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # Cria a role read-only do agente de insights (D-11) no primeiro boot.
+      - ./api/scripts/init_roles.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./api
+    container_name: casa_api
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      APP_ENV: ${APP_ENV:-dev}
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    volumes:
+      - ./api:/app
+      # Faturas em PDF, somente leitura: a ingestão (fase 5) lê daqui e nunca
+      # escreve. O conteúdo fica fora do git.
+      - ./faturas:/faturas:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  web:
+    build:
+      context: ./web
+    container_name: casa_web
+    environment:
+      VITE_API_URL: http://127.0.0.1:${API_PORT:-8000}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-5173}:5173"
+    volumes:
+      - ./web:/app
+      # Mantém o node_modules do container — o host não tem Node instalado.
+      - web_node_modules:/app/node_modules
+    depends_on:
+      - api
+    command: npm run dev
+
+volumes:
+  db_data:
+  web_node_modules:

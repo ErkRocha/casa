@@ -1,0 +1,165 @@
+# Decisões de arquitetura
+
+Cada decisão registra o *porquê*, não só o *quê*. Antes de contrariar alguma,
+leia o motivo — ele costuma ser a parte que não é óbvia.
+
+---
+
+## D-01 — Postgres, Python no backend, React no front
+
+Postgres foi requisito do usuário. Python no backend porque o coração do
+sistema é ingestão e análise de dados, onde o ecossistema (`pdfplumber`,
+`pandas`) é muito superior ao de JS — e porque é a linguagem que o usuário
+domina melhor. React + Vite no front por familiaridade prévia.
+
+Descartado: TypeScript ponta a ponta com Next.js. Traria projeto único e
+tipagem compartilhada, mas extração de PDF em JS é pobre e acabaria exigindo
+um script Python de qualquer forma.
+
+---
+
+## D-02 — `competencia` separada de `data`
+
+Compra feita em 28/07 pode cair na fatura de agosto. Sem separar a data do
+fato do mês de referência, os relatórios mensais não batem com o valor que
+efetivamente se paga no mês. `competencia` guarda sempre o dia 1º do mês.
+
+---
+
+## D-03 — `pessoa_id` nullable em vez de N:N
+
+Os gastos do casal são conjuntos; não há acerto de contas entre as duas
+pessoas. O usuário quer apenas ver quanto cada um gastou, separadamente.
+
+A modelagem N:N (transação ligada a várias pessoas) parece resolver "anexar
+aos dois", mas duplica valor: a mesma transação soma para A e para B, e o
+total infla. Com `pessoa_id` nullable, cada transação tem exatamente uma
+atribuição e os três baldes — pessoa A, pessoa B, conjunto — somam o total
+exato, sem sobreposição possível.
+
+`pessoa_id` responde **quem gastou**, nunca **quem se beneficiou**.
+
+---
+
+## D-04 — Gasto com pets é categoria, não pessoa
+
+Categoria responde o tipo do gasto: Pets › Ração, Pets › Veterinário. Custo
+por pet individual, quando houver mais de um, sai de tag — que é o eixo
+transversal à hierarquia de categorias. Os dois são independentes de
+`pessoa_id`.
+
+---
+
+## D-05 — Contas e transferências desde o v1
+
+Sem `contas`, o sistema sabe para onde o dinheiro vai mas não de onde saiu, e
+conciliação de saldo fica impossível. Sem `tipo = transferencia`, o pagamento
+da fatura importado do extrato vira despesa nova e todo o financeiro conta em
+dobro. As duas coisas são estruturais e caras de retroencaixar.
+
+---
+
+## D-06 — Soft delete e auditoria por trigger
+
+Vai haver agente escrevendo no banco sem supervisão humana em cada linha.
+Quando ele categorizar 40 transações errado, a diferença entre desfazer em um
+comando e refazer o mês na mão é ter `deleted_em` e a tabela `auditoria` com
+`dados_antes`/`dados_depois`. Trigger em vez de código de aplicação porque
+agentes escrevem por caminhos diferentes.
+
+---
+
+## D-07 — Ingestão nunca escreve direto em `transacoes`
+
+O agente grava em `importacao_itens` com status `pendente` e uma sugestão de
+categoria, local e pessoa, cada uma com score de confiança. O usuário aprova
+em lote pelo painel. É a decisão que separa ferramenta confiável de banco
+bagunçado em três meses.
+
+O `hash_dedup` protege a promoção: reimportar o mesmo PDF ou aprovar duas
+vezes esbarra no índice único.
+
+---
+
+## D-08 — Parser determinístico antes do LLM
+
+Fatura de cartão tem layout fixo por banco. Depois de importar o mesmo banco
+duas vezes, vale escrever um parser determinístico e deixar o LLM apenas como
+fallback para formato desconhecido. Mais barato, mais rápido e sem risco de
+alucinar número.
+
+O PDF nunca vai inteiro para o modelo: `pdfplumber` extrai, o LLM só
+estrutura o texto já extraído.
+
+---
+
+## D-09 — Correção do usuário vira regra
+
+Toda vez que o usuário corrige uma sugestão na tela de revisão, isso grava ou
+reforça uma linha em `regras_categorizacao` (ou um `produto_alias`). O
+enriquecimento consulta regras e aliases primeiro — exatos e gratuitos — e só
+manda para o LLM o que sobrou. Depois de alguns meses, a maioria das
+importações passa sem chamada de modelo.
+
+---
+
+## D-10 — Insights com tools, não text-to-SQL
+
+O agente de insights recebe funções Python prontas (`gasto_por_categoria`,
+`comparar_periodos`, `status_orcamento`, `variacao_preco_produto`,
+`recorrencias_com_reajuste`, `transacoes_atipicas`) que rodam SQL agregado e
+devolvem JSON. Ele escolhe o que chamar e interpreta o resultado.
+
+Text-to-SQL livre é impressionante em demo e imprevisível no uso real. E o
+modelo nunca faz aritmética: erra e escreve bem o suficiente para o erro
+passar despercebido.
+
+Boa parte das detecções (assinatura reajustada, orçamento estourado, gasto
+fora do padrão por mediana e desvio) é SQL puro e não precisa de LLM nenhum.
+
+---
+
+## D-11 — Role read-only para o agente de insights
+
+Garantia estrutural, não instrução de prompt. Uma role separada no Postgres
+com `SELECT` apenas — assim a impossibilidade de corromper dados não depende
+de ninguém lembrar de escrever a regra no prompt.
+
+---
+
+## D-12 — Harness determinístico em volta do LLM
+
+O modelo é uma peça no meio de código comum e testável:
+
+- structured output validado com Pydantic; resposta inválida é reenviada com
+  o erro anexo, até 3 tentativas;
+- prompt em arquivo versionado, com a versão gravada na `importacoes`;
+- log estruturado por execução: tokens, custo, latência, tentativas,
+  distribuição de confiança;
+- circuit breaker: se mais de 30% dos itens vierem com confiança baixa,
+  aborta a importação inteira em vez de encher o staging de lixo.
+
+---
+
+## D-13 — Evals com PDFs reais
+
+Um diretório com ~10 PDFs e o gabarito JSON do resultado correto, rodado por
+`make eval`, reportando acurácia de extração e de categorização. É o que
+transforma "mexi no prompt e acho que melhorou" em número — e com agente
+editando prompts, é a rede de segurança.
+
+---
+
+## D-14 — Agregação no banco
+
+O front recebe dados prontos e desenha. Filtro cruzado vira `WHERE` na query,
+não `filter()` em array no navegador. Com anos de histórico é a diferença
+entre gráfico instantâneo e painel travando.
+
+---
+
+## D-15 — Design das telas antes da implementação do front
+
+As telas saem do Claude Design, que gera protótipo e empacota o resultado
+para handoff a um agente de código. O Claude Code recebe a interface já
+decidida e só liga na API, em vez de inventar UI enquanto implementa.

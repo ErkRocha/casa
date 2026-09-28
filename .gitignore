@@ -1,0 +1,23 @@
+.env
+
+# Extratos e faturas de verdade. Dado financeiro pessoal nunca entra no
+# histórico do git — de lá não sai mais sem reescrever a árvore inteira.
+# Só o README e a estrutura de pastas são versionados.
+faturas/**
+!faturas/README.md
+!faturas/.gitkeep
+!faturas/gabaritos/.gitkeep
+
+*.pyc
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+node_modules/
+dist/
+*.log
+.DS_Store
+
+# Configuração local do Claude Code (caminhos e credenciais da máquina)
+.claude/settings.local.json

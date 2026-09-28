@@ -1,0 +1,113 @@
+/* ---------------------------------------------------------------------------
+ * Modo escuro + camada base.
+ *
+ * O escuro NÃO é uma inversão automática do claro: são passos escolhidos,
+ * copiados de `buildTheme('dark')` do protótipo. Só as variáveis de cor mudam;
+ * tipografia, espaçamento e raio são compartilhados.
+ * ------------------------------------------------------------------------- */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+.dark {
+  /* Superfícies */
+  --color-bg: oklch(0.16 0.002 260);
+  --color-surface-sunken: oklch(0.195 0.002 260);
+  --color-surface: oklch(0.24 0.003 260);
+  --color-border: oklch(0.32 0.004 260);
+  --color-border-faint: oklch(0.26 0.003 260);
+
+  /* Texto */
+  --color-text-primary: rgba(255, 255, 255, 0.92);
+  --color-text-secondary: rgba(255, 255, 255, 0.56);
+  --color-text-tertiary: rgba(255, 255, 255, 0.34);
+
+  /* Ação */
+  --color-accent: oklch(0.8 0.17 50);
+  --color-accent-soft: oklch(0.32 0.09 50);
+  --color-accent-fg: oklch(0.16 0.02 50);
+
+  /* Semântica financeira */
+  --color-income: oklch(0.78 0.12 175);
+  --color-income-soft: oklch(0.3 0.06 175);
+  --color-expense: oklch(0.76 0.13 50);
+  --color-expense-soft: oklch(0.3 0.07 50);
+  --color-alert: oklch(0.8 0.17 50);
+  --color-alert-soft: oklch(0.32 0.09 50);
+
+  /* Séries por pessoa */
+  --color-person-a: oklch(0.82 0.055 205);
+  --color-person-a-soft: oklch(0.27 0.03 205);
+  --color-person-b: oklch(0.62 0.06 205);
+  --color-person-b-soft: oklch(0.26 0.03 205);
+  --color-person-c: oklch(0.76 0.15 205);
+  --color-person-c-soft: oklch(0.3 0.07 205);
+
+  --color-on-color: oklch(0.16 0.02 205);
+
+  /* Rampa de categoria: no escuro a rampa corre ao contrário (clara → escura),
+     mantendo a mesma queda de croma. `monoColor(mode='dark')`. */
+  --color-cat-1: oklch(0.78 0.16 262);
+  --color-cat-2: oklch(0.7175 0.1425 262);
+  --color-cat-3: oklch(0.655 0.125 262);
+  --color-cat-4: oklch(0.5925 0.1075 262);
+  --color-cat-5: oklch(0.53 0.09 262);
+  --color-cat-6: oklch(0.4675 0.0725 262);
+  --color-cat-7: oklch(0.405 0.055 262);
+  --color-cat-8: oklch(0.3425 0.0375 262);
+  --color-cat-9: oklch(0.28 0.02 262);
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-lg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* O protótipo declara isso explicitamente porque select/input não herdam
+     a fonte do container por padrão. */
+  select,
+  input,
+  button,
+  textarea {
+    font-family: inherit;
+  }
+
+  /* Todo número monetário é tabular — colunas de valor precisam alinhar. */
+  .tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  /* Skeleton de carregamento (`shimmerPulse` do protótipo). */
+  @keyframes shimmer-pulse {
+    0% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 0.8;
+    }
+    100% {
+      opacity: 0.35;
+    }
+  }
+
+  .animate-shimmer {
+    animation: shimmer-pulse 1.4s ease-in-out infinite;
+  }
+}
