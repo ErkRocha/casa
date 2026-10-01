@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar
+.PHONY: help up down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -41,6 +41,11 @@ roles: ## Cria/repara a role read-only do agente de insights (D-11)
 # credencial já logada na sua máquina, que não existe dentro da imagem.
 relatorio: ## Fecha o mês com o Claude Code — use: make relatorio m=2026-07
 	@cd api && python -m scripts.relatorio $(if $(m),--competencia $(m),)
+
+# Também no host: lê as credenciais do .env da raiz e grava as amostras em
+# pluggy_amostras/, sem depender de Docker. Só leitura, na Pluggy e no disco.
+pluggy-diagnostico: ## Lê a Pluggy e grava amostras brutas — use: make pluggy-diagnostico [item=ID]
+	@cd api && python -m scripts.pluggy_diagnostico $(if $(item),--item $(item),)
 
 relatorio-seco: ## Mesmo relatório, só com os números (sem chamar modelo)
 	$(COMPOSE) run --rm api python -m scripts.relatorio --sem-ia $(if $(m),--competencia $(m),)

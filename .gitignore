@@ -12,6 +12,10 @@ faturas/**
 # mesmo motivo das faturas.
 backups/
 
+# Respostas brutas da Pluggy gravadas por `make pluggy-diagnostico`: nomes,
+# documento do titular, descrições e valores de verdade.
+pluggy_amostras/
+
 *.pyc
 *.egg-info/
 build/

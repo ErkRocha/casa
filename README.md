@@ -90,6 +90,23 @@ soma é o Postgres (regra 7) e quem grava é o service (D-11). `make dossie`
 imprime exatamente os números que ele recebeu, para conferir qualquer
 afirmação do texto.
 
+### Diagnóstico da Pluggy (fase 5b)
+
+Antes da sync existir, este comando confere o que a Pluggy entrega de verdade.
+Ele é somente leitura e não precisa de Docker:
+
+```bash
+# PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET no .env
+make pluggy-diagnostico item=<id do item MeuPluggy>
+# sem make: python api/scripts/pluggy_diagnostico.py --item <id>
+```
+
+O JSON bruto de cada resposta vai para `pluggy_amostras/<data_hora>/`, que
+está fora do git porque é dado pessoal. O terminal mostra só contagens, tipos
+e ids, e responde se as compras de cartão trazem `billId` e quais transações
+estão `PENDING`. Rode de novo depois do fechamento da fatura: o script compara
+com a execução anterior e diz se as pendentes viraram `POSTED` com o mesmo id.
+
 ---
 
 ## Estrutura
