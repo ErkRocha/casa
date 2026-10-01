@@ -17,6 +17,9 @@ dependencies = [
     # Upload de arquivo no FastAPI (`UploadFile`). 0.0.18 corrige o DoS do
     # parser de multipart (CVE-2024-53981).
     "python-multipart>=0.0.18",
+    # Cliente da Pluggy (D-16). Já era dependência de teste; agora é de
+    # produção, porque a sync roda dentro da API.
+    "httpx>=0.27.0",
 ]
 
 [project.optional-dependencies]
