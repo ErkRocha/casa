@@ -84,5 +84,6 @@ module = ["anthropic.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+# `tests_sem_banco` roda sem Docker: `pytest tests_sem_banco`.
+testpaths = ["tests", "tests_sem_banco"]
 addopts = "-q"

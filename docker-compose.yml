@@ -26,6 +26,9 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       APP_ENV: ${APP_ENV:-dev}
+      # Opcionais (D-16). Vazias, a sync fica desligada e a API sobe igual.
+      PLUGGY_CLIENT_ID: ${PLUGGY_CLIENT_ID:-}
+      PLUGGY_CLIENT_SECRET: ${PLUGGY_CLIENT_SECRET:-}
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:

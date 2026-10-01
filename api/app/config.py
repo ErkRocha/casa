@@ -3,6 +3,7 @@
 from functools import lru_cache
 from urllib.parse import quote, urlsplit, urlunsplit
 
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -44,6 +45,32 @@ class Settings(BaseSettings):
 
     #: Teto de tentativas do harness quando a saída não valida (D-12).
     insights_tentativas_max: int = 3
+
+    # --- Pluggy (fase 5b, D-16) ---------------------------------------------
+
+    #: Credenciais da aplicação na Pluggy. Opcionais: sem as duas, a sync fica
+    #: desligada e o resto do sistema não percebe diferença.
+    pluggy_client_id: str | None = None
+    #: `SecretStr` para não vazar em `repr`, log ou traceback de validação —
+    #: o valor só sai por `.get_secret_value()`, e só o cliente HTTP chama.
+    pluggy_client_secret: SecretStr | None = None
+
+    @field_validator("pluggy_client_id", "pluggy_client_secret", mode="before")
+    @classmethod
+    def _vazio_e_ausente(cls, valor: object) -> object:
+        """`""` conta como ausente.
+
+        O compose repassa `${PLUGGY_CLIENT_ID:-}`, que chega como string vazia
+        quando a variável não existe no `.env`. Sem isto, "vazio" ligaria a
+        sync com credencial em branco e o erro só apareceria no `POST /auth`.
+        """
+        if isinstance(valor, str) and not valor.strip():
+            return None
+        return valor
+
+    @property
+    def pluggy_habilitada(self) -> bool:
+        return self.pluggy_client_id is not None and self.pluggy_client_secret is not None
 
     @property
     def insights_database_url(self) -> str:
