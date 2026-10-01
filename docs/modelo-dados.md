@@ -148,7 +148,7 @@ O autor vem de `current_setting('app.autor', true)`, setado por sessão.
 |---|---|---|
 | arquivo_nome | text not null | |
 | hash_arquivo | text not null unique | SHA-256; barra reimportação |
-| origem | text | "nubank_fatura", "itau_extrato" |
+| origem | text | "nubank_fatura", "itau_extrato", "pluggy" |
 | periodo_inicio / periodo_fim | date | |
 | status | status_importacao | |
 | parser_usado | text | determinístico ou llm |
@@ -176,6 +176,20 @@ Staging. Nada aqui afeta relatórios.
 | status | status_item | |
 | transacao_id | fk transacoes | preenchido ao aprovar |
 | motivo_rejeicao | text | |
+| id_externo | text | id da transação na Pluggy; nulo para PDF (0005) |
+
+`id_externo` tem único parcial, **em qualquer status**:
+
+```sql
+create unique index uq_importacao_itens_id_externo
+  on importacao_itens (id_externo)
+  where id_externo is not null and deleted_em is null;
+```
+
+É a deduplicação no staging da D-16: a sync roda todo dia sobre uma janela
+que se sobrepõe à anterior, e sem essa barreira empilharia de novo os mesmos
+itens aguardando revisão. Item rejeitado continua bloqueando, para não voltar
+na sync seguinte. Itens de PDF ficam com `NULL` e não se esbarram.
 
 As três colunas `*_sugerido*` de tipo, competência e forma de pagamento foram
 acrescentadas na migration 0002: sem elas não há como promover um item, porque
@@ -197,6 +211,35 @@ item em qualquer outro status não pode apontar para nenhuma.
 
 Toda correção manual do usuário na tela de revisão gera ou reforça uma regra.
 
+## `contas_pluggy`
+Mapeamento de uma conta da Pluggy para uma `conta` daqui (D-16, migration
+0005). Conta da Pluggy sem mapeamento é ignorada pela sync, nunca adivinhada.
+
+| coluna | tipo | notas |
+|---|---|---|
+| pluggy_item_id | text not null | a conexão na Pluggy; uma conexão tem várias contas |
+| pluggy_account_id | text not null | único entre linhas vivas |
+| conta_id | fk contas not null | |
+| forma_pagamento_id | fk formas_pagamento not null | a padrão dos itens desta conta |
+| sincronizar_desde | date not null | a partir daqui a Pluggy é a origem; antes, o PDF |
+| ultimo_sync_em | timestamptz | |
+| ativo | boolean not null default true | |
+| deleted_em | timestamptz | |
+
+Unique parcial em `pluggy_account_id` `where deleted_em is null`; índices em
+`conta_id` e `forma_pagamento_id`. Triggers de auditoria e `atualizado_em`
+como as demais tabelas.
+
+**Não tem `pessoa_id`.** A pessoa sai de `contas.titular_id` (conta conjunta
+sugere `NULL`, regra 3). Por isso incluir depois contas de outro titular é só
+cadastrar o mapeamento de outra conexão — a estrutura não muda.
+
+**`forma_pagamento_id` é obrigatória** porque entra no `hash_dedup` de
+`transacoes`, a segunda barreira de deduplicação, e é o que separa compra no
+cartão de débito em conta. Um mapeamento sem forma geraria itens sem forma,
+resolvidos à mão um a um na revisão. O cartão adicional continua resolvido
+pelo final do cartão, por cima desta padrão.
+
 ## Rastro do documento
 
 `importacoes` guarda o arquivo inteiro em `arquivo_conteudo` (bytea) desde a
@@ -215,14 +258,29 @@ O vínculo vai nos dois sentidos e é obrigatório por CHECK:
 `vw_transacoes_completa` expõe `importacao_id`, `importacao_arquivo`,
 `importacao_em` e `importacao_tem_arquivo`.
 
+**Importação da Pluggy** (`origem = 'pluggy'`) guarda como "arquivo" o JSON
+bruto recebido: `arquivo_tipo = 'application/json'`, o JSON em
+`arquivo_conteudo`, `hash_arquivo` = SHA-256 desse conteúdo e `arquivo_nome`
+padronizado com origem e timestamp. É a opção (b) da Fase 5b, e não exige
+mudança de schema: `arquivo_tipo` e `origem` são `text` sem CHECK e
+`arquivo_conteudo` é `bytea`. Preserva o comprovante como já se faz com o PDF.
+
 ## Deduplicação
 
-Duas camadas, com propósitos diferentes:
+Três camadas, com propósitos diferentes:
 
 | Onde | O quê | Quando |
 |---|---|---|
-| `uq_importacoes_hash_arquivo` | SHA-256 do arquivo | recusa reimportar o mesmo PDF |
+| `uq_importacoes_hash_arquivo` | SHA-256 do arquivo | recusa reimportar o mesmo PDF (ou o mesmo JSON) |
+| `uq_importacao_itens_id_externo` | id da transação na Pluggy | recusa o mesmo item no staging, em qualquer status |
 | `uq_transacoes_dedup` | `hash_dedup` | recusa a mesma linha, na promoção |
+
+O `id_externo` só existe para itens da Pluggy. Ele é necessário além do
+`hash_dedup` porque a sync diária reapresenta a mesma transação antes de ela
+ser promovida — e item rejeitado nunca chega a `transacoes`, então só o
+staging consegue barrá-lo. Ele **não** pega a mesma compra vinda pelo PDF e
+pela Pluggy (o texto da descrição difere); isso é evitado por
+`contas_pluggy.sincronizar_desde`, uma origem por conta e período.
 
 `hash_dedup` é gerado pelo banco a partir de `data`, `valor`,
 `descricao_original`, `forma_pagamento_id` e `parcela_num`. **`forma_pagamento_id`

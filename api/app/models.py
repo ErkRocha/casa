@@ -439,8 +439,63 @@ class ImportacaoItem(IdMixin, TimestampMixin, SoftDeleteMixin, Base):
         BigInteger, ForeignKey("transacoes.id", ondelete="SET NULL")
     )
     motivo_rejeicao: Mapped[str | None] = mapped_column(Text)
+    #: Id da transação na origem externa (Pluggy, D-16). Nulo para PDF.
+    #:
+    #: Único entre linhas vivas em **qualquer status**: item rejeitado continua
+    #: bloqueando, senão voltaria na sync seguinte.
+    id_externo: Mapped[str | None] = mapped_column(Text)
 
     importacao: Mapped[Importacao] = relationship(back_populates="itens")
+
+    __table_args__ = (
+        Index(
+            "uq_importacao_itens_id_externo",
+            "id_externo",
+            unique=True,
+            postgresql_where=text("id_externo IS NOT NULL AND deleted_em IS NULL"),
+        ),
+    )
+
+
+class ContaPluggy(IdMixin, TimestampMixin, SoftDeleteMixin, Base):
+    """Liga uma conta da Pluggy a uma `conta` daqui (D-16).
+
+    Não tem `pessoa_id`: a pessoa sai de `contas.titular_id`. Conta da Pluggy
+    sem mapeamento é ignorada pela sync, nunca adivinhada.
+    """
+
+    __tablename__ = "contas_pluggy"
+
+    #: A conexão (item) na Pluggy. Uma conexão expõe várias contas.
+    pluggy_item_id: Mapped[str] = mapped_column(Text, nullable=False)
+    pluggy_account_id: Mapped[str] = mapped_column(Text, nullable=False)
+    conta_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("contas.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    #: Forma padrão dos itens desta conta. Obrigatória: entra no `hash_dedup`
+    #: de `transacoes` e separa cartão de débito em conta.
+    forma_pagamento_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("formas_pagamento.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    #: A partir desta data a Pluggy é a origem da conta; antes, o PDF.
+    sincronizar_desde: Mapped[date] = mapped_column(Date, nullable=False)
+    ultimo_sync_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    conta: Mapped[Conta] = relationship(lazy="joined")
+    forma_pagamento: Mapped[FormaPagamento] = relationship(lazy="joined")
+
+    __table_args__ = (
+        Index(
+            "uq_contas_pluggy_pluggy_account_id",
+            "pluggy_account_id",
+            unique=True,
+            postgresql_where=text("deleted_em IS NULL"),
+        ),
+    )
 
 
 class RegraCategorizacao(IdMixin, TimestampMixin, SoftDeleteMixin, Base):
