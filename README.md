@@ -35,6 +35,46 @@ recém-criado. `make demo-limpar` desfaz (soft delete, como tudo aqui).
 
 `make help` lista o resto. Use sempre o Makefile, nunca comandos soltos.
 
+### Validando depois de puxar mudanças de schema
+
+```bash
+make validar
+```
+
+Roda em ordem e para no primeiro erro, dizendo qual etapa falhou:
+
+1. backup do banco atual em `backups/casa_<data>_<hora>.dump`, sobe só o `db`
+   se ele estiver parado;
+2. rebuild e subida dos containers;
+3. espera o `/health` responder com banco `ok`, por até 120 s
+   (`VALIDAR_TIMEOUT=300 make validar` muda o limite);
+4. `make migrate`, `make roles`, `make lint` e `make test`.
+
+No fim imprime cada etapa com OK ou FALHOU, quantos testes passaram e o
+caminho do backup. `backups/` está no `.gitignore`: é o banco inteiro, dado
+financeiro pessoal, e não entra no git.
+
+#### Restaurando o backup
+
+Se a migration der problema, volte o banco ao estado do dump, usando o caminho
+que o `make validar` imprimiu:
+
+```bash
+docker compose stop api web     # ninguém conectado ao banco durante a troca
+docker compose exec -T db sh -c 'dropdb -U "$POSTGRES_USER" "$POSTGRES_DB" && createdb -U "$POSTGRES_USER" "$POSTGRES_DB"'
+docker compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < backups/casa_AAAAMMDD_HHMMSS.dump
+docker compose start api web
+```
+
+Use aspas simples, como acima: assim `$POSTGRES_USER` e `$POSTGRES_DB` são
+lidos de dentro do container, e não do seu terminal. O dump traz o schema, os
+dados e a versão do Alembic, então depois de restaurar `make migrate` volta a
+ver a migration nova como pendente. A role `casa_insights` é do servidor, não
+do banco, e sobrevive ao `dropdb`. Os `GRANT` dela vêm dentro do dump.
+
+Antes de aplicar a migration de novo, corrija a causa: código e migration
+voltam pelo git, o banco volta pelo dump.
+
 ### Fechando o mês
 
 ```bash

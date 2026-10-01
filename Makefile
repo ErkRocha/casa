@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie
+.PHONY: help up down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -65,6 +65,11 @@ shell: ## Shell dentro do container da api
 
 psql: ## psql no banco
 	$(COMPOSE) exec db psql -U $${POSTGRES_USER:-casa} -d $${POSTGRES_DB:-casa}
+
+# A lógica mora em scripts/validar.sh (etapas com resumo ficam ilegíveis em
+# receita de make). O MAKE vai junto para as etapas chamarem os alvos daqui.
+validar: ## Backup do banco, rebuild, /health, migrate, roles, lint e test — para no 1º erro
+	@MAKE="$(MAKE)" bash scripts/validar.sh
 
 reset: ## APAGA o volume do banco e recria do zero
 	$(COMPOSE) down -v
