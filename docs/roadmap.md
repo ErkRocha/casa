@@ -114,6 +114,32 @@ Nesta ordem, sem pular:
    sempre positivo. O pagamento de fatura vira transferência (D-05). O final
    do cartão vai para `cartao_final`. A descrição crua vai para `linha_bruta`.
    O id da Pluggy vira o id externo. Transação pendente é descartada.
+
+   **Competência de cartão (D-02).** Vale a fatura informada pela Pluggy:
+   `creditCardMetadata.billId` → `GET /bills` → `dueDate`, e a competência é
+   o dia 1º do mês desse vencimento. Esse é o dado que o próprio banco
+   declara. O cálculo com `dia_fechamento` e `dia_vencimento` fica só como
+   fallback e é uma estimativa: erra quando o banco antecipa o fechamento por
+   causa de feriado e quando o dia muda. Ele entra quando `billId` vier vazio
+   e a forma mapeada tiver os dois dias. Sem nenhum dos dois, a competência
+   sai do mês da data e o item recebe uma observação para revisão.
+   `billForecastDate`, a previsão de fatura das compras pendentes, não é
+   usado: só vale para pendentes, que a D-16 já descarta, e há relato de que
+   o valor oscila entre syncs.
+
+   O `billId` vem documentado como "disponível apenas em conectores Open
+   Finance". O MeuPluggy (conector 200) é marcado `isOpenFinance: false`, mas
+   repassa conexões Open Finance e há relato de `billId` chegando por ele. Por
+   isso, a primeira resposta real do passo 3 confirma se o campo vem, e ela
+   vira fixture deste passo. Se não vier, o fallback passa a ser o caminho
+   principal, sem mudança de schema.
+
+   **Ponto em aberto.** Pela documentação da Pluggy, compra em fatura aberta
+   vem como `PENDING` e só vira `POSTED` quando a fatura fecha. Com a regra
+   "só transação consolidada" da D-16, compra no cartão chega à revisão só
+   depois do fechamento, não no dia seguinte como diz o "Pronto quando".
+   Precisa de decisão antes deste passo: aceitar o atraso no cartão, ou
+   permitir pendentes de cartão com competência provisória.
 6. **Service de sync**: para cada conta mapeada, busca a partir do último sync
    (com folga de alguns dias de sobreposição), descarta ids já presentes no
    staging, converte e grava pelo mesmo caminho de `IngestaoService`.
@@ -121,6 +147,20 @@ Nesta ordem, sem pular:
    `contas.titular_id` quando regra e cartão não resolvem. Sem item novo, não
    cria `importacao` vazia. A sessão roda com `app.autor = 'sync_pluggy'`
    (D-06).
+
+   **Aviso de origem na importação de PDF (D-16, uma origem por conta e
+   período).** `importacoes` não tem conta. Por isso, ao importar um PDF, o
+   service olha as formas de pagamento sugeridas nos itens e chega à conta
+   por `formas_pagamento.conta_id` ou por `contas_pluggy.forma_pagamento_id`.
+   Depois verifica se alguma dessas contas tem `contas_pluggy` ativa e se o
+   período do documento (`periodo_inicio`/`periodo_fim`) passa de
+   `sincronizar_desde`.
+   Se passar, a tela de revisão mostra um aviso: "Esta conta é sincronizada
+   pela Pluggy desde DD/MM/AAAA; itens deste período podem já estar no
+   staging com outra descrição, e o `hash_dedup` não os reconhece". É só
+   aviso, não bloqueio: o PDF é justamente o fallback para quando a Pluggy
+   falha. O aviso vai em `importacoes.erro_mensagem`, como as divergências de
+   total já vão, sem coluna nova.
 7. **`make sync`**: execução manual, que imprime contas lidas, itens novos,
    ignorados por id repetido e avisos. Rodar duas vezes seguidas não gera
    item novo na segunda.
