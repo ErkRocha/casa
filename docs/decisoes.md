@@ -163,3 +163,76 @@ entre gráfico instantâneo e painel travando.
 As telas saem do Claude Design, que gera protótipo e empacota o resultado
 para handoff a um agente de código. O Claude Code recebe a interface já
 decidida e só liga na API, em vez de inventar UI enquanto implementa.
+
+---
+
+## D-16 — Sincronização via Pluggy como fonte de ingestão
+
+O PDF exige baixar a fatura, subir o arquivo e esperar o parser daquele banco
+existir. A Pluggy, pelo conector MeuPluggy, entrega as transações já
+estruturadas e de graça para uso pessoal. A ingestão continua sendo a mesma
+coisa: a Pluggy entra só como mais uma **origem**, ao lado dos parsers de
+PDF. Os parsers continuam existindo como fallback, para banco não coberto,
+período fora da janela ou o dia em que a Pluggy sair do ar ou mudar de
+termos.
+
+Limites do plano gratuito, que moldam o desenho: até 5 conexões ativas,
+apenas contas do mesmo titular, dados atualizados pela própria Pluggy a cada
+24h, histórico de até 12 meses, transações paginadas de 500 em 500 por cursor
+e rate limit por minuto por IP (360/min em auth e transactions, 20/min no
+`PATCH /items`). Uso comercial e contas de terceiros exigem plano pago. Como a
+Pluggy já atualiza sozinha a cada 24h, a sync só **lê**: não força atualização
+pelo `PATCH /items`.
+
+O que não muda:
+
+- **Regra 5 e D-07, integralmente.** A sync nunca escreve em `transacoes`. Ela
+  cria uma `importacao` com `origem = 'pluggy'` e grava itens em
+  `importacao_itens`, que o usuário revisa e promove pelo painel, como faz com
+  qualquer PDF. Sincronização automática não é promoção automática.
+- **Um caminho só.** O JSON da Pluggy é convertido para `ItemExtraido`, o
+  mesmo contrato dos parsers, e daí em diante passa pelo service de ingestão
+  existente. O enriquecimento (D-09), a revisão e a promoção são os mesmos. Um
+  caminho paralelo divergiria do principal no primeiro ajuste de regra.
+- **`pessoa_id` segue a regra 3.** A sugestão vem do titular da conta mapeada
+  (`contas.titular_id`), e conta conjunta sugere `NULL`, ou seja, conjunto.
+  Regra de categorização e titular do cartão (pelo final do cartão, como no
+  PDF) continuam à frente. É o que atribui certo o cartão adicional: a fatura
+  é do titular, mas quem comprou foi o dono do adicional.
+
+O que é novo:
+
+- **Deduplicação já no staging, pelo id da transação na Pluggy.** A sync roda
+  todo dia sobre uma janela que se sobrepõe à anterior. Sem uma barreira no
+  staging, cada execução empilharia de novo os mesmos itens aguardando
+  revisão, inclusive os já rejeitados. O id externo tem que ser único em
+  `importacao_itens`, em qualquer status. O `hash_dedup` de `transacoes`
+  continua sendo a segunda barreira, na promoção.
+- **Uma origem por conta e período.** O `hash_dedup` inclui
+  `descricao_original`, e o texto que a Pluggy devolve não é o mesmo da linha
+  do PDF. Se a mesma compra entrar pelas duas origens, a segunda barreira não
+  pega. Por isso cada conta mapeada tem uma data a partir da qual a Pluggy
+  manda. Antes dela vale o PDF; depois dela, o PDF daquela conta só entra se a
+  Pluggy falhar.
+- **Só transação consolidada.** Transação ainda pendente na Pluggy pode mudar
+  de valor ou sumir. Entra só a lançada. O id estável é o que permite pegá-la
+  na sync seguinte, quando consolidar.
+
+Segurança e escopo:
+
+- Client id e secret ficam só no `.env`, com placeholder no `.env.example`,
+  nunca no repositório, em log ou em tabela.
+- O sistema continua sem ir para a internet. A sync só faz requisição de saída
+  para a API da Pluggy. Nenhuma porta é exposta e nada é recebido por webhook.
+- Nesta fase entram só as contas do usuário. As contas da esposa ficam
+  pendentes até a Pluggy confirmar que isso cabe no uso pessoal. O desenho já
+  comporta isso: incluí-las é cadastrar o mapeamento de outra conexão para
+  contas com outro `titular_id`, sem mudança estrutural.
+
+Esta decisão substitui o item "Integração com Open Finance ou API de banco"
+que estava em "Fora de escopo" no roadmap. Ele foi excluído por dois motivos:
+integração direta com banco custa caro e expõe credencial, e um dado que
+entrasse sozinho no banco ameaçaria a D-07. Os dois deixaram de valer. O
+MeuPluggy é gratuito para uso pessoal, a credencial bancária fica na Pluggy e
+não aqui, e o dado continua passando pelo staging e pela aprovação do usuário.
+Integração direta com API de cada banco segue fora de escopo.
