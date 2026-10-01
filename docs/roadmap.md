@@ -97,6 +97,13 @@ Nesta ordem, sem pular:
 
 1. **Schema (subagent `db`)**: as mudanças da lista de pendências abaixo, em
    migration nova. Nada da fase anda antes disso.
+
+   **Escrito, validação com banco pendente.** A migration 0005, os models, o
+   `modelo-dados.md` e os testes estão no repositório. Ruff, mypy e a sintaxe
+   do SQL gerado pela migration passaram. Os testes de banco e o `make roles`
+   ainda não rodaram, porque a máquina onde o passo foi feito não tem Docker.
+   O passo só fecha quando `make validar` passar inteiro numa máquina com
+   Docker.
 2. **Configuração**: `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET` no `.env`, com
    placeholder no `.env.example`. Ausência das variáveis desliga a sync com
    mensagem clara, sem derrubar a API.
@@ -105,6 +112,18 @@ Nesta ordem, sem pular:
    em 429, espera e tenta de novo com limite de tentativas. Nunca chama o
    `PATCH /items`. É testado só com respostas mockadas (auth, página única,
    várias páginas, 429, 401, erro 5xx), sem rede no `make test`.
+
+   A primeira resposta real, anonimizada e guardada como fixture, precisa
+   responder duas perguntas:
+   - se o `billId` vem pelo MeuPluggy (ver passo 5);
+   - se o `id` de uma compra de cartão continua o mesmo quando ela passa de
+     `PENDING` para `POSTED`. Para saber, anote o id de uma compra em fatura
+     aberta e compare depois do fechamento.
+
+   A segunda resposta decide se pendentes podem entrar no futuro. Com id
+   estável, o `id_externo` deduplicaria a mesma compra nos dois estados. Com
+   id novo, ela entraria duas vezes no staging, e o `id_externo` não teria
+   como perceber.
 4. **Mapeamento de contas**: comando ou tela simples que lista as contas
    visíveis na Pluggy e liga cada uma a uma `conta`, a uma forma de pagamento
    padrão e à data a partir da qual a Pluggy é a origem daquela conta. Conta
@@ -134,12 +153,14 @@ Nesta ordem, sem pular:
    vira fixture deste passo. Se não vier, o fallback passa a ser o caminho
    principal, sem mudança de schema.
 
-   **Ponto em aberto.** Pela documentação da Pluggy, compra em fatura aberta
-   vem como `PENDING` e só vira `POSTED` quando a fatura fecha. Com a regra
-   "só transação consolidada" da D-16, compra no cartão chega à revisão só
-   depois do fechamento, não no dia seguinte como diz o "Pronto quando".
-   Precisa de decisão antes deste passo: aceitar o atraso no cartão, ou
-   permitir pendentes de cartão com competência provisória.
+   **Cartão pendente fica fora desta versão (decidido).** Pela documentação da
+   Pluggy, compra em fatura aberta vem como `PENDING` e só vira `POSTED`
+   quando a fatura fecha. A D-16 continua aceitando só `POSTED`. Por isso a
+   compra no cartão chega à revisão depois do fechamento, e não no dia
+   seguinte. O atraso foi aceito porque, na fatura fechada, a competência sai
+   do `billId`, que é exata. Uma pendente teria competência provisória, sujeita
+   a mudar. Rever essa decisão depende da verificação de id do passo 3. A
+   visão da fatura aberta, sem gravar nada, está na Fase 7.
 6. **Service de sync**: para cada conta mapeada, busca a partir do último sync
    (com folga de alguns dias de sobreposição), descarta ids já presentes no
    staging, converte e grava pelo mesmo caminho de `IngestaoService`.
@@ -171,14 +192,18 @@ Nesta ordem, sem pular:
    sem surpresa: uma vez por dia, depois da atualização da Pluggy. Falha vira
    log e aviso no painel, não retentativa infinita.
 
-**Pronto quando**: uma compra no cartão aparece na tela de revisão no dia
-seguinte sem ninguém baixar PDF. Rodar a sync de novo não duplica nada, nem no
-staging nem em `transacoes`.
+**Pronto quando**:
+- as transações de conta (débito, Pix, transferência) aparecem na tela de
+  revisão no dia seguinte, sem ninguém baixar PDF;
+- as compras no cartão aparecem depois do fechamento da fatura, já com a
+  competência certa;
+- rodar a sync de novo não duplica nada, nem no staging nem em `transacoes`.
 
 ### Pendências de schema para o subagent `db`
 
-Não previstas em `docs/modelo-dados.md`. Ficam como proposta até o `db`
-desenhar a migration e atualizar o modelo:
+Implementadas na migration 0005 e já descritas em `docs/modelo-dados.md`. Na
+importação sem arquivo, valeu a opção (b), que não exigiu mudança de schema.
+Ficam registradas aqui como histórico da decisão:
 
 - **`importacao_itens.id_externo text`** (nulo para PDF), com único parcial
   `(id_externo) where id_externo is not null and deleted_em is null`, em
@@ -232,6 +257,11 @@ Tudo aditivo, sem quebrar o que existe:
 - `recorrencias`
 - `anexos`
 - Campos de moeda estrangeira, **se** houver compra internacional
+- Tela **somente leitura** de "fatura aberta": as compras de cartão `PENDING`,
+  lidas direto da Pluggy na hora de abrir a tela. Não grava em
+  `importacao_itens` nem em `transacoes`, então não fere a regra 5 nem a
+  D-16. Responde "quanto já gastei nesta fatura" sem esperar o fechamento. O
+  dado oficial continua entrando pela sync, depois do fechamento (Fase 5b).
 
 ---
 
