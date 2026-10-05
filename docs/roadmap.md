@@ -159,6 +159,14 @@ Nesta ordem, sem pular:
    vira fixture deste passo. Se não vier, o fallback passa a ser o caminho
    principal, sem mudança de schema.
 
+   **Feito.** `app/conversao_pluggy.py`, fora de `app.pluggy` (que só importa
+   a si mesmo) e de `app.ingestao` (que não pode puxar o `httpx`, D-08). O
+   `billId` veio em todas as 69 compras de cartão das amostras reais, e as
+   faturas existem em `/bills`. O sentido sai de `type`, porque o sinal de
+   `amount` inverte entre conta e cartão. `dueDate` é lido como data pura,
+   sem conversão de fuso. `ItemExtraido` ganhou `id_externo` e `competencia`
+   por item, que o service já grava no staging.
+
    **Cartão pendente fica fora desta versão (decidido).** Pela documentação da
    Pluggy, compra em fatura aberta vem como `PENDING` e só vira `POSTED`
    quando a fatura fecha. A D-16 continua aceitando só `POSTED`. Por isso a

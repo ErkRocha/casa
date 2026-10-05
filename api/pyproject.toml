@@ -20,6 +20,10 @@ dependencies = [
     # Cliente da Pluggy (D-16). Já era dependência de teste; agora é de
     # produção, porque a sync roda dentro da API.
     "httpx>=0.27.0",
+    # Base de fusos para o `zoneinfo`: a conversão da Pluggy leva a data de
+    # UTC para America/Sao_Paulo. Windows não tem base no sistema, e a imagem
+    # slim não garante o pacote `tzdata` do Debian.
+    "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]

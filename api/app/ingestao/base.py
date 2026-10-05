@@ -95,6 +95,14 @@ class ItemExtraido:
     confianca: Decimal = Decimal("1.00")
     #: Nota para a tela de revisão, quando algo merece o olho humano.
     observacao: str | None = None
+    #: Id da transação na origem externa (Pluggy). Vai para
+    #: `importacao_itens.id_externo`, a barreira de duplicata no staging
+    #: (D-16). PDF não tem id estável: fica `None`.
+    id_externo: str | None = None
+    #: Competência própria do item, quando ele a traz. No PDF a competência é
+    #: do documento inteiro (`DocumentoExtraido.competencia`); na Pluggy cada
+    #: compra aponta para a sua fatura, e um lote mistura faturas.
+    competencia: date | None = None
 
 
 @dataclass(slots=True)

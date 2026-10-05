@@ -376,3 +376,45 @@ def test_script_volta_a_listar_conta_desativada(session: Session, cadastro: dict
     session.commit()
     leitor = _LeitorFalso({"item-a": [_remota("desativada", "CREDIT", "CREDIT_CARD")]})
     assert [p.conta.id for p in nao_mapeadas(leitor, ["item-a"], session)] == ["desativada"]
+
+
+def test_item_da_pluggy_leva_id_externo_e_competencia_para_o_staging(
+    session: Session, cadastro: dict[str, Any]
+) -> None:
+    """Os dois campos novos do `ItemExtraido` chegam a `importacao_itens`.
+
+    A competência do item vence a do documento: na Pluggy cada compra aponta
+    para a sua fatura. O PDF segue com `id_externo` nulo.
+    """
+    from app.ingestao.base import ItemExtraido
+    from app.services.ingestao import _ContextoEnriquecimento
+
+    imp = Importacao(
+        arquivo_nome="pluggy.json",
+        hash_arquivo="hash-pluggy",
+        arquivo_tipo="application/json",
+        origem="pluggy",
+        status=StatusImportacao.AGUARDANDO_REVISAO,
+    )
+    session.add(imp)
+    session.flush()
+    contexto = _ContextoEnriquecimento.carregar(session)
+    service = IngestaoService(session)
+
+    def extraido(**kwargs: Any) -> ItemExtraido:
+        return ItemExtraido(
+            linha_bruta="PADARIA EXEMPLO",
+            linha_num=1,
+            data=date(2025, 3, 20),
+            valor=Decimal("87.90"),
+            descricao="PADARIA EXEMPLO",
+            **kwargs,
+        )
+
+    da_pluggy = service._item(
+        imp, extraido(id_externo="tx-1", competencia=date(2025, 4, 1)), date(2025, 3, 1), contexto
+    )
+    do_pdf = service._item(imp, extraido(), date(2025, 3, 1), contexto)
+
+    assert (da_pluggy.id_externo, da_pluggy.competencia_sugerida) == ("tx-1", date(2025, 4, 1))
+    assert (do_pdf.id_externo, do_pdf.competencia_sugerida) == (None, date(2025, 3, 1))

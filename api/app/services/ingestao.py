@@ -161,8 +161,11 @@ class IngestaoService:
             descricao_original=extraido.linha_bruta,
             tipo_sugerido=extraido.tipo,
             # Fatura: a competência é do vencimento, não da compra (D-02).
-            # Extrato: o mês da própria data.
-            competencia_sugerida=competencia or primeiro_dia_do_mes(extraido.data),
+            # Extrato: o mês da própria data. A do item, quando existe, vem
+            # antes da do documento: na Pluggy cada compra tem a sua fatura.
+            competencia_sugerida=(
+                extraido.competencia or competencia or primeiro_dia_do_mes(extraido.data)
+            ),
             categoria_sugerida_id=sugestao.categoria_id,
             local_sugerido_id=sugestao.local_id,
             pessoa_sugerida_id=sugestao.pessoa_id,
@@ -173,6 +176,7 @@ class IngestaoService:
             # só permite preencher em item aprovado. A referência à transação
             # existente vai no texto, que é o que a tela mostra de qualquer
             # forma.
+            id_externo=extraido.id_externo,
             status=StatusItem.DUPLICADO if gemea else StatusItem.PENDENTE,
             motivo_rejeicao=(
                 f"Já existe no banco: transação #{gemea.id} de "
