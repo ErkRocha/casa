@@ -98,12 +98,9 @@ Nesta ordem, sem pular:
 1. **Schema (subagent `db`)**: as mudanças da lista de pendências abaixo, em
    migration nova. Nada da fase anda antes disso.
 
-   **Escrito, validação com banco pendente.** A migration 0005, os models, o
-   `modelo-dados.md` e os testes estão no repositório. Ruff, mypy e a sintaxe
-   do SQL gerado pela migration passaram. Os testes de banco e o `make roles`
-   ainda não rodaram, porque a máquina onde o passo foi feito não tem Docker.
-   O passo só fecha quando `make validar` passar inteiro numa máquina com
-   Docker.
+   **Feito.** Validado em 05/10/2026 com as etapas do `make validar` rodadas
+   à mão contra um Postgres local, sem Docker: backup, migrate 0004 -> 0005,
+   roles, lint e os testes de banco, sem nenhum pulado.
 2. **Configuração**: `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET` no `.env`, com
    placeholder no `.env.example`. Ausência das variáveis desliga a sync com
    mensagem clara, sem derrubar a API.
@@ -128,6 +125,15 @@ Nesta ordem, sem pular:
    visíveis na Pluggy e liga cada uma a uma `conta`, a uma forma de pagamento
    padrão e à data a partir da qual a Pluggy é a origem daquela conta. Conta
    não mapeada é ignorada e aparece num aviso, nunca adivinhada.
+
+   **Feito.** CRUD em `/contas-pluggy` e `make pluggy-mapear`. Cartão
+   (`CREDIT`) espelha o PDF: aponta para a conta corrente que paga a fatura,
+   com a forma `credito` daquele cartão, e não para uma conta própria do tipo
+   `cartao`. A forma tem que pertencer à conta mapeada. Mapear uma conta com
+   transação de PDF depois de `sincronizar_desde` devolve aviso, sem bloquear.
+   Consequência do encaixe: o "Pagamento recebido" do lado do cartão vira
+   transferência sem conta de destino e é rejeitado na revisão, como o PDF
+   já faz com o pagamento.
 5. **Conversão para `ItemExtraido`**: função pura, testada contra JSON real
    anonimizado em fixture. O sinal do `amount` vira `tipo`, e `valor` fica
    sempre positivo. O pagamento de fatura vira transferência (D-05). O final

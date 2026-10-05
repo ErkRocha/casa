@@ -124,6 +124,10 @@ def _mensagem_integridade(exc: IntegrityError) -> str:
         "ck_transacoes_competencia_e_dia_primeiro": (
             "A competência tem que ser o primeiro dia do mês."
         ),
+        "uq_contas_pluggy_pluggy_account_id": (
+            "Esta conta da Pluggy já está mapeada. Edite o mapeamento existente "
+            "ou desative-o antes de criar outro."
+        ),
     }
     if constraint in conhecidas:
         return conhecidas[constraint]

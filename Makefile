@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico
+.PHONY: help up down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -46,6 +46,10 @@ relatorio: ## Fecha o mês com o Claude Code — use: make relatorio m=2026-07
 # pluggy_amostras/, sem depender de Docker. Só leitura, na Pluggy e no disco.
 pluggy-diagnostico: ## Lê a Pluggy e grava amostras brutas — use: make pluggy-diagnostico [item=ID]
 	@cd api && python -m scripts.pluggy_diagnostico $(if $(item),--item $(item),)
+
+# No container, como `roles`: precisa do banco além da Pluggy. Só leitura.
+pluggy-mapear: ## Lista as contas da Pluggy ainda sem mapeamento — use: make pluggy-mapear [item=ID]
+	$(COMPOSE) run --rm api python -m scripts.pluggy_mapear $(if $(item),--item $(item),)
 
 relatorio-seco: ## Mesmo relatório, só com os números (sem chamar modelo)
 	$(COMPOSE) run --rm api python -m scripts.relatorio --sem-ia $(if $(m),--competencia $(m),)
