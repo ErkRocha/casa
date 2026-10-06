@@ -275,6 +275,13 @@ Nesta ordem, sem pular:
    - **Hoje (05/10/2026):** 2 transações e 75 itens de staging (73
      pendentes e 2 aprovados, os que viraram aquelas 2 transações), em 3
      importações do Nubank. Todos estão dentro da janela; nenhum fica fora.
+
+   **Feito (06/10/2026).** `scripts/limpeza_pdf.py --origem
+   nubank_fatura=<id> --origem nubank_extrato=<id> --executar`, com a origem
+   ligada ao id do mapeamento por argumento (sem id da Pluggy no código).
+   Executado depois de backup: 2 transações e 75 itens com soft delete,
+   auditados como `limpeza_pdf`; as 3 importações ficaram `cancelada`, com o
+   PDF guardado. Uma segunda execução encontra 0 e 0.
 8. **`make sync`**: execução manual, que imprime contas lidas, itens novos,
    ignorados por id repetido e avisos. Rodar duas vezes seguidas não gera
    item novo na segunda.
