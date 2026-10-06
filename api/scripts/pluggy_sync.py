@@ -1,6 +1,12 @@
-"""Sincroniza a Pluggy para o staging (fase 5b, passo 6).
+"""Sincroniza a Pluggy para o staging (fase 5b, passos 6 e 8).
 
-    cd api && python -m scripts.pluggy_sync --simular
+    make sync                 # ou: cd api && python -m scripts.pluggy_sync
+    make sync simular=1       # ou: ... --simular
+
+Sem flag, grava: uma importação de origem `pluggy` com os itens novos de
+todas as contas mapeadas, e `ultimo_sync_em` de quem foi lido sem erro. Sem
+item novo, não cria importação. Rodar duas vezes seguidas não cria nada na
+segunda.
 
 `--simular` lê a Pluggy de verdade e o banco, monta tudo o que a sync
 gravaria e imprime, sem gravar nada — nem `ultimo_sync_em`. A amostra mostra
@@ -96,10 +102,6 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0] if __doc__ else None)
     parser.add_argument("--simular", action="store_true", help="lê tudo e não grava nada")
     args = parser.parse_args(argv)
-    if not args.simular:
-        print("Por enquanto só --simular. A gravação chega no passo 8.", file=sys.stderr)
-        return 2
-
     cfg = Settings(_env_file=ARQUIVO_ENV)
     if cfg.pluggy_client_id is None or cfg.pluggy_client_secret is None:
         print("PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET não estão definidos.", file=sys.stderr)
@@ -116,9 +118,18 @@ def main(argv: list[str] | None = None) -> int:
         SessionLocal() as session,
     ):
         servico = SyncPluggyService(session, cliente, hoje=hoje, respostas_brutas=lambda: respostas)
-        resultado = servico.sincronizar(simular=True)
+        try:
+            resultado = servico.sincronizar(simular=args.simular)
+        except Exception as exc:
+            # A gravação é uma transação só: falhou, nada fica pela metade.
+            session.rollback()
+            print(f"A gravação falhou e foi desfeita: {type(exc).__name__}: {exc}", file=sys.stderr)
+            return 1
+        if args.simular:
+            session.rollback()
+        else:
+            session.commit()
         imprimir(resultado, session)
-        session.rollback()
     return 1 if any(c.erro for c in resultado.contas) else 0
 
 

@@ -285,6 +285,14 @@ Nesta ordem, sem pular:
 8. **`make sync`**: execução manual, que imprime contas lidas, itens novos,
    ignorados por id repetido e avisos. Rodar duas vezes seguidas não gera
    item novo na segunda.
+
+   **Feito (06/10/2026).** `make sync` (ou `python -m scripts.pluggy_sync`)
+   grava; `make sync simular=1` só lê. Primeira sync real, depois de backup
+   e da limpeza do passo 7: importação #4, 747 itens (15 Sicredi Conta
+   Corrente, 73 Mercado Pago conta, 102 Mercado Pago crédito, 348 Nubank
+   Gold, 209 Nubank conta), com 8 encargos de fatura e 4 possíveis
+   duplicatas marcadas. A segunda execução, logo em seguida, criou zero
+   itens e zero importações.
 9. **Revisão no painel**: a importação de origem `pluggy` aparece na mesma
    tela de revisão, sem o botão de reabrir PDF. Transferência segue a regra
    atual: o usuário escolhe as contas ou rejeita.
