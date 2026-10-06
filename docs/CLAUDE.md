@@ -113,3 +113,8 @@ solicita ao `db` em vez de criar por conta própria.
   `docs/modelo-dados.md`;
 - a solução mais simples exigiria violar alguma regra acima;
 - há ambiguidade sobre a qual fase do roadmap a tarefa pertence.
+
+Em execução autônoma (sem o usuário para responder), **mudança de schema é
+motivo de PARADA**, não de decisão própria: pare a etapa, registre o que
+seria preciso mudar e por quê, e siga só para o que não depende disso.
+Decidido pelo usuário em 06/10/2026, depois da migration 0006.

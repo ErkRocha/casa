@@ -244,7 +244,10 @@ Nesta ordem, sem pular:
    manda totais com 4 casas). Se as compras passam do total, só aviso.
    Pagamento conta pela operação `PAGAMENTO_FATURA` **ou** pela categoria
    `Credit card payment`: os pagamentos antigos do Nubank vêm com operação
-   `PAGAMENTO`. Sem categoria de juros cadastrada, o item vai sem categoria.
+   `PAGAMENTO`. A regra vale para qualquer cartão, Nubank inclusive
+   (decisão do usuário, 06/10/2026). O item sugere a categoria "Juros e
+   encargos" (raiz de despesa, criada como dado em 06/10/2026), que vence
+   regra de texto; sem ela cadastrada, o item vai sem categoria.
 
    **Feito.** `app/services/sync_pluggy.py` e `scripts/pluggy_sync.py
    --simular`. A observação do item ganhou coluna própria
@@ -278,6 +281,9 @@ Nesta ordem, sem pular:
 9. **Revisão no painel**: a importação de origem `pluggy` aparece na mesma
    tela de revisão, sem o botão de reabrir PDF. Transferência segue a regra
    atual: o usuário escolhe as contas ou rejeita.
+   **Tarefa separada: configurar eslint no web.** O script `npm run lint`
+   existe, mas o `eslint` não está nas dependências nem configurado, então o
+   lint do web nunca rodou. Até lá, o portão do web é typecheck e build.
 10. **Execução agendada**, só depois de algumas semanas de `make sync` manual
    sem surpresa: uma vez por dia, depois da atualização da Pluggy. Falha vira
    log e aviso no painel, não retentativa infinita.
