@@ -161,6 +161,7 @@ class SyncPluggyService:
                         contexto,
                         forma_fixa_id=lote.forma_pagamento_id,
                         pessoa_padrao_id=lote.pessoa_padrao_id,
+                        categoria_fixa_id=lote.categoria_id,
                     )
                     i = lote.extraido
                     conta.amostra.append(
@@ -171,6 +172,7 @@ class SyncPluggyService:
                             "competencia": i.competencia,
                             "forma_pagamento_id": sugestao.forma_pagamento_id,
                             "pessoa_id": sugestao.pessoa_id,
+                            "categoria_id": sugestao.categoria_id,
                             "confianca_conversao": i.confianca,
                             "confianca_staging": min(i.confianca, sugestao.confianca),
                             "id_externo": i.id_externo,

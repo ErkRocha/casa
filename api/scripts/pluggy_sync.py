@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.conversao_pluggy import FUSO
-from app.models import FormaPagamento, Pessoa
+from app.models import Categoria, FormaPagamento, Pessoa
 from app.pluggy import PluggyCliente, RespostaBruta
 from app.services.sync_pluggy import ResultadoSync, SyncPluggyService
 
@@ -37,6 +37,7 @@ AMOSTRA_POR_CONTA = 8
 def imprimir(resultado: ResultadoSync, session: Session) -> None:
     formas = {f.id: f.apelido for f in session.scalars(select(FormaPagamento))}
     pessoas = {p.id: p.nome for p in session.scalars(select(Pessoa))}
+    categorias = {c.id: c.nome for c in session.scalars(select(Categoria))}
     modo = "SIMULAÇÃO (nada foi gravado)" if resultado.simulado else "SYNC"
     print(f"== {modo} ==")
     for c in resultado.contas:
@@ -57,8 +58,13 @@ def imprimir(resultado: ResultadoSync, session: Session) -> None:
             )
             for id_ in c.fallback_competencia:
                 print(f"      fallback: {id_}")
+        categoria_do = {a["id_externo"]: a.get("categoria_id") for a in c.amostra}
         for e in c.encargos:
-            print(f"   encargos fatura {e.competencia:%m/%Y}: R$ {e.valor} (bill {e.bill_id})")
+            cat = categorias.get(categoria_do.get(f"bill:{e.bill_id}:encargos") or 0, "—")
+            print(
+                f"   encargos fatura {e.competencia:%m/%Y}: R$ {e.valor} "
+                f"(bill {e.bill_id}, categoria {cat})"
+            )
         for a in c.avisos:
             print(f"   aviso: {a}")
         for linha in c.amostra[:AMOSTRA_POR_CONTA]:

@@ -156,9 +156,8 @@ class IngestaoService:
                 contexto,
                 forma_fixa_id=lote.forma_pagamento_id,
                 pessoa_padrao_id=lote.pessoa_padrao_id,
+                categoria_fixa_id=lote.categoria_id,
             )
-            if lote.categoria_id is not None and item.categoria_sugerida_id is None:
-                item.categoria_sugerida_id = lote.categoria_id
             self.session.add(item)
 
         self._flush()
@@ -171,6 +170,7 @@ class IngestaoService:
         *,
         forma_fixa_id: int | None = None,
         pessoa_padrao_id: int | None = None,
+        categoria_fixa_id: int | None = None,
     ) -> _Sugestao:
         """A sugestão que o item receberia no staging, sem gravar nada.
 
@@ -184,6 +184,10 @@ class IngestaoService:
         # conta mapeada. Conta conjunta chega aqui como `None` (regra 3).
         if sugestao.pessoa_id is None:
             sugestao.pessoa_id = pessoa_padrao_id
+        # Categoria fixa é de item sintético, que a origem já sabe classificar
+        # (encargos de fatura): vence regra de texto, que não foi feita para ele.
+        if categoria_fixa_id is not None:
+            sugestao.categoria_id = categoria_fixa_id
         return sugestao
 
     def _transacao_gemea(
@@ -228,9 +232,14 @@ class IngestaoService:
         *,
         forma_fixa_id: int | None = None,
         pessoa_padrao_id: int | None = None,
+        categoria_fixa_id: int | None = None,
     ) -> ImportacaoItem:
         sugestao = self.sugerir(
-            extraido, contexto, forma_fixa_id=forma_fixa_id, pessoa_padrao_id=pessoa_padrao_id
+            extraido,
+            contexto,
+            forma_fixa_id=forma_fixa_id,
+            pessoa_padrao_id=pessoa_padrao_id,
+            categoria_fixa_id=categoria_fixa_id,
         )
 
         # Já no banco? O item entra marcado, para a revisão distinguir o que é
@@ -591,7 +600,8 @@ class ItemLote:
 
     `forma_pagamento_id` vem do mapeamento da conta e vence o final do
     cartão; `pessoa_padrao_id` é o titular da conta (nulo = conjunta);
-    `categoria_id` só entra se regra e local não sugerirem outra.
+    `categoria_id` é a categoria fixa de item sintético (encargos de fatura):
+    vence regra e local.
     """
 
     extraido: ItemExtraido

@@ -18,12 +18,14 @@ from sqlalchemy.orm import Session
 from app.enums import StatusImportacao, StatusItem, TipoConta, TipoPagamento, TipoTransacao
 from app.models import (
     Auditoria,
+    Categoria,
     Conta,
     ContaPluggy,
     FormaPagamento,
     Importacao,
     ImportacaoItem,
     Pessoa,
+    RegraCategorizacao,
 )
 from app.pluggy.modelos import Conta as ContaRemota
 from app.pluggy.modelos import Fatura, Transacao
@@ -434,6 +436,30 @@ class TestEncargos:
         assert [e.valor for e in _conta(resultado, cenario["mapa_cartao"]).encargos] == [
             Decimal("33.29")
         ]
+
+    def test_encargo_sugere_a_categoria_de_juros_mesmo_com_regra(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        juros = Categoria(nome="Juros e encargos", tipo=TipoTransacao.DESPESA)
+        outra = Categoria(nome="Outra", tipo=TipoTransacao.DESPESA)
+        session.add_all([juros, outra])
+        session.flush()
+        # Regra que casaria com o texto do encargo: a categoria fixa vence.
+        session.add(RegraCategorizacao(padrao="ENCARGOS", categoria_id=outra.id))
+        session.commit()
+
+        simulado = _sync(session, self._leitor("123.29"), simular=True)
+        amostra = _conta(simulado, cenario["mapa_cartao"]).amostra
+        assert (
+            next(a for a in amostra if a["id_externo"] == "bill:f1:encargos")["categoria_id"]
+            == juros.id
+        )
+
+        _sync(session, self._leitor("123.29"))
+        encargo = next(i for i in _itens(session) if i.id_externo == "bill:f1:encargos")
+        assert encargo.categoria_sugerida_id == juros.id
+        compra = next(i for i in _itens(session) if i.id_externo == "k1")
+        assert compra.categoria_sugerida_id != juros.id
 
     def test_total_igual_nao_gera_nada(self, session: Session, cenario: dict[str, Any]) -> None:
         # Total com 4 casas, como a Pluggy manda: sobra menos de um centavo.
