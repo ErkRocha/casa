@@ -171,10 +171,16 @@ decidida e só liga na API, em vez de inventar UI enquanto implementa.
 O PDF exige baixar a fatura, subir o arquivo e esperar o parser daquele banco
 existir. A Pluggy, pelo conector MeuPluggy, entrega as transações já
 estruturadas e de graça para uso pessoal. A ingestão continua sendo a mesma
-coisa: a Pluggy entra só como mais uma **origem**, ao lado dos parsers de
-PDF. Os parsers continuam existindo como fallback, para banco não coberto,
-período fora da janela ou o dia em que a Pluggy sair do ar ou mudar de
-termos.
+coisa: a Pluggy entra como mais uma **origem**, pelo mesmo contrato dos
+parsers de PDF.
+
+**Atualização (05/10/2026, decisão do usuário): a Pluggy é a fonte única do
+dia a dia.** A importação por PDF foi descontinuada como rotina. Os parsers
+ficam no código como fallback: banco não coberto pela Pluggy, período
+anterior à janela dela (até 12 meses) e o dia em que ela sair do ar ou mudar
+de termos. O dado de PDF já importado **dentro** da janela da Pluggy é
+removido por soft delete antes da primeira sync (Fase 5b, passo 7). O
+**anterior** à janela é preservado: é o único registro daquele período.
 
 Limites do plano gratuito, que moldam o desenho: até 5 conexões ativas,
 apenas contas do mesmo titular, dados atualizados pela própria Pluggy a cada
@@ -212,8 +218,17 @@ O que é novo:
   `descricao_original`, e o texto que a Pluggy devolve não é o mesmo da linha
   do PDF. Se a mesma compra entrar pelas duas origens, a segunda barreira não
   pega. Por isso cada conta mapeada tem uma data a partir da qual a Pluggy
-  manda. Antes dela vale o PDF; depois dela, o PDF daquela conta só entra se a
-  Pluggy falhar.
+  manda (`sincronizar_desde`). Antes dela vale o PDF, como registro
+  histórico; depois dela, o PDF daquela conta só entra se a Pluggy falhar. O
+  PDF que já estava no banco depois dessa data sai na limpeza que precede a
+  primeira sync.
+- **Duplicata vinda da própria Pluggy.** O id externo não basta: há caso
+  real de a Pluggy entregar a mesma movimentação duas vezes, com ids
+  diferentes (dois "Pagamento recebido" de mesmo valor, no mesmo dia, no
+  cartão Nubank, quando o app do banco mostra um só). Mesma conta, data,
+  valor e descrição com ids diferentes marca o item com observação e
+  confiança reduzida. Nunca descarta sozinho: duas compras iguais no mesmo
+  dia também existem, e quem decide é a revisão.
 - **Só transação consolidada.** Transação ainda pendente na Pluggy pode mudar
   de valor ou sumir. Entra só a lançada. O id estável é o que permite pegá-la
   na sync seguinte, quando consolidar.

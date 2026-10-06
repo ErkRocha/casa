@@ -88,8 +88,10 @@ Nesta ordem, sem pular:
 
 ## Fase 5b — Sincronização Pluggy
 
-Mais uma origem de ingestão, ao lado do PDF (D-16). Depende dos passos 1 a 5
-da Fase 5: staging, revisão, promoção e regras. Não depende do LLM. Só contas
+A Pluggy como fonte única do dia a dia, pelo mesmo caminho de ingestão do
+PDF; os parsers de PDF ficam como fallback (D-16, atualizada em 05/10/2026).
+Depende dos passos 1 a 5 da Fase 5: staging, revisão, promoção e regras. Não
+depende do LLM. Só contas
 do usuário nesta fase. As da esposa aguardam a confirmação da Pluggy sobre o
 uso pessoal.
 
@@ -134,6 +136,27 @@ Nesta ordem, sem pular:
    Consequência do encaixe: o "Pagamento recebido" do lado do cartão vira
    transferência sem conta de destino e é rejeitado na revisão, como o PDF
    já faz com o pagamento.
+
+   **Remapeado em 05/10/2026** com uma conta por banco (Sicredi Conta
+   Corrente, Sicredi Poupança, Mercado Pago e Nubank, as duas últimas contas
+   pré-pagas). Cada cartão é forma `credito` da conta que paga a fatura; Pix e
+   débito ficam na conta do próprio banco. A "Conta Corrente" e as formas do
+   seed continuam com as transações antigas: mover a conta delas mudaria o
+   significado do que já foi gravado. Os cartões virtuais do Nubank
+   Gold são do titular e caem na forma do cartão, sem forma própria.
+
+   `sincronizar_desde`: contas `BANK` no 1º dia do mês 12 meses atrás
+   (01/10/2025), ou no mês do primeiro dado que a Pluggy entrega, quando ele
+   é mais recente (Sicredi Conta Corrente: 01/01/2026). Cartões no início do
+   primeiro ciclo de fatura inteiramente coberto, conferido contra as faturas
+   e as transações de cada uma: Mercado Pago 06/10/2025 e Nubank Gold
+   11/10/2025. A janela da Pluggy é móvel; se a primeira sync atrasar, o
+   início de outubro/2025 sai dela e as datas precisam ser revistas.
+
+   **Pendência: cartão Sicredi.** A Pluggy não entrega fatura nenhuma dele, e
+   as 14 transações de 12 meses estão todas `PENDING`. Como só `POSTED`
+   entra, a sync não traz nada desse cartão hoje. O corte dele ficou em
+   01/10/2025, pela regra das contas, até haver fatura para conferir.
 5. **Conversão para `ItemExtraido`**: função pura, testada contra JSON real
    anonimizado em fixture. O sinal do `amount` vira `tipo`, e `valor` fica
    sempre positivo. O pagamento de fatura vira transferência (D-05). O final
@@ -196,13 +219,44 @@ Nesta ordem, sem pular:
    aviso, não bloqueio: o PDF é justamente o fallback para quando a Pluggy
    falha. O aviso vai em `importacoes.erro_mensagem`, como as divergências de
    total já vão, sem coluna nova.
-7. **`make sync`**: execução manual, que imprime contas lidas, itens novos,
+
+   **Possível duplicata vinda da Pluggy (D-16).** Caso real confirmado: dois
+   "Pagamento recebido" de mesmo valor, no mesmo dia, no cartão Nubank, com
+   ids diferentes, onde o app do banco mostra um só. Itens da mesma conta da
+   Pluggy com a mesma data, valor e descrição e `id_externo` diferente — no
+   mesmo lote ou contra o que já está no staging — recebem observação com o
+   id do gêmeo e confiança reduzida (abaixo de 0.80, que a revisão
+   destaca). Nunca são descartados automaticamente: duas compras iguais no
+   mesmo dia também acontecem, e quem decide é o usuário.
+7. **Limpeza dos dados de PDF dentro da janela da Pluggy**, pré-requisito da
+   primeira sync. Sem ela, o mesmo gasto apareceria duas vezes: uma pelo PDF,
+   outra pela Pluggy, com descrições diferentes que o `hash_dedup` não une.
+   - **Escopo:** só o que veio de PDF (importação com origem diferente de
+     `pluggy`) e com data igual ou posterior ao `sincronizar_desde` da conta
+     da Pluggy correspondente. O que é anterior fica: é o único registro
+     daquele período.
+   - **Como achar a conta:** pela origem do parser, não pela conta da
+     transação. O PDF gravou nas formas do seed ("Cartão de crédito - Erik",
+     da "Conta Corrente"), não nas contas novas. `nubank_fatura` corresponde
+     ao mapeamento do Nubank Gold; `nubank_extrato`, ao da conta Nubank. Um
+     parser sem mapeamento correspondente não é tocado.
+   - **O quê:** soft delete (`deleted_em`) das transações promovidas e dos
+     itens de staging no escopo, com `app.autor = 'limpeza_pdf'`, para a
+     auditoria registrar cada linha (D-06). A `importacao` fica, marcada
+     `cancelada`, com o PDF guardado: o comprovante não some.
+   - **Como rodar:** comando com simulação por padrão, que só conta; grava
+     apenas com confirmação explícita. Rodar duas vezes não muda nada na
+     segunda.
+   - **Hoje (05/10/2026):** 2 transações e 75 itens de staging (73
+     pendentes e 2 aprovados, os que viraram aquelas 2 transações), em 3
+     importações do Nubank. Todos estão dentro da janela; nenhum fica fora.
+8. **`make sync`**: execução manual, que imprime contas lidas, itens novos,
    ignorados por id repetido e avisos. Rodar duas vezes seguidas não gera
    item novo na segunda.
-8. **Revisão no painel**: a importação de origem `pluggy` aparece na mesma
+9. **Revisão no painel**: a importação de origem `pluggy` aparece na mesma
    tela de revisão, sem o botão de reabrir PDF. Transferência segue a regra
    atual: o usuário escolhe as contas ou rejeita.
-9. **Execução agendada**, só depois de algumas semanas de `make sync` manual
+10. **Execução agendada**, só depois de algumas semanas de `make sync` manual
    sem surpresa: uma vez por dia, depois da atualização da Pluggy. Falha vira
    log e aviso no painel, não retentativa infinita.
 

@@ -1,6 +1,6 @@
 """Router do mapeamento de contas da Pluggy (fase 5b, passo 4).
 
-CRUD de `contas_pluggy`. A tela vem no passo 8; por ora isto serve ao
+CRUD de `contas_pluggy`. A tela vem no passo 9; por ora isto serve ao
 `make pluggy-mapear` e a quem chamar a API direto.
 
 Toda resposta de um mapeamento traz `avisos`: a sobreposição com PDF já
