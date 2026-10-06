@@ -153,10 +153,13 @@ Nesta ordem, sem pular:
    11/10/2025. A janela da Pluggy é móvel; se a primeira sync atrasar, o
    início de outubro/2025 sai dela e as datas precisam ser revistas.
 
-   **Pendência: cartão Sicredi.** A Pluggy não entrega fatura nenhuma dele, e
-   as 14 transações de 12 meses estão todas `PENDING`. Como só `POSTED`
-   entra, a sync não traz nada desse cartão hoje. O corte dele ficou em
-   01/10/2025, pela regra das contas, até haver fatura para conferir.
+   **Cartão Sicredi: mapeamento desativado (06/10/2026, decisão do
+   usuário).** A Pluggy entrega esse cartão só como `PENDING` e sem faturas:
+   as 14 transações de 12 meses nunca consolidaram, e como só `POSTED` entra,
+   a sync não traria nada dele. O mapeamento foi desativado por soft delete
+   (fica na auditoria e pode voltar). Pendência: perguntar no Discord da
+   Pluggy por que o cartão não consolida. Até lá, as compras dele são
+   lançadas à mão.
 5. **Conversão para `ItemExtraido`**: função pura, testada contra JSON real
    anonimizado em fixture. O sinal do `amount` vira `tipo`, e `valor` fica
    sempre positivo. O pagamento de fatura vira transferência (D-05). O final
@@ -228,6 +231,25 @@ Nesta ordem, sem pular:
    id do gêmeo e confiança reduzida (abaixo de 0.80, que a revisão
    destaca). Nunca são descartados automaticamente: duas compras iguais no
    mesmo dia também acontecem, e quem decide é o usuário.
+
+   **Encargos de fatura (decisão do usuário, 06/10/2026).** No cartão
+   Mercado Pago, o total de várias faturas passa da soma das compras: são
+   juros, multa e IOF de atraso, que a Pluggy não entrega como transação.
+   Para cada fatura fechada e inteiramente dentro do corte, se o total
+   passa da soma das transações `POSTED` dela (pagamentos fora da soma), a
+   sync cria um item de despesa "Encargos da fatura MM/AAAA" com a
+   diferença, na competência da fatura, com confiança 0.70, observação
+   explicando a conta e `id_externo = bill:<billId>:encargos`, que impede a
+   repetição. Diferença abaixo de um centavo é arredondamento (a Pluggy
+   manda totais com 4 casas). Se as compras passam do total, só aviso.
+   Pagamento conta pela operação `PAGAMENTO_FATURA` **ou** pela categoria
+   `Credit card payment`: os pagamentos antigos do Nubank vêm com operação
+   `PAGAMENTO`. Sem categoria de juros cadastrada, o item vai sem categoria.
+
+   **Feito.** `app/services/sync_pluggy.py` e `scripts/pluggy_sync.py
+   --simular`. A observação do item ganhou coluna própria
+   (`importacao_itens.observacao`, migration 0006): sem ela, a nota da
+   duplicata, do encargo e da competência estimada se perdia antes da tela.
 7. **Limpeza dos dados de PDF dentro da janela da Pluggy**, pré-requisito da
    primeira sync. Sem ela, o mesmo gasto apareceria duas vezes: uma pelo PDF,
    outra pela Pluggy, com descrições diferentes que o `hash_dedup` não une.
