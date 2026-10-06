@@ -117,7 +117,13 @@ export function DetalheModal({
                 : null}
               .
             </p>
-            {transacao.importacao_tem_arquivo ? (
+            {/* A view não traz o tipo do arquivo; a sync da Pluggy grava o
+                comprovante como `.json`, e JSON não é "PDF original". */}
+            {transacao.importacao_arquivo?.toLowerCase().endsWith(".json") ? (
+              <p className="text-caption text-text-tertiary mt-2">
+                Sincronizado pela Pluggy: não há PDF para abrir.
+              </p>
+            ) : transacao.importacao_tem_arquivo ? (
               <a
                 href={`${import.meta.env.VITE_API_URL ?? ""}/importacoes/${transacao.importacao_id}/arquivo`}
                 target="_blank"

@@ -17,6 +17,7 @@ import {
 import {
   ORIGEM_LABEL,
   STATUS_IMPORTACAO_LABEL,
+  ehPdf,
   type ResultadoAprovacao,
 } from "./types";
 
@@ -160,6 +161,18 @@ export function ImportacoesPage() {
             ? ` · ${formatDate(importacao.periodo_inicio)} a ${formatDate(importacao.periodo_fim)}`
             : ""}
         </span>
+        {/* Só PDF se reabre. A sync da Pluggy guarda o JSON bruto como
+            comprovante, mas ele não é documento para conferir na tela. */}
+        {ehPdf(importacao) ? (
+          <a
+            href={`${import.meta.env.VITE_API_URL ?? ""}/importacoes/${importacao.id}/arquivo`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-body-sm text-accent ml-auto underline underline-offset-2"
+          >
+            Abrir o PDF
+          </a>
+        ) : null}
       </div>
 
       {/* A conferência contra o total do próprio documento. É o que permite

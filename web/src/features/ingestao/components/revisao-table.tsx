@@ -67,7 +67,7 @@ export function RevisaoTable({
               />
             </th>
             <Th>Data</Th>
-            <Th>Linha do PDF</Th>
+            <Th>Linha original</Th>
             <Th>Categoria</Th>
             <Th>Pessoa</Th>
             <Th alinhamento="right" className="pr-5">
@@ -106,11 +106,19 @@ export function RevisaoTable({
                   {item.data ? formatDate(item.data) : "—"}
                 </td>
 
-                {/* O texto cru do PDF: é contra ele que se confere. */}
+                {/* O texto cru do PDF ou da Pluggy: é contra ele que se confere. */}
                 <td className="py-4 pr-4">
                   <div className="text-body-sm text-text-primary truncate font-mono">
                     {item.linha_bruta}
                   </div>
+                  {/* A nota do parser ou da sync — duplicata possível,
+                      encargo deduzido, competência estimada — é o porquê da
+                      confiança baixa. Inteira, sem corte: é ela que decide. */}
+                  {item.observacao ? (
+                    <div className="text-caption text-alert mt-1 whitespace-normal">
+                      {item.observacao}
+                    </div>
+                  ) : null}
                   {confianca < 0.8 ? (
                     <div className="text-caption text-text-tertiary mt-1">
                       confiança {Math.round(confianca * 100)}% · sugestão por{" "}

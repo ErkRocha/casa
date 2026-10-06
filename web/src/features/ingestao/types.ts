@@ -15,9 +15,14 @@ export type StatusItem = "pendente" | "aprovado" | "rejeitado" | "duplicado";
 export interface Importacao {
   id: number;
   arquivo_nome: string;
-  /** `nubank_fatura` | `nubank_extrato`. */
+  /** `nubank_fatura` | `nubank_extrato` | `pluggy`. */
   origem: string | null;
   parser_usado: string | null;
+  /**
+   * `application/pdf` ou `application/json` (sync da Pluggy). Decide se a
+   * tela oferece reabrir o PDF.
+   */
+  arquivo_tipo: string | null;
   periodo_inicio: string | null;
   periodo_fim: string | null;
   status: StatusImportacao;
@@ -50,6 +55,13 @@ export interface ItemImportacao {
   status: StatusItem;
   transacao_id: number | null;
   motivo_rejeicao: string | null;
+  /**
+   * Nota do parser ou da sync para a revisão: possível duplicata vinda da
+   * Pluggy, encargos deduzidos da fatura, competência estimada.
+   */
+  observacao: string | null;
+  /** Id da transação na Pluggy; nulo para PDF. */
+  id_externo: string | null;
 }
 
 export interface ImportacaoDetalhe {
@@ -93,4 +105,10 @@ export const STATUS_IMPORTACAO_LABEL: Record<StatusImportacao, string> = {
 export const ORIGEM_LABEL: Record<string, string> = {
   nubank_fatura: "Fatura Nubank",
   nubank_extrato: "Extrato Nubank",
+  pluggy: "Sincronização Pluggy",
 };
+
+/** A importação guardou um PDF que dá para reabrir? */
+export function ehPdf(importacao: Pick<Importacao, "arquivo_tipo">): boolean {
+  return importacao.arquivo_tipo === "application/pdf";
+}
