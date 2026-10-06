@@ -16,6 +16,9 @@ class ImportacaoRead(BaseModel):
     arquivo_nome: str
     origem: str | None
     parser_usado: str | None
+    #: `application/pdf` ou `application/json` (sync da Pluggy). A tela usa
+    #: para decidir se oferece reabrir o PDF.
+    arquivo_tipo: str | None = None
     periodo_inicio: date | None
     periodo_fim: date | None
     status: StatusImportacao
@@ -48,6 +51,11 @@ class ItemRead(BaseModel):
     status: StatusItem
     transacao_id: int | None
     motivo_rejeicao: str | None
+    #: Nota do parser ou da sync: possível duplicata, encargo, competência
+    #: estimada. A revisão mostra junto do item.
+    observacao: str | None = None
+    #: Id na Pluggy; nulo para PDF.
+    id_externo: str | None = None
 
 
 class ImportacaoDetalhe(BaseModel):

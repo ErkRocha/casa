@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -104,6 +105,87 @@ class IngestaoService:
         self._flush()
         return importacao
 
+    def importar_lote(
+        self,
+        *,
+        arquivo_nome: str,
+        conteudo: bytes,
+        arquivo_tipo: str,
+        origem: str,
+        parser_usado: str,
+        itens: Sequence[ItemLote],
+        aviso: str | None = None,
+    ) -> Importacao:
+        """Itens já extraídos de outra origem -> staging, numa importação só.
+
+        É o caminho da sync da Pluggy (D-16, "um caminho só"): o mesmo
+        enriquecimento, a mesma marcação de duplicata e o mesmo staging do
+        PDF. Muda só o que o PDF não tem — forma de pagamento fixa por item,
+        vinda do mapeamento, e a pessoa padrão da conta.
+
+        `conteudo` é o comprovante (o JSON bruto, na Pluggy), guardado como o
+        PDF é guardado.
+        """
+        if not itens:
+            raise RegraViolada("Importação sem itens não é criada.")
+
+        datas = [i.extraido.data for i in itens]
+        importacao = Importacao(
+            arquivo_nome=arquivo_nome,
+            hash_arquivo=hash_arquivo(conteudo),
+            arquivo_conteudo=conteudo,
+            arquivo_tipo=arquivo_tipo,
+            origem=origem,
+            parser_usado=parser_usado,
+            periodo_inicio=min(datas),
+            periodo_fim=max(datas),
+            total_itens=len(itens),
+            status=StatusImportacao.AGUARDANDO_REVISAO,
+            erro_mensagem=aviso,
+        )
+        self.session.add(importacao)
+        self.session.flush()
+
+        contexto = _ContextoEnriquecimento.carregar(self.session)
+        for numero, lote in enumerate(itens, start=1):
+            lote.extraido.linha_num = numero
+            item = self._item(
+                importacao,
+                lote.extraido,
+                None,
+                contexto,
+                forma_fixa_id=lote.forma_pagamento_id,
+                pessoa_padrao_id=lote.pessoa_padrao_id,
+            )
+            if lote.categoria_id is not None and item.categoria_sugerida_id is None:
+                item.categoria_sugerida_id = lote.categoria_id
+            self.session.add(item)
+
+        self._flush()
+        return importacao
+
+    def sugerir(
+        self,
+        extraido: ItemExtraido,
+        contexto: _ContextoEnriquecimento,
+        *,
+        forma_fixa_id: int | None = None,
+        pessoa_padrao_id: int | None = None,
+    ) -> _Sugestao:
+        """A sugestão que o item receberia no staging, sem gravar nada.
+
+        Serve à gravação e à simulação da sync, que precisam mostrar a mesma
+        coisa.
+        """
+        sugestao = contexto.sugerir_para(
+            extraido.descricao, extraido.cartao_final, forma_fixa_id=forma_fixa_id
+        )
+        # D-16: regra e titular do cartão primeiro; sem eles, o titular da
+        # conta mapeada. Conta conjunta chega aqui como `None` (regra 3).
+        if sugestao.pessoa_id is None:
+            sugestao.pessoa_id = pessoa_padrao_id
+        return sugestao
+
     def _transacao_gemea(
         self, extraido: ItemExtraido, forma_pagamento_id: int | None
     ) -> Transacao | None:
@@ -143,8 +225,13 @@ class IngestaoService:
         extraido: ItemExtraido,
         competencia: date | None,
         contexto: _ContextoEnriquecimento,
+        *,
+        forma_fixa_id: int | None = None,
+        pessoa_padrao_id: int | None = None,
     ) -> ImportacaoItem:
-        sugestao = contexto.sugerir(extraido)
+        sugestao = self.sugerir(
+            extraido, contexto, forma_fixa_id=forma_fixa_id, pessoa_padrao_id=pessoa_padrao_id
+        )
 
         # Já no banco? O item entra marcado, para a revisão distinguir o que é
         # novo do que é sobreposição. Sem isso, reimportar um extrato que cobre
@@ -177,6 +264,7 @@ class IngestaoService:
             # existente vai no texto, que é o que a tela mostra de qualquer
             # forma.
             id_externo=extraido.id_externo,
+            observacao=extraido.observacao,
             status=StatusItem.DUPLICADO if gemea else StatusItem.PENDENTE,
             motivo_rejeicao=(
                 f"Já existe no banco: transação #{gemea.id} de "
@@ -497,6 +585,21 @@ def _padrao_de(linha_bruta: str) -> str:
     return _PREFIXO_GATEWAY.sub("", limpo).strip(" -")[:120]
 
 
+@dataclass(slots=True)
+class ItemLote:
+    """Um item de `importar_lote`, com o que o PDF não traz.
+
+    `forma_pagamento_id` vem do mapeamento da conta e vence o final do
+    cartão; `pessoa_padrao_id` é o titular da conta (nulo = conjunta);
+    `categoria_id` só entra se regra e local não sugerirem outra.
+    """
+
+    extraido: ItemExtraido
+    forma_pagamento_id: int
+    pessoa_padrao_id: int | None = None
+    categoria_id: int | None = None
+
+
 class _Sugestao:
     __slots__ = (
         "categoria_id",
@@ -581,7 +684,9 @@ class _ContextoEnriquecimento:
     def sugerir(self, extraido: ItemExtraido) -> _Sugestao:
         return self.sugerir_para(extraido.descricao, extraido.cartao_final)
 
-    def sugerir_para(self, descricao: str, cartao_final: str | None) -> _Sugestao:
+    def sugerir_para(
+        self, descricao: str, cartao_final: str | None, *, forma_fixa_id: int | None = None
+    ) -> _Sugestao:
         """O motor de sugestão, em cima de texto puro.
 
         Recebe primitivos em vez de `ItemExtraido` porque a reaplicação de
@@ -614,6 +719,20 @@ class _ContextoEnriquecimento:
                         sugestao.origem = "alias"
                         sugestao.confianca = max(sugestao.confianca, Decimal("0.80"))
                     break
+
+        # 3. Forma fixa (sync da Pluggy): a forma vem sempre do mapeamento da
+        #    conta, inclusive para cartão virtual com outro final — nunca o
+        #    crédito genérico do seed. O final ainda serve para achar o
+        #    titular de um cartão cadastrado com aqueles 4 dígitos (D-16).
+        if forma_fixa_id is not None:
+            sugestao.forma_pagamento_id = forma_fixa_id
+            if cartao_final and sugestao.pessoa_id is None:
+                exata = next(
+                    (f for f in self.formas if f.apelido.strip().endswith(cartao_final)), None
+                )
+                if exata is not None and exata.titular_id is not None:
+                    sugestao.pessoa_id = exata.titular_id
+            return sugestao
 
         # 3. Forma de pagamento pelo final do cartão. Casa com a forma cujo
         #    apelido termina nesses 4 dígitos ("Nubank •••• 7704"); sem ela,

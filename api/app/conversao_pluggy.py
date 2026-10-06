@@ -284,7 +284,7 @@ def _classificar(
     if conta.e_cartao:
         if not entrada:
             return TipoTransacao.DESPESA, None, CONFIANCA_FATURA
-        if operacao == _OPERACAO_PAGAMENTO_FATURA or categoria == _CATEGORIA_PAGAMENTO_FATURA:
+        if e_pagamento_de_fatura(transacao):
             observacoes.append(_OBS_PAGAMENTO_NO_CARTAO)
             return TipoTransacao.TRANSFERENCIA, direcao, CONFIANCA_INTERPRETADA
         observacoes.append(_OBS_ESTORNO)
@@ -304,6 +304,19 @@ def _classificar(
 
     tipo = TipoTransacao.RECEITA if entrada else TipoTransacao.DESPESA
     return tipo, direcao, CONFIANCA_CONTA
+
+
+def e_pagamento_de_fatura(transacao: Transacao) -> bool:
+    """Pagamento da fatura do lado do cartão, pelo que a Pluggy declara.
+
+    Operação `PAGAMENTO_FATURA` **ou** categoria `Credit card payment`: nos
+    dados reais, os pagamentos mais antigos do Nubank vêm com operação
+    `PAGAMENTO` e só a categoria diz o que são. A soma das compras de uma
+    fatura (encargos, na sync) usa este mesmo critério.
+    """
+    return (transacao.operation_type or "").upper() == _OPERACAO_PAGAMENTO_FATURA or (
+        transacao.category or ""
+    ) == _CATEGORIA_PAGAMENTO_FATURA
 
 
 # --- datas e competência ---------------------------------------------------------

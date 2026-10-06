@@ -439,6 +439,9 @@ class ImportacaoItem(IdMixin, TimestampMixin, SoftDeleteMixin, Base):
         BigInteger, ForeignKey("transacoes.id", ondelete="SET NULL")
     )
     motivo_rejeicao: Mapped[str | None] = mapped_column(Text)
+    #: Nota do parser ou da sync para a revisão (0006): possível duplicata,
+    #: encargo deduzido, competência estimada.
+    observacao: Mapped[str | None] = mapped_column(Text)
     #: Id da transação na origem externa (Pluggy, D-16). Nulo para PDF.
     #:
     #: Único entre linhas vivas em **qualquer status**: item rejeitado continua

@@ -177,6 +177,7 @@ Staging. Nada aqui afeta relatórios.
 | transacao_id | fk transacoes | preenchido ao aprovar |
 | motivo_rejeicao | text | |
 | id_externo | text | id da transação na Pluggy; nulo para PDF (0005) |
+| observacao | text | nota do parser ou da sync para a revisão: duplicata possível, encargo, competência estimada (0006) |
 
 `id_externo` tem único parcial, **em qualquer status**:
 
