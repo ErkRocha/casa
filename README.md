@@ -183,6 +183,74 @@ agendamento; hoje o fechamento é o comando `make relatorio`. Detalhes em
 
 ---
 
+## Conversando com seus dados (Claude Desktop)
+
+O Claude Desktop conversa com o banco por um servidor MCP local
+(`python -m app.mcp`, D-20), usando a sua assinatura. O servidor **só lê**:
+conecta pela role read-only da D-11 e não tem nenhuma tool que escreva. Os
+números vêm de consultas no banco; o modelo não soma nada por conta própria
+(regra 7).
+
+**Privacidade:** diferente do relatório mensal, que só envia totais, o chat
+pode mandar ao modelo descrições de transações (nomes de lojas, de pessoas
+num Pix). É uma escolha consciente (D-20).
+
+**Onde configurar:** no Claude Desktop, *Configurações → Desenvolvedor →
+Editar configuração* abre o `claude_desktop_config.json`. No Windows ele
+fica em `%APPDATA%\Claude\claude_desktop_config.json`; na versão da
+Microsoft Store, numa pasta dentro de `%LOCALAPPDATA%\Packages\Claude_...`,
+por isso o caminho mais seguro é abrir pelo menu. Depois de salvar, feche o
+Claude Desktop pela bandeja do sistema e abra de novo.
+
+**Modo Docker** (o principal, D-17). O servidor roda dentro do container da
+API, que já tem as credenciais; nenhuma senha vai para a configuração.
+Precisa do sistema no ar (`make up`) e do `docker` no PATH:
+
+```json
+{
+  "mcpServers": {
+    "controle-casa": {
+      "command": "docker",
+      "args": ["exec", "-i", "casa_api", "python", "-m", "app.mcp"]
+    }
+  }
+}
+```
+
+**Modo local** (`scripts/local/`). O `scripts/local/mcp.sh` carrega o `.env`
+e sobe o servidor; as senhas ficam no `.env`. Ajuste o caminho do
+repositório:
+
+```json
+{
+  "mcpServers": {
+    "controle-casa": {
+      "command": "C:\\Program Files\\Git\\bin\\bash.exe",
+      "args": ["C:/Users/<você>/controle-casa/scripts/local/mcp.sh"]
+    }
+  }
+}
+```
+
+O Postgres local precisa estar no ar (`bash scripts/local/subir.sh`). Depois
+da migração para o Docker, o `mcp.sh` recusa subir: o banco local é cópia
+congelada.
+
+**Exemplos de perguntas:**
+
+- "Quanto gastamos em setembro, e como isso se compara com a média do ano?"
+- "Quais foram as maiores despesas no cartão do Nubank em agosto?"
+- "Quanto gastei com mercado nos últimos três meses?"
+- "Alguma assinatura ficou mais cara este ano?"
+- "O que o relatório de julho disse sobre transporte?"
+- "Quanto do gasto de outubro ainda está sem categoria?"
+
+As tools: resumo do mês, cobertura de categorias, gasto por categoria e por
+pessoa, comparação com meses anteriores, orçamento, gastos fora do padrão,
+assinaturas reajustadas, cadastros (pessoas, contas, formas de pagamento,
+categorias), busca de transações com filtros (até 200 por vez), totais com
+os mesmos filtros e o relatório mensal salvo.
+
 ## Migrando do modo local para o Docker
 
 O Docker é o modo principal em casa (D-17): o PC fica ligado e bloqueado, sem

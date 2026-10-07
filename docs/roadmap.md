@@ -347,7 +347,9 @@ Ficam registradas aqui como histórico da decisão:
   (Markdown sem HTML, conteúdo não confiável) e ao lado os números do dossiê
   gravado em `dados_base`; com IA ou seco e a versão do prompt. Mês sem
   relatório mostra o `make relatorio m=AAAA-MM`; gerar continua pelo CLI.
-- [ ] Chat sob demanda no painel
+- [x] Chat sob demanda — servidor MCP local no Claude Desktop (D-20), só
+  leitura pela role da D-11: `python -m app.mcp`. Sem tela de chat no painel
+  por enquanto.
 - [ ] Agendamento (hoje o fechamento é um comando que você roda)
 
 **Pronto quando**: o fechamento do mês gera texto ancorado em números reais.
