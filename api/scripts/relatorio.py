@@ -22,13 +22,20 @@ import json
 import sys
 from datetime import date
 
-from sqlalchemy import text
+from scripts._host import preparar_ambiente_host
 
-from app.db import SessionLocal
-from app.insights.harness import BackendIndisponivel, FalhaDoModelo
-from app.insights.tools import somar_meses
-from app.services.base import RegraViolada
-from app.services.insights import RelatorioService, dossie_bruto
+# Antes de `app.db`: no host (o `make relatorio`), sem DATABASE_URL, a URL é
+# a do banco do Docker pela porta publicada (D-17). No container e com o
+# ambiente local exportado, não muda nada.
+preparar_ambiente_host()
+
+from sqlalchemy import text  # noqa: E402
+
+from app.db import SessionLocal  # noqa: E402
+from app.insights.harness import BackendIndisponivel, FalhaDoModelo  # noqa: E402
+from app.insights.tools import somar_meses  # noqa: E402
+from app.services.base import RegraViolada  # noqa: E402
+from app.services.insights import RelatorioService, dossie_bruto  # noqa: E402
 
 
 def _competencia(texto: str | None, hoje: date) -> date:
