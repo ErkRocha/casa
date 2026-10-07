@@ -15,7 +15,7 @@ de mexer em qualquer coisa. As decisões já estão tomadas.
 
 ```bash
 cp .env.example .env      # ajuste as senhas
-make up                   # db + api + web
+make up                   # db + api + painel (produção: nginx com o build)
 make migrate              # aplica o schema
 make roles                # role read-only do agente de insights (D-11)
 make seed                 # pessoas, contas, categorias, formas de pagamento
@@ -23,7 +23,25 @@ make demo                 # opcional: 12 meses de lançamentos falsos para ver a
 ```
 
 - Painel: http://127.0.0.1:5173
-- API e `/docs` do FastAPI: http://127.0.0.1:8000/docs
+- `/docs` do FastAPI pelo painel: http://127.0.0.1:5173/api/docs
+- API direto, sem o painel: http://127.0.0.1:8000
+
+O `make up` é o modo de produção (D-19): o painel é compilado na imagem e
+servido por nginx, que também repassa `/api/` para a API. Mudou o código do
+front? `make up` de novo recompila. O nginx só aceita os Hosts localhost,
+127.0.0.1 e o domínio do Tailscale (`WEB_ALLOWED_HOSTS`); qualquer outro
+recebe 403, inclusive em `/api`.
+
+### Desenvolvendo com recarga automática
+
+```bash
+make dev                  # painel = Vite com recarga, código montado
+make up                   # volta para a produção
+```
+
+O `make dev` usa o `docker-compose.dev.yml` por cima do compose: a mesma
+porta e o mesmo `/api`, só que servidos pelo Vite, que recompila a cada
+alteração. Serve para desenvolver; para deixar ligado, use `make up`.
 
 `make roles` é idempotente e **prova** o que faz: cria a role, tenta escrever
 com ela e aborta se a escrita passar. Rode uma vez em banco que já existia
@@ -207,7 +225,8 @@ o sistema continua fora da internet pública: só aparelhos logados na sua
 conta do Tailscale chegam até ele.
 
 Front e API saem pelo mesmo endereço: o painel chama a API por `/api`, e o
-servidor do painel repassa. Basta publicar a porta do painel.
+nginx do painel repassa (D-19). Basta publicar a porta do painel; o comando
+abaixo vale igual para `make up` e `make dev`.
 
 **Uma vez só:**
 
@@ -232,9 +251,10 @@ servidor do painel repassa. Basta publicar a porta do painel.
    `https://<nome-do-pc>.<sua-tailnet>.ts.net`. Abra esse endereço no
    celular, com o Tailscale conectado.
 
-O painel aceita esse domínio porque o servidor dele libera `*.ts.net` por
-padrão (`WEB_ALLOWED_HOSTS` no `.env`). Os bindings do compose continuam em
-`127.0.0.1`: quem entrega para fora é só o `tailscale serve`.
+O painel aceita esse domínio porque o nginx dele libera `*.ts.net` por padrão
+(`WEB_ALLOWED_HOSTS` no `.env`) e recusa qualquer outro Host. Os bindings do
+compose continuam em `127.0.0.1`: quem entrega para fora é só o `tailscale
+serve`. O `/docs` da API fica em `https://<nome-do-pc>.<sua-tailnet>.ts.net/api/docs`.
 
 **Não use `tailscale funnel`**: ele publicaria o painel na internet aberta.
 
@@ -284,6 +304,9 @@ scripts da Pluggy acharem o banco local e a senha da role read-only. Sem ele,
 eles tentam o host `db` do Docker e falham. Os alvos do Makefile que usam
 `docker compose` não funcionam neste modo; rode o comando Python
 correspondente com o ambiente exportado.
+
+O painel do modo local continua no Vite de desenvolvimento, não no nginx de
+produção (D-19): é reserva, e o Vite já faz o mesmo `/api` pelo proxy dele.
 
 Os testes usam o banco `_test` do `TEST_DATABASE_URL`, que **é truncado entre
 testes** — nunca aponte para dados que importam.
