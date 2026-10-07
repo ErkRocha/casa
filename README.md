@@ -50,6 +50,10 @@ Roda em ordem e para no primeiro erro, dizendo qual etapa falhou:
    (`VALIDAR_TIMEOUT=300 make validar` muda o limite);
 4. `make migrate`, `make roles`, `make lint` e `make test`.
 
+O `make lint` cobre a API (ruff e mypy, também no pre-commit). O web tem lint
+próprio, fora do pre-commit: `cd web && npm run lint` (ESLint, só regras de
+correção), junto de `npm run typecheck` e `npm run build`.
+
 No fim imprime cada etapa com OK ou FALHOU, quantos testes passaram e o
 caminho do backup. `backups/` está no `.gitignore`: é o banco inteiro, dado
 financeiro pessoal, e não entra no git.

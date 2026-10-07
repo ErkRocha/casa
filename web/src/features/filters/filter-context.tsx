@@ -54,6 +54,7 @@ export function FilterProvider({ children }: { children: React.ReactNode }) {
   return <FilterContext.Provider value={value}>{children}</FilterContext.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- o hook é inseparável do provider; o custo é só perder o estado deste arquivo no hot reload.
 export function useFiltros(): FilterContextValue {
   const context = useContext(FilterContext);
   if (!context) throw new Error("useFiltros precisa estar dentro de <FilterProvider>");

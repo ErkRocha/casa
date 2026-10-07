@@ -144,6 +144,9 @@ como "em breve" na sidebar — o CRUD de orçamento existe na API
 Verificado com Node 24 / npm 11:
 
 - `npx tsc --noEmit` passa sem erro;
+- `npm run lint` passa sem erro nem aviso (ESLint 9, flat config em
+  `eslint.config.js`: regras de correção de JS, TypeScript e hooks do React;
+  nada de estilo);
 - `npm run build` gera o bundle;
 - `npm run dev` sobe e **todos** os módulos de `src/` transformam sem erro;
 - CORS do dev server (`localhost:5173`) é aceito pela API.

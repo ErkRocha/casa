@@ -58,7 +58,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         ...init?.headers,
       },
     });
-  } catch (causa) {
+  } catch {
     // API fora do ar, container caído, CORS. Não é erro de status.
     throw new ApiError(0, "Não foi possível falar com a API. Ela está no ar?");
   }
