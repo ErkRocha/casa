@@ -199,6 +199,53 @@ e o dump fica em `backups/`. Depois desse portão, **o banco local vira cópia
 congelada** e o `scripts/local/subir.sh` passa a recusar subir. Dois bancos
 ativos divergiriam.
 
+## Acessando fora de casa (Tailscale)
+
+O painel fica acessível fora de casa pelo Tailscale, uma rede privada entre os
+seus dispositivos (D-18). Ele atravessa o CGNAT sem abrir porta no roteador, e
+o sistema continua fora da internet pública: só aparelhos logados na sua
+conta do Tailscale chegam até ele.
+
+Front e API saem pelo mesmo endereço: o painel chama a API por `/api`, e o
+servidor do painel repassa. Basta publicar a porta do painel.
+
+**Uma vez só:**
+
+1. Instale o Tailscale no PC (`winget install Tailscale.Tailscale`) e no
+   celular (loja do Android ou do iPhone).
+2. Entre na **mesma conta** nos dois.
+3. No painel de administração do Tailscale
+   (<https://login.tailscale.com/admin/dns>), deixe ligados **MagicDNS** e
+   **HTTPS Certificates**. Sem eles, o `serve` não emite o certificado.
+4. Com o sistema no ar no PC (`make up`), publique o painel na sua rede
+   privada, com HTTPS:
+
+   ```bash
+   tailscale serve --bg --https=443 http://127.0.0.1:5173
+   ```
+
+   O `--bg` deixa a publicação ativa em segundo plano e ela volta sozinha
+   depois de reiniciar. No Windows, se o comando pedir permissão, rode-o num
+   terminal aberto como administrador.
+
+5. Confira o endereço com `tailscale serve status`. É algo como
+   `https://<nome-do-pc>.<sua-tailnet>.ts.net`. Abra esse endereço no
+   celular, com o Tailscale conectado.
+
+O painel aceita esse domínio porque o servidor dele libera `*.ts.net` por
+padrão (`WEB_ALLOWED_HOSTS` no `.env`). Os bindings do compose continuam em
+`127.0.0.1`: quem entrega para fora é só o `tailscale serve`.
+
+**Não use `tailscale funnel`**: ele publicaria o painel na internet aberta.
+
+**Para desfazer:**
+
+```bash
+tailscale serve reset     # remove toda publicação do serve neste PC
+```
+
+Ou, para tirar só esta: `tailscale serve --https=443 off`.
+
 ## Rodando sem Docker (Windows)
 
 **Modo reserva (D-17).** Para máquina sem Docker ou sem privilégio de
