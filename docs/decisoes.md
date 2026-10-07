@@ -251,3 +251,34 @@ entrasse sozinho no banco ameaçaria a D-07. Os dois deixaram de valer. O
 MeuPluggy é gratuito para uso pessoal, a credencial bancária fica na Pluggy e
 não aqui, e o dado continua passando pelo staging e pela aprovação do usuário.
 Integração direta com API de cada banco segue fora de escopo.
+
+---
+
+## D-17 — Docker como modo de execução principal em casa
+
+Decisão do usuário, 07/10/2026.
+
+O modo local sem Docker (`scripts/local/`) mostrou o limite dele na prática:
+o Postgres roda como processo comum do usuário, preso ao console de quem o
+iniciou, e cai quando esse console fecha — o que aconteceu junto de cada
+suspensão do Windows. O banco se recuperava sozinho, mas o sistema ficava
+fora do ar até alguém subir tudo de novo, e a sync diária da Pluggy (fase 5b)
+precisa dele no ar.
+
+- **Docker é o modo principal.** O PC de casa fica ligado e bloqueado, sem
+  suspensão, rodando o sistema continuamente. Os três serviços do compose têm
+  `restart: unless-stopped`: voltam sozinhos depois de reiniciar o Windows
+  (com o Docker Desktop iniciando no login) e só ficam parados se alguém os
+  parar de propósito.
+- **O modo local vira reserva**, para máquina sem Docker. Depois da migração,
+  o banco local é **cópia congelada** e não deve mais ser usado: dois bancos
+  ativos divergiriam, e não há como reconciliar dois históricos de staging,
+  aprovações e auditoria. O `scripts/local/subir.sh` recusa subir quando o
+  banco do Docker está no ar, quando a porta está ocupada por outro processo
+  ou depois da migração.
+
+**Pendente:** a migração ainda não foi feita — a máquina não tinha Docker em
+07/10/2026. O roteiro está em `scripts/migrar_para_docker.sh` (backup do
+banco local, restore no container, conferência de contagens, `make validar`
+e simulação da sync). Até ela rodar, o banco local continua sendo o único
+banco ativo.
