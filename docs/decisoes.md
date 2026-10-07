@@ -282,3 +282,33 @@ precisa dele no ar.
 banco local, restore no container, conferência de contagens, `make validar`
 e simulação da sync). Até ela rodar, o banco local continua sendo o único
 banco ativo.
+
+---
+
+## D-18 — Acesso fora de casa pelo Tailscale
+
+Decisão do usuário, 07/10/2026.
+
+Com o sistema rodando continuamente no PC de casa (D-17), o painel passa a
+ser útil fora de casa — conferir um gasto, aprovar a revisão da sync. A
+conexão de casa está atrás de CGNAT: não há IP público para abrir porta, e
+abrir porta seria pôr o sistema na internet, o que ele não é (CLAUDE.md).
+
+- **Tailscale como rede privada.** PC e celular entram na mesma conta do
+  Tailscale e se enxergam por uma rede privada criptografada, que atravessa
+  o CGNAT sem abrir porta no roteador. O sistema continua sem ir para a
+  internet pública: só dispositivos da conta do usuário chegam até ele.
+- **Publicação por `tailscale serve`, com HTTPS**, no nome do PC na tailnet
+  (`<pc>.<tailnet>.ts.net`). O serve roda no host e repassa para
+  `127.0.0.1:5173`; os bindings em `127.0.0.1` do compose não mudam. Nada de
+  `tailscale funnel`, que publicaria para a internet.
+- **Front e API pelo mesmo endereço.** O front chama a API por caminho
+  relativo (`/api`), e o servidor do front repassa para a API, tirando o
+  prefixo. Um endereço só para publicar, e o mesmo código serve em casa, pelo
+  Tailscale e no modo local. Com front e API na mesma origem, o CORS deixa de
+  ser necessário no uso normal; a configuração atual fica, para quem apontar
+  `VITE_API_URL` direto para a API.
+- **Direção, ainda sem implementação:** o futuro gateway de voz (Alexa) será
+  o único serviço exposto à internet, por Cloudflare Tunnel, em repositório
+  próprio. Ele fala com a API pela rede de casa; o painel e a API continuam
+  só na tailnet.
