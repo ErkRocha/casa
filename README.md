@@ -164,10 +164,49 @@ agendamento; hoje o fechamento é o comando `make relatorio`. Detalhes em
 
 ---
 
+## Migrando do modo local para o Docker
+
+O Docker é o modo principal em casa (D-17): o PC fica ligado e bloqueado, sem
+suspensão, e o sistema roda continuamente. Para isso:
+
+- **Docker Desktop iniciando no login:** em *Settings → General*, marque
+  *Start Docker Desktop when you sign in to your computer*. Com isso, e com
+  `restart: unless-stopped` nos três serviços do compose, banco, API e painel
+  voltam sozinhos depois de reiniciar o Windows. Só ficam parados se alguém
+  rodar `make down` ou `docker compose stop`.
+- **Sem suspensão:** em *Configurações → Sistema → Energia*, "Colocar o
+  dispositivo em suspensão" como *Nunca* (a tela pode desligar e bloquear).
+
+A migração do banco local para o container roda **uma vez**, com o Docker
+Desktop instalado e no ar, e `make` no PATH (no Windows:
+`winget install ezwinports.make`):
+
+```bash
+bash scripts/migrar_para_docker.sh
+```
+
+Ela para no primeiro erro e mostra um resumo por etapa. Na ordem:
+
+1. faz backup do banco local em `backups/` (dump e contagem das tabelas);
+2. confere a versão do Postgres;
+3. para o ambiente local, mantendo a pasta de dados;
+4. restaura o dump no container, se ele estiver vazio, e roda `make roles`;
+5. confere que as contagens no container são idênticas às do local;
+6. roda `make validar` e a sync da Pluggy em simulação.
+
+Se as contagens não baterem, nada é apagado: o banco local continua intacto
+e o dump fica em `backups/`. Depois desse portão, **o banco local vira cópia
+congelada** e o `scripts/local/subir.sh` passa a recusar subir. Dois bancos
+ativos divergiriam.
+
 ## Rodando sem Docker (Windows)
 
-Para máquina sem Docker ou sem privilégio de administrador: Postgres em
-binários portáteis, a API num venv e o painel com o Node da máquina. Tudo em
+**Modo reserva (D-17).** Para máquina sem Docker ou sem privilégio de
+administrador: Postgres em binários portáteis, a API num venv e o painel com o
+Node da máquina. O `subir.sh` recusa subir se o container do banco estiver
+rodando, se a porta do Postgres estiver ocupada por outro processo ou depois
+da migração para o Docker. Nesse último caso o banco local é cópia congelada
+desde a data da migração, gravada em `~/.controle-casa-dev/MIGRADO_PARA_DOCKER`. Tudo em
 `scripts/local/`, para rodar no Git Bash. Nenhuma senha mora nos scripts:
 elas vêm do `.env`.
 
