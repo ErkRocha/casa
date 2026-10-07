@@ -23,6 +23,8 @@ from urllib.parse import quote
 
 from dotenv import dotenv_values
 
+from app.config import com_connect_timeout
+
 RAIZ = Path(__file__).resolve().parents[2]
 ARQUIVO_ENV = RAIZ / ".env"
 
@@ -44,7 +46,8 @@ def url_do_host(env: Mapping[str, str | None]) -> str:
     senha = quote(str(env["POSTGRES_PASSWORD"]), safe="")
     banco = quote(str(env["POSTGRES_DB"]), safe="")
     porta = env.get("POSTGRES_PORT") or "5432"
-    return f"postgresql+psycopg://{usuario}:{senha}@127.0.0.1:{porta}/{banco}"
+    # Docker parado: falha em segundos, em vez de prender o terminal.
+    return com_connect_timeout(f"postgresql+psycopg://{usuario}:{senha}@127.0.0.1:{porta}/{banco}")
 
 
 def preparar_ambiente_host(

@@ -50,6 +50,8 @@ API_PORTA="${LOCAL_API_PORT:-${API_PORT:-8000}}"
 WEB_PORTA="${LOCAL_WEB_PORT:-${WEB_PORT:-5173}}"
 VENV="$CASA_DEV_DIR/venv"
 PY="$VENV/Scripts/python.exe"
+# Segundos até desistir de conectar ao banco (o mesmo da API, app/config.py).
+CASA_CONNECT_TIMEOUT=5
 
 # Node: o do PATH, ou o que o winget instala sem mexer no PATH.
 if ! command -v node >/dev/null 2>&1; then
@@ -70,11 +72,14 @@ casa_exportar_ambiente() {
   fi
   local senha
   senha="$(_casa_urlencode "$PG_SENHA")" || return 1
-  export DATABASE_URL="postgresql+psycopg://$PG_USER:$senha@127.0.0.1:$PG_PORT/$PG_DB"
+  # connect_timeout: banco fora do ar falha em segundos, em vez de travar.
+  export DATABASE_URL="postgresql+psycopg://$PG_USER:$senha@127.0.0.1:$PG_PORT/$PG_DB?connect_timeout=$CASA_CONNECT_TIMEOUT"
   # Banco truncado entre testes: nunca o de verdade.
-  export TEST_DATABASE_URL="postgresql+psycopg://$PG_USER:$senha@127.0.0.1:$PG_PORT/$PG_DB_TESTE"
+  export TEST_DATABASE_URL="postgresql+psycopg://$PG_USER:$senha@127.0.0.1:$PG_PORT/$PG_DB_TESTE?connect_timeout=$CASA_CONNECT_TIMEOUT"
   export INSIGHTS_PASSWORD="$INSIGHTS_SENHA"
   export PGPASSWORD="$PG_SENHA"
+  # O mesmo limite para psql, pg_dump e afins (a migração usa os dois).
+  export PGCONNECT_TIMEOUT="$CASA_CONNECT_TIMEOUT"
 }
 
 casa_pg_pronto() {

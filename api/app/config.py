@@ -1,10 +1,29 @@
 """Configuração por variável de ambiente."""
 
 from functools import lru_cache
-from urllib.parse import quote, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+#: Segundos até desistir de conectar ao banco. Sem isto, banco fora do ar (o
+#: Docker parado, a porta fechada) prendia a API e os scripts por minutos, em
+#: vez de falhar com erro claro.
+CONNECT_TIMEOUT_S = 5
+
+
+def com_connect_timeout(url: str, segundos: int = CONNECT_TIMEOUT_S) -> str:
+    """A URL do banco com `connect_timeout`, sem duplicar se já houver.
+
+    Mexe só na query string: usuário, senha codificada, host e banco ficam
+    como vieram. Um `connect_timeout` que já esteja na URL é respeitado.
+    """
+    partes = urlsplit(url)
+    parametros = parse_qsl(partes.query, keep_blank_values=True)
+    if any(chave == "connect_timeout" for chave, _ in parametros):
+        return url
+    parametros.append(("connect_timeout", str(segundos)))
+    return urlunsplit(partes._replace(query=urlencode(parametros)))
 
 
 class Settings(BaseSettings):
@@ -56,6 +75,13 @@ class Settings(BaseSettings):
     #: `SecretStr` para não vazar em `repr`, log ou traceback de validação —
     #: o valor só sai por `.get_secret_value()`, e só o cliente HTTP chama.
     pluggy_client_secret: SecretStr | None = None
+
+    @field_validator("database_url", "insights_database_url_override", mode="after")
+    @classmethod
+    def _com_timeout(cls, valor: str | None) -> str | None:
+        """Toda URL de banco do projeto passa por aqui: API, scripts, sync,
+        relatório, Alembic e testes. A do insights deriva desta e herda."""
+        return com_connect_timeout(valor) if valor else valor
 
     @field_validator("pluggy_client_id", "pluggy_client_secret", mode="before")
     @classmethod

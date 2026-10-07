@@ -19,8 +19,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import date
+from urllib.parse import urlsplit
 
 from scripts._host import preparar_ambiente_host
 
@@ -30,6 +32,7 @@ from scripts._host import preparar_ambiente_host
 preparar_ambiente_host()
 
 from sqlalchemy import text  # noqa: E402
+from sqlalchemy.exc import OperationalError  # noqa: E402
 
 from app.db import SessionLocal  # noqa: E402
 from app.insights.harness import BackendIndisponivel, FalhaDoModelo  # noqa: E402
@@ -112,5 +115,22 @@ def main() -> int:
     return 0
 
 
+def _sem_banco(exc: OperationalError) -> int:
+    """Banco fora do alcance: diz onde tentou e o que conferir, sem traceback."""
+    partes = urlsplit(os.environ.get("DATABASE_URL", ""))
+    destino = f"{partes.hostname}:{partes.port}" if partes.hostname else "?"
+    causa = str(exc.orig or exc).strip().splitlines()[0]
+    print(f"ERRO: não consegui conectar ao banco em {destino}: {causa}", file=sys.stderr)
+    print(
+        "Modo Docker: confira se o Docker Desktop e o container do db estão no ar. "
+        "Modo local: rode 'source scripts/local/ambiente.sh' e o subir.sh antes.",
+        file=sys.stderr,
+    )
+    return 4
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except OperationalError as exc:
+        sys.exit(_sem_banco(exc))

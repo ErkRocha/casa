@@ -14,7 +14,7 @@ BASE = {"POSTGRES_USER": "casa", "POSTGRES_PASSWORD": "segredo", "POSTGRES_DB": 
 
 def test_monta_pela_porta_publicada() -> None:
     url = url_do_host(BASE | {"POSTGRES_PORT": "5433"})
-    assert url == "postgresql+psycopg://casa:segredo@127.0.0.1:5433/casa"
+    assert url == "postgresql+psycopg://casa:segredo@127.0.0.1:5433/casa?connect_timeout=5"
 
 
 def test_porta_padrao_do_compose() -> None:
