@@ -1,4 +1,4 @@
-"""A senha da role read-only chega ao container da API (D-11)."""
+"""O docker-compose.yml: senha da role read-only (D-11) e reinício (D-17)."""
 
 from __future__ import annotations
 
@@ -25,3 +25,13 @@ def test_api_recebe_insights_password() -> None:
     `make dossie` só conectava porque usava a mesma senha errada."""
     api = _bloco_do_servico(COMPOSE.read_text("utf-8"), "api")
     assert re.search(r"^\s+INSIGHTS_PASSWORD: \$\{INSIGHTS_PASSWORD", api, re.M)
+
+
+@pytest.mark.skipif(
+    not COMPOSE.exists(), reason="docker-compose.yml fica fora do container; roda no host"
+)
+@pytest.mark.parametrize("servico", ["db", "api", "web"])
+def test_servicos_reiniciam_sozinhos(servico: str) -> None:
+    """D-17: o sistema roda continuamente no PC de casa."""
+    bloco = _bloco_do_servico(COMPOSE.read_text("utf-8"), servico)
+    assert re.search(r"^\s+restart: unless-stopped$", bloco, re.M)

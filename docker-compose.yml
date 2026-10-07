@@ -2,6 +2,9 @@ services:
   db:
     image: postgres:16-alpine
     container_name: casa_db
+    # D-17: o PC de casa roda o sistema continuamente. Volta sozinho depois
+    # de reiniciar o Windows; só fica parado se alguém o parar.
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -23,6 +26,7 @@ services:
     build:
       context: ./api
     container_name: casa_api
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       APP_ENV: ${APP_ENV:-dev}
@@ -52,6 +56,7 @@ services:
     build:
       context: ./web
     container_name: casa_web
+    restart: unless-stopped
     environment:
       VITE_API_URL: http://127.0.0.1:${API_PORT:-8000}
     ports:
