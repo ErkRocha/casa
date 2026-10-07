@@ -194,6 +194,12 @@ def alertas_deterministicos(dossie: Dossie) -> list[Alerta]:
     return sorted(achados, key=lambda a: _ORDEM[a.prioridade])
 
 
+#: Versão gravada no relatório que sai só dos números, sem modelo. Mora aqui,
+#: junto de `relatorio_sem_ia`, para quem só lê relatórios (a tela) saber se
+#: um texto é seco sem importar o caminho de geração e a sessão read-only.
+PROMPT_SEM_IA = "deterministico_v1"
+
+
 def relatorio_sem_ia(dossie: Dossie) -> str:
     """Markdown gerado só com os números. Nenhuma chamada de modelo.
 

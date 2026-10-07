@@ -20,7 +20,7 @@ from typing import Any
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.insights import tools
+from app.insights import deteccoes, tools
 from app.insights.db import sessao_leitura
 from app.insights.deteccoes import alertas_deterministicos, relatorio_sem_ia
 from app.insights.harness import Execucao, carregar_prompt, gerar_validado
@@ -32,8 +32,8 @@ PROMPT_MENSAL = "relatorio_mensal_v1"
 
 #: Versão usada quando o texto sai só dos números, sem modelo. Fica gravada
 #: igual: seis meses depois, "por que este relatório é tão seco?" tem que ter
-#: resposta na própria linha.
-PROMPT_SEM_IA = "deterministico_v1"
+#: resposta na própria linha. Definida em `deteccoes`, junto do gerador.
+PROMPT_SEM_IA = deteccoes.PROMPT_SEM_IA
 
 
 class RelatorioService(CrudService[Relatorio]):

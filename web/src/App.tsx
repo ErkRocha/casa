@@ -8,6 +8,7 @@ import { ActiveChips } from "@/features/filters/active-chips";
 import { FilterBar } from "@/features/filters/filter-bar";
 import { ImportacoesPage } from "@/features/ingestao/importacoes-page";
 import { RegrasPage } from "@/features/regras/regras-page";
+import { RelatoriosPage } from "@/features/relatorios/relatorios-page";
 import { TransacoesPage } from "@/features/transacoes/transacoes-page";
 
 const TITULOS: Record<ScreenId, string> = {
@@ -15,6 +16,7 @@ const TITULOS: Record<ScreenId, string> = {
   analytics: "Analytics",
   importacoes: "Importar",
   regras: "Regras de categorização",
+  relatorios: "Relatórios do mês",
 };
 
 /**
@@ -40,7 +42,7 @@ export default function App() {
           <Topbar
             title={TITULOS[tela]}
             action={
-              tela === "importacoes" || tela === "regras" ? undefined : (
+              tela === "importacoes" || tela === "regras" || tela === "relatorios" ? undefined : (
                 <PrimaryButton onClick={() => setDrawerAberto(true)}>
                   + Nova transação
                 </PrimaryButton>
@@ -62,6 +64,8 @@ export default function App() {
         <ImportacoesPage />
       ) : tela === "regras" ? (
         <RegrasPage />
+      ) : tela === "relatorios" ? (
+        <RelatoriosPage />
       ) : (
         <TransacoesPage
           drawerAberto={drawerAberto}

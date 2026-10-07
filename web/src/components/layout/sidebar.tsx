@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
  * é o próprio protótipo sinalizando o que é fase futura do roadmap.
  */
 
-export type ScreenId = "transacoes" | "analytics" | "importacoes" | "regras";
+export type ScreenId = "transacoes" | "analytics" | "importacoes" | "regras" | "relatorios";
 
 interface NavItem {
   id: ScreenId;
@@ -22,9 +22,10 @@ const NAV_ITEMS: NavItem[] = [
   { id: "analytics", label: "Analytics" },
   { id: "importacoes", label: "Importar" },
   { id: "regras", label: "Regras" },
+  { id: "relatorios", label: "Relatórios" },
 ];
 
-const SOON_ITEMS = ["Orçamentos", "Relatórios"];
+const SOON_ITEMS = ["Orçamentos"];
 
 export function Sidebar({
   activeScreen,

@@ -343,7 +343,10 @@ Ficam registradas aqui como histórico da decisão:
 - [x] Tools SQL determinísticas — `app/insights/tools.py`
 - [x] Detecções que não usam LLM (reajuste, orçamento estourado, gasto atípico)
 - [x] Relatório mensal salvo em `relatorios` — `make relatorio`
-- [ ] Tela de relatórios no painel
+- [x] Tela de relatórios no painel — só leitura: meses à esquerda, o texto
+  (Markdown sem HTML, conteúdo não confiável) e ao lado os números do dossiê
+  gravado em `dados_base`; com IA ou seco e a versão do prompt. Mês sem
+  relatório mostra o `make relatorio m=AAAA-MM`; gerar continua pelo CLI.
 - [ ] Chat sob demanda no painel
 - [ ] Agendamento (hoje o fechamento é um comando que você roda)
 
