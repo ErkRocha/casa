@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     #: sobrescrevem por sessão via `SET LOCAL app.autor`.
     app_autor_padrao: str = "usuario"
 
+    #: Prefixo sob o qual a API é servida atrás de um proxy (D-19). No compose
+    #: é `/api`: o nginx do painel repassa `/api/...` tirando o prefixo, e com
+    #: isto o `/docs` monta os links em `/api/...` e funciona em `/api/docs`
+    #: pelo painel. Vazio no acesso direto (`127.0.0.1:8000`, modo local).
+    api_root_path: str = ""
+
     #: Origens liberadas no CORS. Desde a D-18 o painel chama a API por `/api`
     #: na mesma origem (o servidor do front repassa), e o CORS não entra no uso
     #: normal. Fica para quem apontar `VITE_API_URL` direto para a API.

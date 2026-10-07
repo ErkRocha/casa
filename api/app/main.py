@@ -21,6 +21,8 @@ app = FastAPI(
         "Roda em Docker na máquina do usuário; não vai pra internet."
     ),
     version="0.1.0",
+    # Atrás do nginx do painel, em /api (D-19); vazio no acesso direto.
+    root_path=settings.api_root_path,
 )
 
 app.add_middleware(
