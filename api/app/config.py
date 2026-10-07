@@ -94,6 +94,16 @@ class Settings(BaseSettings):
         )
 
 
+def url_para_alembic(url: str) -> str:
+    """A URL do banco pronta para `Config.set_main_option` do Alembic.
+
+    O Alembic guarda a opção num `configparser`, que lê `%` como início de
+    interpolação. Senha com `@`, `:` ou `/` chega aqui codificada (`%40`,
+    `%3A`), e sem o escape a migration morria antes de conectar.
+    """
+    return url.replace("%", "%%")
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

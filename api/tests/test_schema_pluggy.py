@@ -14,7 +14,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from alembic import command
-from app.config import get_settings
+from app.config import get_settings, url_para_alembic
 from app.db import engine
 from app.enums import StatusImportacao, StatusItem, TipoConta, TipoPagamento
 from app.models import Conta, ContaPluggy, FormaPagamento, Importacao, ImportacaoItem
@@ -200,7 +200,7 @@ class TestMigration0005:
     def test_downgrade_e_upgrade_de_novo(self) -> None:
         """Ida e volta: 0005 desfaz tudo o que fez e reaplica limpo."""
         config = Config("alembic.ini")
-        config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
+        config.set_main_option("sqlalchemy.url", url_para_alembic(os.environ["DATABASE_URL"]))
         engine.dispose()
 
         def _estado() -> tuple[bool, bool, bool]:

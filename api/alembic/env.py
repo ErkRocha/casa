@@ -6,11 +6,11 @@ from alembic import context
 
 # Importado pelo efeito colateral de registrar os models no metadata.
 from app import models  # noqa: F401
-from app.config import get_settings
+from app.config import get_settings, url_para_alembic
 from app.db import Base
 
 config = context.config
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+config.set_main_option("sqlalchemy.url", url_para_alembic(get_settings().database_url))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

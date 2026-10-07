@@ -49,6 +49,7 @@ from sqlalchemy import text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 from alembic import command  # noqa: E402
+from app.config import url_para_alembic  # noqa: E402
 from app.db import SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.seed import run as rodar_seed  # noqa: E402
@@ -83,7 +84,7 @@ def _migrar() -> None:
     quebrar, o teste quebra aqui, que é onde deve quebrar.
     """
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
+    config.set_main_option("sqlalchemy.url", url_para_alembic(os.environ["DATABASE_URL"]))
     command.upgrade(config, "head")
 
     # A role read-only da fase 6 nasce aqui, e não num fixture sob demanda,
