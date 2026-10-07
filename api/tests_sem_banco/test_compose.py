@@ -35,3 +35,31 @@ def test_servicos_reiniciam_sozinhos(servico: str) -> None:
     """D-17: o sistema roda continuamente no PC de casa."""
     bloco = _bloco_do_servico(COMPOSE.read_text("utf-8"), servico)
     assert re.search(r"^\s+restart: unless-stopped$", bloco, re.M)
+
+
+DEV = COMPOSE.with_name("docker-compose.dev.yml")
+
+
+@pytest.mark.skipif(not COMPOSE.exists(), reason="roda no host")
+def test_web_e_o_nginx_sem_codigo_montado() -> None:
+    """D-19: produção é a imagem pronta; nada de volume nem de `npm run dev`."""
+    web = _bloco_do_servico(COMPOSE.read_text("utf-8"), "web")
+    assert "volumes:" not in web and "command:" not in web
+    assert '"127.0.0.1:${WEB_PORT:-5173}:5173"' in web
+    assert "API_UPSTREAM: http://api:8000" in web
+    assert "WEB_ALLOWED_HOSTS: ${WEB_ALLOWED_HOSTS:-.ts.net}" in web
+
+
+@pytest.mark.skipif(not COMPOSE.exists(), reason="roda no host")
+def test_api_atras_do_proxy_em_api() -> None:
+    api = _bloco_do_servico(COMPOSE.read_text("utf-8"), "api")
+    assert re.search(r"^\s+API_ROOT_PATH: /api$", api, re.M)
+
+
+@pytest.mark.skipif(not DEV.exists(), reason="roda no host")
+def test_override_de_dev_volta_o_vite_com_recarga() -> None:
+    web = _bloco_do_servico(DEV.read_text("utf-8"), "web")
+    assert "target: dev" in web
+    assert "./web:/app" in web and "web_node_modules:/app/node_modules" in web
+    assert "command: npm run dev" in web
+    assert "API_PROXY_TARGET: http://api:8000" in web

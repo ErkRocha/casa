@@ -35,6 +35,9 @@ services:
       # e a senha do .env nunca chegava à role. Sem a variável no .env, vale o
       # mesmo padrão do código, e o `make roles` avisa.
       INSIGHTS_PASSWORD: ${INSIGHTS_PASSWORD:-trocar_no_primeiro_uso}
+      # D-19: a API fica atrás do nginx em /api; com isto o /docs funciona em
+      # /api/docs pelo painel. Vazio (o padrão do código) é o acesso direto.
+      API_ROOT_PATH: /api
       # Opcionais (D-16). Vazias, a sync fica desligada e a API sobe igual.
       PLUGGY_CLIENT_ID: ${PLUGGY_CLIENT_ID:-}
       PLUGGY_CLIENT_SECRET: ${PLUGGY_CLIENT_SECRET:-}
@@ -53,27 +56,24 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   web:
+    # D-19: o build do front servido por nginx, que também repassa /api/
+    # para a API. Sem volume de código: a imagem carrega o dist pronto.
+    # Desenvolvimento com recarga: `make dev` (docker-compose.dev.yml).
     build:
       context: ./web
     container_name: casa_web
     restart: unless-stopped
     environment:
-      # D-18: o navegador chama /api na mesma origem do painel, e o Vite
-      # repassa para a API pela rede interna do compose.
-      API_PROXY_TARGET: http://api:8000
-      # Hosts aceitos além de localhost: o domínio do Tailscale, por onde o
-      # `tailscale serve` entrega o painel fora de casa.
+      # Para onde o nginx repassa /api/, pela rede interna do compose.
+      API_UPSTREAM: http://api:8000
+      # Hosts aceitos além de localhost e 127.0.0.1: o domínio do Tailscale,
+      # por onde o `tailscale serve` entrega o painel. Os outros recebem 403
+      # (proteção contra DNS rebinding, também em /api).
       WEB_ALLOWED_HOSTS: ${WEB_ALLOWED_HOSTS:-.ts.net}
     ports:
       - "127.0.0.1:${WEB_PORT:-5173}:5173"
-    volumes:
-      - ./web:/app
-      # Mantém o node_modules do container — o host não tem Node instalado.
-      - web_node_modules:/app/node_modules
     depends_on:
       - api
-    command: npm run dev
 
 volumes:
   db_data:
-  web_node_modules:

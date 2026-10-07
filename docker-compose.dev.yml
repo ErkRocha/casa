@@ -1,0 +1,25 @@
+# Desenvolvimento com recarga (D-19): `make dev`.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#
+# Por cima do docker-compose.yml, troca o painel de produção (nginx com o
+# build) pelo Vite com recarga automática, com o código montado. A porta no
+# host é a mesma, então o `tailscale serve` e o endereço não mudam. Para
+# voltar à produção: `make up`.
+services:
+  web:
+    build:
+      context: ./web
+      target: dev
+    environment:
+      # O proxy do Vite faz o papel do nginx: /api -> API, sem o prefixo.
+      API_PROXY_TARGET: http://api:8000
+      WEB_ALLOWED_HOSTS: ${WEB_ALLOWED_HOSTS:-.ts.net}
+    volumes:
+      - ./web:/app
+      # Mantém o node_modules do container: o do host é de outro sistema.
+      - web_node_modules:/app/node_modules
+    command: npm run dev
+
+volumes:
+  web_node_modules:

@@ -1,16 +1,22 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync
+.PHONY: help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
-up: ## Sobe todos os containers
+up: ## Sobe tudo em modo produção: painel compilado no nginx (D-19)
 	$(COMPOSE) up -d --build
-	@echo "api  -> http://127.0.0.1:$${API_PORT:-8000}/docs"
-	@echo "web  -> http://127.0.0.1:$${WEB_PORT:-5173}"
+	@echo "painel -> http://127.0.0.1:$${WEB_PORT:-5173}"
+	@echo "api    -> http://127.0.0.1:$${WEB_PORT:-5173}/api/docs (pelo painel)"
+
+# Override por cima do compose: o painel volta a ser o Vite com recarga e o
+# código montado. `make up` volta à produção.
+dev: ## Sobe em modo desenvolvimento: Vite com recarga no lugar do nginx
+	$(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+	@echo "painel (dev, com recarga) -> http://127.0.0.1:$${WEB_PORT:-5173}"
 
 down: ## Derruba os containers (mantém o volume do banco)
 	$(COMPOSE) down
