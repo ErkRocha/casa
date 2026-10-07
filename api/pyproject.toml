@@ -24,6 +24,9 @@ dependencies = [
     # UTC para America/Sao_Paulo. Windows não tem base no sistema, e a imagem
     # slim não garante o pacote `tzdata` do Debian.
     "tzdata>=2024.1",
+    # Servidor MCP do chat sob demanda (D-20). A 2.x renomeou FastMCP para
+    # MCPServer e mudou o cliente; o teto evita a próxima quebra silenciosa.
+    "mcp>=2.3,<3",
 ]
 
 [project.optional-dependencies]
