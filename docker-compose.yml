@@ -26,6 +26,11 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       APP_ENV: ${APP_ENV:-dev}
+      # Senha da role read-only dos insights (D-11). Sem ela aqui, `make roles`
+      # e `make dossie` rodavam no container com o valor de exemplo do código,
+      # e a senha do .env nunca chegava à role. Sem a variável no .env, vale o
+      # mesmo padrão do código, e o `make roles` avisa.
+      INSIGHTS_PASSWORD: ${INSIGHTS_PASSWORD:-trocar_no_primeiro_uso}
       # Opcionais (D-16). Vazias, a sync fica desligada e a API sobe igual.
       PLUGGY_CLIENT_ID: ${PLUGGY_CLIENT_ID:-}
       PLUGGY_CLIENT_SECRET: ${PLUGGY_CLIENT_SECRET:-}
