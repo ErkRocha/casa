@@ -8,6 +8,7 @@
 set -uo pipefail
 source "$(dirname "$0")/_config.sh"
 casa_exportar_ambiente || exit 1
+casa_checar_banco_unico || exit 1
 
 echo "1/3 Postgres (porta $PG_PORT)..."
 casa_subir_postgres || exit 1

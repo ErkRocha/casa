@@ -108,3 +108,42 @@ casa_subir_postgres() {
     echo "    aviso: o Postgres tinha caído sem desligar e se recuperou sozinho (ver $PG_LOG)"
   fi
 }
+
+# Marcador gravado pelo scripts/migrar_para_docker.sh: daqui em diante o banco
+# local é cópia congelada (D-17).
+CASA_MARCADOR_MIGRACAO="$CASA_DEV_DIR/MIGRADO_PARA_DOCKER"
+
+# Recusa subir o banco local quando outro banco pode estar ativo (D-17).
+# Dois bancos ativos divergem: o staging, as aprovações e a auditoria de um
+# não existem no outro, e não há como juntar depois.
+casa_checar_banco_unico() {
+  if [[ -f "$CASA_MARCADOR_MIGRACAO" && "${CASA_FORCAR_LOCAL:-}" != "1" ]]; then
+    echo "RECUSADO: o sistema foi migrado para o Docker ($(head -n 1 "$CASA_MARCADOR_MIGRACAO"))." >&2
+    echo "O banco local em $PG_DATA é cópia congelada e não deve mais ser usado (D-17)." >&2
+    echo "Use 'docker compose up -d'. Só para consultar a cópia: CASA_FORCAR_LOCAL=1." >&2
+    return 1
+  fi
+
+  if command -v docker >/dev/null 2>&1; then
+    local rodando
+    rodando="$(docker ps --filter "name=^casa_db$" --filter status=running --format '{{.Names}}' 2>/dev/null)"
+    if [[ -n "$rodando" ]]; then
+      echo "RECUSADO: o container do banco ($rodando) está rodando." >&2
+      echo "Dois bancos ativos divergiriam (D-17). O Docker é o modo principal:" >&2
+      echo "use o painel dele, ou pare-o com 'docker compose stop' antes de usar o local." >&2
+      return 1
+    fi
+  fi
+
+  local pid nosso=""
+  pid="$(casa_pid_da_porta "$PG_PORT")"
+  if [[ -n "$pid" ]]; then
+    [[ -f "$PG_DATA/postmaster.pid" ]] && nosso="$(head -n 1 "$PG_DATA/postmaster.pid" | tr -d '\r[:space:]')"
+    if [[ "$pid" != "$nosso" ]]; then
+      echo "RECUSADO: a porta $PG_PORT já está ocupada por outro processo (PID $pid)," >&2
+      echo "que não é o Postgres local de $PG_DATA. Pode ser outro banco ativo." >&2
+      echo "Descubra qual é antes de subir: tasklist //FI \"PID eq $pid\"" >&2
+      return 1
+    fi
+  fi
+}
