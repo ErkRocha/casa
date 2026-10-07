@@ -312,3 +312,35 @@ abrir porta seria pôr o sistema na internet, o que ele não é (CLAUDE.md).
   o único serviço exposto à internet, por Cloudflare Tunnel, em repositório
   próprio. Ele fala com a API pela rede de casa; o painel e a API continuam
   só na tailnet.
+
+---
+
+## D-19 — Front compilado e servido por nginx
+
+Decisão do usuário, 07/10/2026.
+
+Com o sistema ligado 24h (D-17) e acessível pelo Tailscale (D-18), o
+servidor de desenvolvimento do Vite deixou de servir: consome mais (recompila
+e observa arquivos o tempo todo), depende do `node_modules` montado e não foi
+feito para ficar exposto, nem numa rede privada.
+
+- **O front é compilado e servido por nginx, num container próprio.** O build
+  sai de um estágio Node (`npm ci` e `vite build`); a imagem final é nginx
+  com o `dist` e a configuração, versionada em `web/nginx/`. O mesmo nginx
+  repassa `/api/` para a API, tirando o prefixo, como o proxy do Vite fazia
+  (D-18): o endereço publicado pelo `tailscale serve` não muda.
+- **O nginx recusa Host desconhecido**, inclusive em `/api`: só localhost,
+  127.0.0.1 e o domínio do Tailscale (`WEB_ALLOWED_HOSTS`, o mesmo padrão do
+  Vite). É a proteção contra DNS rebinding — uma página qualquer na internet
+  não consegue usar o navegador de quem está em casa para chegar à API.
+- **A API aceita estar atrás do proxy:** `API_ROOT_PATH=/api` no compose faz o
+  `/docs` funcionar em `/api/docs` pelo painel. O padrão é vazio, para o
+  acesso direto em `127.0.0.1:8000` continuar como era.
+- **Desenvolvimento com recarga continua disponível, mas não é o padrão:**
+  `make dev` sobe o Vite por um override do compose. `make up` é produção.
+  O modo local (`scripts/local/`) segue com o Vite de desenvolvimento, como
+  reserva.
+
+Descartado: a FastAPI servir os arquivos do front. Acoplaria front e back
+num processo só — rebuild de um para mudar o outro, e o front preso à
+disponibilidade da API —, contra a direção modular do projeto.
