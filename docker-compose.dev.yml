@@ -3,10 +3,15 @@
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 #
 # Por cima do docker-compose.yml, troca o painel de produção (nginx com o
-# build) pelo Vite com recarga automática, com o código montado. A porta no
+# build) pelo Vite com recarga automática, com o código montado, e volta o
+# --reload da API. A porta no
 # host é a mesma, então o `tailscale serve` e o endereço não mudam. Para
 # voltar à produção: `make up`.
 services:
+  api:
+    # A recarga que a produção não tem: reinicia a cada alteração em api/.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
   web:
     build:
       context: ./web

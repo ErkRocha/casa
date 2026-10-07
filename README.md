@@ -28,7 +28,8 @@ make demo                 # opcional: 12 meses de lançamentos falsos para ver a
 
 O `make up` é o modo de produção (D-19): o painel é compilado na imagem e
 servido por nginx, que também repassa `/api/` para a API. Mudou o código do
-front? `make up` de novo recompila. O nginx só aceita os Hosts localhost,
+front? `make up` de novo recompila. A API também roda sem recarga automática:
+mudou o código dela, `make up` ou `docker compose restart api`. O nginx só aceita os Hosts localhost,
 127.0.0.1 e o domínio do Tailscale (`WEB_ALLOWED_HOSTS`); qualquer outro
 recebe 403, inclusive em `/api`.
 
@@ -41,7 +42,7 @@ make up                   # volta para a produção
 
 O `make dev` usa o `docker-compose.dev.yml` por cima do compose: a mesma
 porta e o mesmo `/api`, só que servidos pelo Vite, que recompila a cada
-alteração. Serve para desenvolver; para deixar ligado, use `make up`.
+alteração, e com a API em `--reload`, que reinicia a cada mudança em `api/`. Serve para desenvolver; para deixar ligado, use `make up`.
 
 `make roles` é idempotente e **prova** o que faz: cria a role, tenta escrever
 com ela e aborta se a escrita passar. Rode uma vez em banco que já existia

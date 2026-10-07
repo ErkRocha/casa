@@ -53,7 +53,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # Produção (D-17, D-19): sem --reload, que observaria os arquivos o tempo
+    # todo. O volume do código fica (os alvos do Makefile e os scripts rodam
+    # nele), então mudança na API pede `make up` ou `docker compose restart
+    # api`. Recarga automática: `make dev`.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   web:
     # D-19: o build do front servido por nginx, que também repassa /api/

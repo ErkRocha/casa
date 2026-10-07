@@ -63,3 +63,29 @@ def test_override_de_dev_volta_o_vite_com_recarga() -> None:
     assert "./web:/app" in web and "web_node_modules:/app/node_modules" in web
     assert "command: npm run dev" in web
     assert "API_PROXY_TARGET: http://api:8000" in web
+
+
+def _comando(texto: str, servico: str) -> str:
+    casou = re.search(r"^\s+command: (.+)$", _bloco_do_servico(texto, servico), re.M)
+    assert casou, f"{servico} sem command"
+    return casou.group(1)
+
+
+@pytest.mark.skipif(not COMPOSE.exists(), reason="roda no host")
+def test_api_em_producao_sem_reload() -> None:
+    """Ligado 24h: nada de observar arquivos o tempo todo."""
+    comando = _comando(COMPOSE.read_text("utf-8"), "api")
+    assert comando.startswith("uvicorn app.main:app")
+    assert "--reload" not in comando
+
+
+@pytest.mark.skipif(not DEV.exists(), reason="roda no host")
+def test_dev_volta_o_reload_da_api() -> None:
+    comando = _comando(DEV.read_text("utf-8"), "api")
+    assert comando.startswith("uvicorn app.main:app") and comando.endswith("--reload")
+
+
+@pytest.mark.skipif(not COMPOSE.exists(), reason="roda no host")
+def test_api_mantem_o_volume_do_codigo() -> None:
+    """Os alvos do Makefile e os scripts rodam no container, sobre o código."""
+    assert "- ./api:/app" in _bloco_do_servico(COMPOSE.read_text("utf-8"), "api")
