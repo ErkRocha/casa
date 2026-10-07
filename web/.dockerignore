@@ -1,0 +1,5 @@
+# O build copia o código; dependências e build local não entram na imagem.
+node_modules
+dist
+.vite
+*.log

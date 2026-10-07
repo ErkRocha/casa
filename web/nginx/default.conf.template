@@ -1,0 +1,84 @@
+# Painel em produção (D-19): o build do front servido como arquivo estático, e
+# /api/ repassado para a API. Template da imagem oficial do nginx: na subida,
+# o entrypoint troca ${API_UPSTREAM} pelo valor do ambiente e grava em
+# /etc/nginx/conf.d/default.conf. Variáveis do nginx ($host, $uri...) ficam.
+
+# Host aceito? A lista sai de WEB_ALLOWED_HOSTS, gerada na subida por
+# /docker-entrypoint.d/15-hosts-permitidos.sh (localhost e 127.0.0.1 sempre).
+map $host $host_permitido {
+    default 0;
+    include hosts_permitidos.map;
+}
+
+server {
+    listen 5173;
+    server_name _;
+    server_tokens off;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Proteção contra DNS rebinding (D-18, D-19): uma página qualquer na
+    # internet que aponte um domínio dela para 127.0.0.1 chega aqui com o
+    # Host dela, e é recusada — no painel e na API. Vale antes de qualquer
+    # location.
+    if ($host_permitido = 0) {
+        return 403;
+    }
+
+    include snippets/seguranca.conf;
+
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/javascript application/javascript
+               application/json image/svg+xml;
+
+    # --- API ------------------------------------------------------------
+    location = /api {
+        return 301 /api/;
+    }
+
+    location /api/ {
+        # A barra no fim do destino tira o prefixo: /api/transacoes chega à
+        # API como /transacoes.
+        proxy_pass ${API_UPSTREAM}/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Prefix /api;
+
+        # API fora do ar: erro em segundos, não espera longa.
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 60s;
+        # Importar um PDF e aprovar um lote grande levam alguns segundos.
+        proxy_read_timeout 120s;
+
+        # A API recusa PDF acima de 15 MB com mensagem própria
+        # (routers/ingestao.py). A folga deixa a mensagem dela chegar, em vez
+        # de um 413 do nginx.
+        client_max_body_size 16m;
+    }
+
+    # --- Front ----------------------------------------------------------
+    # Arquivos com hash no nome: o conteúdo nunca muda sob o mesmo nome.
+    location /assets/ {
+        include snippets/seguranca.conf;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
+    # O index aponta para os assets da versão atual: nunca em cache.
+    location = /index.html {
+        include snippets/seguranca.conf;
+        add_header Cache-Control "no-cache" always;
+    }
+
+    # SPA: rota que não é arquivo cai no index.html, e o React Router decide.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
