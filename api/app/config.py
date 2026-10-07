@@ -17,7 +17,9 @@ class Settings(BaseSettings):
     #: sobrescrevem por sessão via `SET LOCAL app.autor`.
     app_autor_padrao: str = "usuario"
 
-    #: Origens liberadas no CORS. O front roda no host, a API no container.
+    #: Origens liberadas no CORS. Desde a D-18 o painel chama a API por `/api`
+    #: na mesma origem (o servidor do front repassa), e o CORS não entra no uso
+    #: normal. Fica para quem apontar `VITE_API_URL` direto para a API.
     cors_origins: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",

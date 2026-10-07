@@ -26,8 +26,9 @@ if [[ -n "$(casa_pid_da_porta "$WEB_PORTA")" ]]; then
   echo "    já estava no ar"
 else
   # Só no loopback: o sistema não vai para a rede (o `npm run dev` do Docker
-  # escuta em 0.0.0.0 porque precisa sair do container).
-  (cd "$CASA_REPO/web" && VITE_API_URL="http://127.0.0.1:$API_PORTA" nohup npx vite \
+  # escuta em 0.0.0.0 porque precisa sair do container). O painel chama /api
+  # na mesma origem, e o Vite repassa para a API (D-18).
+  (cd "$CASA_REPO/web" && API_PROXY_TARGET="http://127.0.0.1:$API_PORTA" nohup npx vite \
     --host 127.0.0.1 --port "$WEB_PORTA" --strictPort >"$CASA_DEV_DIR/web.log" 2>&1 &)
 fi
 

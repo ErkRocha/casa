@@ -58,7 +58,12 @@ services:
     container_name: casa_web
     restart: unless-stopped
     environment:
-      VITE_API_URL: http://127.0.0.1:${API_PORT:-8000}
+      # D-18: o navegador chama /api na mesma origem do painel, e o Vite
+      # repassa para a API pela rede interna do compose.
+      API_PROXY_TARGET: http://api:8000
+      # Hosts aceitos além de localhost: o domínio do Tailscale, por onde o
+      # `tailscale serve` entrega o painel fora de casa.
+      WEB_ALLOWED_HOSTS: ${WEB_ALLOWED_HOSTS:-.ts.net}
     ports:
       - "127.0.0.1:${WEB_PORT:-5173}:5173"
     volumes:

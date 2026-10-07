@@ -1,6 +1,7 @@
 import { Button, PessoaBadge } from "@/components/ui/controls";
 import { usePessoas } from "@/features/cadastros/queries";
 import { corDoBalde, corSuaveDoBalde } from "@/features/filters/baldes";
+import { urlDaApi } from "@/lib/api";
 import { formatBRLTexto, formatCompetencia, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Transacao } from "../types";
@@ -125,7 +126,7 @@ export function DetalheModal({
               </p>
             ) : transacao.importacao_tem_arquivo ? (
               <a
-                href={`${import.meta.env.VITE_API_URL ?? ""}/importacoes/${transacao.importacao_id}/arquivo`}
+                href={urlDaApi(`/importacoes/${transacao.importacao_id}/arquivo`)}
                 target="_blank"
                 rel="noreferrer"
                 className="text-body-sm text-accent mt-2 inline-block underline underline-offset-2"

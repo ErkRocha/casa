@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/controls";
-import { ApiError } from "@/lib/api";
+import { ApiError, urlDaApi } from "@/lib/api";
 import { formatBRLTexto, formatDate, toNumero } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useReaplicarRegras } from "@/features/regras/queries";
@@ -165,7 +165,7 @@ export function ImportacoesPage() {
             comprovante, mas ele não é documento para conferir na tela. */}
         {ehPdf(importacao) ? (
           <a
-            href={`${import.meta.env.VITE_API_URL ?? ""}/importacoes/${importacao.id}/arquivo`}
+            href={urlDaApi(`/importacoes/${importacao.id}/arquivo`)}
             target="_blank"
             rel="noreferrer"
             className="text-body-sm text-accent ml-auto underline underline-offset-2"

@@ -5,7 +5,20 @@
  * que mora aqui é montagem de URL, erro tipado e nada mais.
  */
 
-const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+/**
+ * Base da API: caminho relativo, na mesma origem do painel (D-18). O
+ * servidor do front repassa `/api/...` para a API, tirando o prefixo — em
+ * casa, pelo Tailscale e no modo local, o mesmo código.
+ *
+ * `VITE_API_URL` existe só como override explícito, para apontar o front
+ * direto para uma API em outra origem (aí o CORS da API volta a valer).
+ */
+const BASE_URL = ((import.meta.env.VITE_API_URL as string | undefined) || "/api").replace(/\/$/, "");
+
+/** URL completa de um caminho da API, para `href` e afins (fora do `fetch`). */
+export function urlDaApi(path: string): string {
+  return `${BASE_URL}${path}`;
+}
 
 export class ApiError extends Error {
   constructor(
