@@ -164,47 +164,57 @@ agendamento; hoje o fechamento é o comando `make relatorio`. Detalhes em
 
 ---
 
-## Rodando sem Docker
+## Rodando sem Docker (Windows)
 
-Nesta máquina já existe tudo montado — Postgres portátil, venv e Node — em
-`~/.controle-casa-dev`. Dois comandos:
+Para máquina sem Docker ou sem privilégio de administrador: Postgres em
+binários portáteis, a API num venv e o painel com o Node da máquina. Tudo em
+`scripts/local/`, para rodar no Git Bash. Nenhuma senha mora nos scripts:
+elas vêm do `.env`.
 
-```bash
-bash ~/.controle-casa-dev/subir.sh    # Postgres :55432, API :8000, painel :5173
-bash ~/.controle-casa-dev/parar.sh
-```
+**Uma vez só:**
 
-O script exporta `DATABASE_URL` e `INSIGHTS_PASSWORD`, então `make relatorio` e
-`pytest` funcionam no mesmo terminal. Logs em `~/.controle-casa-dev/*.log`.
+1. Python 3.12 e Node 20+ (o do winget serve, mesmo fora do PATH).
+2. Binários do PostgreSQL 16 em zip, sem instalação:
+   <https://www.enterprisedb.com/download-postgresql-binaries>. Extraia a pasta
+   `pgsql` em `~/.controle-casa-dev` (ou aponte `LOCAL_PG_BIN` para o `bin`).
+3. `.env` copiado do `.env.example`. Se o Postgres local usar senhas
+   diferentes das do Docker, preencha `LOCAL_POSTGRES_PASSWORD` e
+   `LOCAL_INSIGHTS_PASSWORD`; as outras variáveis `LOCAL_*` têm padrão.
+4. `bash scripts/local/instalar.sh` — cria o cluster, os bancos (o de verdade
+   e o `_test`), o venv, instala API e web, aplica migrations, cria a role
+   read-only e roda o seed. Pode rodar de novo: o que existe é mantido.
 
-Para montar isso do zero em outra máquina sem Docker (ou sem privilégio de
-administrador para instalá-lo):
-
-```bash
-# 1. Postgres — binários portáteis, sem instalação e sem admin:
-#    https://www.enterprisedb.com/download-postgresql-binaries
-initdb -D <pasta>/pgdata -U casa --pwfile=<arquivo com a senha> -E UTF8 --locale=C
-pg_ctl -D <pasta>/pgdata -o "-p 55432 -c listen_addresses=127.0.0.1" start
-createdb -h 127.0.0.1 -p 55432 -U casa casa
-
-# 2. API
-export DATABASE_URL="postgresql+psycopg://casa:<senha>@127.0.0.1:55432/casa"
-pip install -e "api[dev]"
-cd api && alembic upgrade head && python -m app.seed
-uvicorn app.main:app --host 127.0.0.1 --port 8000
-
-# 3. Front
-cd web && npm install && VITE_API_URL=http://127.0.0.1:8000 npm run dev
-```
-
-Os testes também rodam sem Docker: com `TEST_DATABASE_URL` apontando para um
-banco vazio, o `conftest` usa esse banco em vez de subir um testcontainer.
-**Esse banco é truncado entre testes** — nunca aponte para dados que importam.
+**No dia a dia:**
 
 ```bash
-export TEST_DATABASE_URL="postgresql+psycopg://casa:<senha>@127.0.0.1:55432/casa_test"
-cd api && pytest
+bash scripts/local/subir.sh      # Postgres :55432, API :8000, painel :5173
+bash scripts/local/parar.sh      # encerra só os processos dessas portas
+source scripts/local/ambiente.sh # exporta DATABASE_URL, TEST_DATABASE_URL e INSIGHTS_PASSWORD
 ```
+
+O `ambiente.sh` vai com `source`, não com `bash`: é o que deixa as variáveis
+no terminal, para `cd api && pytest`, `python -m scripts.relatorio` e os
+scripts da Pluggy acharem o banco local e a senha da role read-only. Sem ele,
+eles tentam o host `db` do Docker e falham. Os alvos do Makefile que usam
+`docker compose` não funcionam neste modo; rode o comando Python
+correspondente com o ambiente exportado.
+
+Os testes usam o banco `_test` do `TEST_DATABASE_URL`, que **é truncado entre
+testes** — nunca aponte para dados que importam.
+
+Logs em `~/.controle-casa-dev/{pg,api,web}.log`. O `subir.sh` avisa quando o
+Postgres tinha caído sem desligar (suspensão ou desligamento do Windows) e se
+recuperou sozinho.
+
+Se o Controle de Aplicativo Inteligente do Windows bloquear uma DLL de pacote
+recém-instalado ("Uma política de Controle de Aplicativo bloqueou este
+arquivo"), rode de novo: o bloqueio costuma ser só na primeira carga. O mypy
+compilado é bloqueado sempre; troque pela versão em Python puro:
+`MYPY_USE_MYPYC=0 pip install --no-binary mypy "mypy<2"`.
+
+Os scripts antigos em `~/.controle-casa-dev/subir.sh` e `parar.sh` continuam
+funcionando. O `parar.sh` antigo encerra **todo** `python` e `node` da máquina;
+o de `scripts/local/` não.
 
 ---
 
