@@ -296,9 +296,9 @@ Nesta ordem, sem pular:
 9. **Revisão no painel**: a importação de origem `pluggy` aparece na mesma
    tela de revisão, sem o botão de reabrir PDF. Transferência segue a regra
    atual: o usuário escolhe as contas ou rejeita.
-   **Tarefa separada: configurar eslint no web.** O script `npm run lint`
-   existe, mas o `eslint` não está nas dependências nem configurado, então o
-   lint do web nunca rodou. Até lá, o portão do web é typecheck e build.
+   **Tarefa separada: configurar eslint no web. Feita em 07/10/2026**
+   (`chore(web): configura eslint`): ESLint 9, flat config, só regras de
+   correção. O portão do web passa a ser lint, typecheck e build.
 10. **Execução agendada**, só depois de algumas semanas de `make sync` manual
    sem surpresa: uma vez por dia, depois da atualização da Pluggy. Falha vira
    log e aviso no painel, não retentativa infinita.
