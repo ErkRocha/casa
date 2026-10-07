@@ -344,3 +344,31 @@ feito para ficar exposto, nem numa rede privada.
 Descartado: a FastAPI servir os arquivos do front. Acoplaria front e back
 num processo só — rebuild de um para mudar o outro, e o front preso à
 disponibilidade da API —, contra a direção modular do projeto.
+
+---
+
+## D-20 — Chat sob demanda por servidor MCP local, no Claude Desktop
+
+Decisão do usuário, 07/10/2026.
+
+O "chat sob demanda" da Fase 6 é um servidor MCP local (`python -m app.mcp`,
+transporte stdio) que o Claude Desktop do usuário usa, com a assinatura dele.
+Não há tela de chat no painel por enquanto.
+
+- **Descartados:** a API da Anthropic com chave (custo por pergunta) e um
+  executor do CLI do Claude no host chamado pelo painel (peça frágil fora do
+  Docker, D-17). A opção com chave pode vir depois, reaproveitando as mesmas
+  tools: elas não dependem de quem as chama.
+- **O servidor só lê, por construção.** Ele conecta exclusivamente pela role
+  read-only da D-11 e não expõe nenhuma tool de escrita. É a mesma garantia
+  do relatório mensal: o Postgres recusa a escrita, independentemente do que
+  o modelo pedir — não depende de instrução no prompt.
+- **Sem SQL livre (D-10).** As tools são funções parametrizadas: as de
+  agregação de `app/insights/tools.py` e algumas de consulta (cadastros,
+  busca de transações com filtros e limite de linhas, relatório salvo).
+  Dinheiro sai como texto decimal, e as instruções do servidor mandam o
+  modelo usar as tools de agregação em vez de somar (regra 7).
+- **Privacidade, decisão consciente:** diferente do relatório mensal, que só
+  envia agregados, o chat pode enviar ao modelo descrições de transações
+  (nomes de estabelecimentos, de pessoas em Pix). O usuário aceitou isso
+  para o uso pelo Claude Desktop.
