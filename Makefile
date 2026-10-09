@@ -57,8 +57,8 @@ pluggy-diagnostico: ## Lê a Pluggy e grava amostras brutas — use: make pluggy
 pluggy-mapear: ## Lista as contas da Pluggy ainda sem mapeamento — use: make pluggy-mapear [item=ID]
 	$(COMPOSE) run --rm api python -m scripts.pluggy_mapear $(if $(item),--item $(item),)
 
-# Grava só no staging: nada entra em `transacoes` sem aprovação (D-07, D-16).
-sync: ## Sincroniza a Pluggy para a revisão — use: make sync [simular=1]
+# Grava no staging; só o item limpo entra em `transacoes` sozinho (D-21).
+sync: ## Sincroniza a Pluggy: limpos promovidos, resto na revisão — use: make sync [simular=1]
 	$(COMPOSE) run --rm api python -m scripts.pluggy_sync $(if $(simular),--simular,)
 
 # Lê os comprovantes das importações da Pluggy; só grava com aplicar=1.

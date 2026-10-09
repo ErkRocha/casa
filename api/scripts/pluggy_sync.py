@@ -12,7 +12,9 @@ segunda.
 gravaria e imprime, sem gravar nada — nem `ultimo_sync_em`. A amostra mostra
 data, valor, tipo, competência, forma, pessoa e confiança, sem a descrição.
 
-Nada aqui escreve em `transacoes` (regra 5): a sync só enche a revisão.
+Em `transacoes` só entra o item limpo, pela exceção da D-21 (regra 5): a
+sync o promove pelo mesmo `aprovar()` da revisão, com autor `sync_pluggy`.
+O resto fica na revisão, e o resumo diz quantos e por quê.
 """
 
 from __future__ import annotations
@@ -33,6 +35,7 @@ from app.config import Settings
 from app.conversao_pluggy import FUSO
 from app.models import Categoria, FormaPagamento, Pessoa
 from app.pluggy import PluggyCliente, RespostaBruta
+from app.services.promocao_pluggy import MOTIVOS
 from app.services.sync_pluggy import ResultadoSync, SyncPluggyService
 
 RAIZ = Path(__file__).resolve().parents[2]
@@ -83,12 +86,20 @@ def imprimir(resultado: ResultadoSync, session: Session) -> None:
         for f in resultado.formas_novas:
             print(f"   {verbo}: {f.apelido} ({f.tipo.value}, conta {f.conta_id})")
     print(f"\nitens novos no total: {resultado.itens_novos}")
+    verbo = "seriam promovidos" if resultado.simulado else "promovidos"
+    print(f"{verbo} automaticamente (D-21): {resultado.promovidos}")
+    print(f"na revisão: {sum(resultado.na_revisao.values())}")
+    for motivo, texto in MOTIVOS.items():
+        if resultado.na_revisao[motivo]:
+            print(f"   {texto}: {resultado.na_revisao[motivo]}")
+    for erro in resultado.erros_promocao:
+        print(f"   promoção recusada, item {erro['item_id']}: {erro['erro']}")
     if resultado.importacao_id is not None:
         print(f"importação criada: #{resultado.importacao_id}")
 
 
 def _linha(a: dict[str, Any], formas: dict[int, str], pessoas: dict[int, str]) -> str:
-    marcas = []
+    marcas = ["PROMOVE" if a.get("destino") == "promover" else "REVISÃO"]
     if a["observacao"] and "Possível duplicata" in a["observacao"]:
         marcas.append("DUPLICATA?")
     if (a["id_externo"] or "").startswith("bill:"):

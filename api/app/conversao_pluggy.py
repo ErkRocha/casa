@@ -83,6 +83,9 @@ _OBS_PAGAMENTO_NO_CARTAO = (
     "outra ponta do mesmo dinheiro e o gasto já vem pelas compras: rejeite "
     "este lado na revisão (D-05)."
 )
+#: Público: a promoção automática (D-21) separa este caso no relatório.
+OBS_PAGAMENTO_NO_CARTAO = _OBS_PAGAMENTO_NO_CARTAO
+
 _OBS_PAGAMENTO_NA_CONTA = (
     "Pagamento de fatura de cartão, identificado pela descrição: dinheiro "
     "mudando de conta, fica fora do cálculo de gasto (D-05)."

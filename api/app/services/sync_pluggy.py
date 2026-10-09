@@ -2,7 +2,10 @@
 
 Para cada mapeamento ativo: lê transações e faturas na Pluggy, converte pelo
 passo 5 e grava em `importacao_itens` pelo mesmo `IngestaoService` do PDF.
-**Nunca escreve em `transacoes`** (regra 5): a sync só enche a revisão.
+Em `transacoes` ela só escreve pela exceção da D-21: o item **limpo** é
+promovido pelo mesmo `aprovar()` da revisão, na mesma transação da
+importação; o resto fica na revisão, com o motivo contado
+(`promocao_pluggy.motivo_para_revisao`).
 
 Duas fases, de propósito:
 
@@ -20,7 +23,7 @@ como `application/json`, como o PDF é guardado.
 from __future__ import annotations
 
 import json
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
@@ -35,12 +38,13 @@ from app.conversao_pluggy import (
     converter_lote,
     e_pagamento_de_fatura,
 )
-from app.enums import TipoPagamento, TipoTransacao
+from app.enums import StatusItem, TipoPagamento, TipoTransacao
 from app.ingestao.base import ItemExtraido
 from app.models import Categoria, ContaPluggy, FormaPagamento, ImportacaoItem
 from app.pluggy.modelos import Conta, Fatura, Transacao
 from app.services.cadastros import FormaPagamentoService, normalizar_nome, primeiro_dia_do_mes
 from app.services.ingestao import IngestaoService, ItemLote, _ContextoEnriquecimento
+from app.services.promocao_pluggy import motivo_para_revisao
 
 #: Quanto a janela volta antes do último sync. A Pluggy atualiza a cada 24h e
 #: pode consolidar uma transação dias depois da data dela.
@@ -138,6 +142,12 @@ class ResultadoSync:
     importacao_id: int | None = None
     #: Formas criadas na gravação, ou que seriam criadas, na simulação.
     formas_novas: list[FormaNova] = field(default_factory=list)
+    #: Itens limpos promovidos pela sync (D-21) — ou que seriam, na simulação.
+    promovidos: int = 0
+    #: Motivo (`promocao_pluggy.MOTIVOS`) -> quantos ficaram na revisão.
+    na_revisao: Counter[str] = field(default_factory=Counter)
+    #: Promoção recusada por outro motivo que não duplicata.
+    erros_promocao: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def itens_novos(self) -> int:
@@ -203,6 +213,17 @@ class SyncPluggyService:
                     )
                     i = lote.extraido
                     nova = lote.forma_nova if isinstance(lote, ItemPlanejado) else None
+                    ja_existe = (
+                        lote.forma_pagamento_id is not None
+                        and ingestao._transacao_gemea(i, lote.forma_pagamento_id) is not None
+                    )
+                    motivo = motivo_para_revisao(
+                        i, categoria_id=sugestao.categoria_id, ja_existe=ja_existe
+                    )
+                    if motivo is None:
+                        resultado.promovidos += 1
+                    else:
+                        resultado.na_revisao[motivo] += 1
                     conta.amostra.append(
                         {
                             "data": i.data,
@@ -217,6 +238,7 @@ class SyncPluggyService:
                             "confianca_staging": min(i.confianca, sugestao.confianca),
                             "id_externo": i.id_externo,
                             "observacao": i.observacao,
+                            "destino": motivo or "promover",
                         }
                     )
             return resultado
@@ -538,12 +560,54 @@ class SyncPluggyService:
                 aviso=_resumo_avisos(resultado.contas),
             )
             resultado.importacao_id = importacao.id
+            self._promover(importacao.id, itens, resultado)
 
         agora = self._agora()
         for mapa in mapeamentos:
             if mapa.id in sem_erro:
                 mapa.ultimo_sync_em = agora
         self.session.flush()
+
+    def _promover(
+        self, importacao_id: int, itens: Sequence[ItemLote], resultado: ResultadoSync
+    ) -> None:
+        """D-21: o item limpo vai para `transacoes` pelo `aprovar()` da revisão.
+
+        Mesmo caminho, mesma barreira: o `hash_dedup` recusa a transação
+        idêntica, e o item vira `duplicado` para o usuário ver. A auditoria
+        sai com o autor da sessão, `sync_pluggy`.
+        """
+        staging = {
+            item.id_externo: item
+            for item in self.session.scalars(
+                select(ImportacaoItem).where(
+                    ImportacaoItem.importacao_id == importacao_id,
+                    ImportacaoItem.deleted_em.is_(None),
+                )
+            )
+        }
+        limpos: list[int] = []
+        for lote in itens:
+            item = staging.get(lote.extraido.id_externo)
+            if item is None:
+                continue
+            motivo = motivo_para_revisao(
+                lote.extraido,
+                categoria_id=item.categoria_sugerida_id,
+                ja_existe=item.status is StatusItem.DUPLICADO,
+            )
+            if motivo is None:
+                limpos.append(item.id)
+            else:
+                resultado.na_revisao[motivo] += 1
+        if not limpos:
+            return
+
+        aprovacao = IngestaoService(self.session).aprovar(limpos)
+        resultado.promovidos = aprovacao["promovidos"]
+        if aprovacao["duplicados"]:
+            resultado.na_revisao["duplicata"] += aprovacao["duplicados"]
+        resultado.erros_promocao = aprovacao["erros"]
 
     def _criar_formas(self, itens: Sequence[ItemLote]) -> None:
         """Cria, pelo service e na conta certa, as formas planejadas (D-21)."""

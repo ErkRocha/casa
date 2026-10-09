@@ -80,6 +80,7 @@ def _tx(
     cartao: str = "1111",
     operacao: str | None = None,
     categoria: str | None = None,
+    categoria_id: str | None = None,
 ) -> Transacao:
     dados: dict[str, Any] = {
         "id": id_,
@@ -92,6 +93,7 @@ def _tx(
         "type": tipo,
         "operationType": operacao,
         "category": categoria,
+        "categoryId": categoria_id,
         "currencyCode": "BRL",
     }
     if conta == CARTAO:
@@ -713,3 +715,205 @@ class TestFormaPelaOperacao:
 
         c2 = next(i for i in _itens(session) if i.id_externo == "c2")
         assert c2.observacao is not None and "Possível duplicata" in c2.observacao
+
+
+# --------------------------------------------------------------------------
+# Promoção automática do item limpo (D-21)
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def mercado(session: Session) -> Categoria:
+    """Categoria "Mercado" com o mapeamento de "Groceries" da Pluggy."""
+    from app.models import CategoriaPluggy
+
+    categoria = Categoria(nome="Mercado", tipo=TipoTransacao.DESPESA)
+    session.add(categoria)
+    session.flush()
+    session.add(
+        CategoriaPluggy(
+            pluggy_categoria_id="11000000",
+            pluggy_categoria_nome="Groceries",
+            categoria_id=categoria.id,
+        )
+    )
+    session.commit()
+    return categoria
+
+
+def _compra(id_: str, quando: str = "2025-03-20T15:00:00Z", valor: str = "87.90") -> Transacao:
+    return _tx(
+        id_, CARTAO, quando, valor, fatura="f1", categoria="Groceries", categoria_id="11000000"
+    )
+
+
+def _pix(id_: str, quando: str = "2025-04-02T15:00:00Z", valor: str = "-45.10") -> Transacao:
+    return _tx(
+        id_,
+        CORRENTE,
+        quando,
+        valor,
+        operacao="PIX",
+        categoria="Groceries",
+        categoria_id="11000000",
+    )
+
+
+def _transacoes_vivas(session: Session) -> list[Any]:
+    from app.models import Transacao as TransacaoLocal
+
+    return list(
+        session.scalars(
+            select(TransacaoLocal)
+            .where(TransacaoLocal.deleted_em.is_(None))
+            .order_by(TransacaoLocal.id)
+        )
+    )
+
+
+class TestPromocaoAutomatica:
+    def test_compra_de_cartao_limpa_vira_transacao(
+        self, session: Session, cenario: dict[str, Any], mercado: Categoria
+    ) -> None:
+        leitor = LeitorFalso()
+        leitor.faturas[CARTAO] = [_fatura("f1", "2025-04-03", "2025-04-10", "87.90")]
+        leitor.transacoes[CARTAO] = [_compra("k1")]
+
+        resultado = _sync(session, leitor)
+
+        assert resultado.promovidos == 1
+        (transacao,) = _transacoes_vivas(session)
+        (item,) = _itens(session)
+        assert item.status is StatusItem.APROVADO
+        assert item.transacao_id == transacao.id
+        assert transacao.importacao_id == resultado.importacao_id
+        assert transacao.categoria_id == mercado.id
+        assert transacao.forma_pagamento_id == cenario["credito"].id
+        assert transacao.competencia == date(2025, 4, 1)
+        autores = set(
+            session.scalars(
+                select(Auditoria.autor).where(
+                    Auditoria.tabela == "transacoes", Auditoria.registro_id == transacao.id
+                )
+            )
+        )
+        assert autores == {"sync_pluggy"}
+        imp = session.get(Importacao, resultado.importacao_id)
+        assert imp is not None and imp.status is StatusImportacao.CONCLUIDA
+        assert imp.itens_aprovados == 1
+
+    def test_pix_limpo_da_conta_tambem_promove(
+        self, session: Session, cenario: dict[str, Any], mercado: Categoria
+    ) -> None:
+        leitor = LeitorFalso()
+        leitor.transacoes[CORRENTE] = [_pix("c1")]
+        resultado = _sync(session, leitor)
+
+        assert resultado.promovidos == 1
+        (transacao,) = _transacoes_vivas(session)
+        assert transacao.forma_pagamento_id == cenario["pix"].id
+        assert transacao.pessoa_id == cenario["titular"].id
+
+    def test_o_resto_fica_na_revisao_com_o_motivo(
+        self, session: Session, cenario: dict[str, Any], mercado: Categoria
+    ) -> None:
+        leitor = LeitorFalso()
+        leitor.faturas[CARTAO] = [_fatura("f1", "2025-04-03", "2025-04-10", "200.00")]
+        leitor.transacoes[CARTAO] = [
+            _compra("limpa", valor="50.00"),
+            _tx("sem-cat", CARTAO, "2025-03-21T15:00:00Z", "40.00", fatura="f1"),
+            # Gêmeos da própria Pluggy: mesma data, valor e descrição.
+            _compra("gemeo-a", "2025-03-22T15:00:00Z", "30.00"),
+            _compra("gemeo-b", "2025-03-22T18:00:00Z", "30.00"),
+            # Pagamento da fatura do lado do cartão.
+            _tx(
+                "pag",
+                CARTAO,
+                "2025-04-08T15:00:00Z",
+                "-150.00",
+                tipo="CREDIT",
+                operacao="PAGAMENTO_FATURA",
+                categoria="Credit card payment",
+            ),
+        ]
+        leitor.transacoes[CORRENTE] = [
+            _tx("outros", CORRENTE, "2025-04-02T15:00:00Z", "-10.00", operacao="OUTROS")
+        ]
+
+        resultado = _sync(session, leitor)
+
+        assert resultado.promovidos == 1
+        assert resultado.na_revisao == {
+            "sem_categoria": 1,
+            "possivel_duplicata": 2,
+            "pagamento_fatura_cartao": 1,
+            "encargos": 1,  # 200 - (50 + 40 + 30 + 30)
+            "observacao": 1,
+        }
+        pendentes = {i.id_externo for i in _itens(session) if i.status is StatusItem.PENDENTE}
+        assert pendentes == {"sem-cat", "gemeo-a", "gemeo-b", "pag", "bill:f1:encargos", "outros"}
+        imp = session.get(Importacao, resultado.importacao_id)
+        assert imp is not None and imp.status is StatusImportacao.AGUARDANDO_REVISAO
+
+    def test_hash_dedup_continua_barrando(
+        self, session: Session, cenario: dict[str, Any], mercado: Categoria
+    ) -> None:
+        """Transação idêntica já em `transacoes`: o item fica `duplicado`."""
+        from app.models import Transacao as TransacaoLocal
+
+        session.add(
+            TransacaoLocal(
+                data=date(2025, 4, 2),
+                competencia=date(2025, 4, 1),
+                valor=Decimal("45.10"),
+                tipo=TipoTransacao.DESPESA,
+                descricao="manual",
+                descricao_original="MERCADO EXEMPLO",
+                forma_pagamento_id=cenario["pix"].id,
+            )
+        )
+        session.commit()
+        leitor = LeitorFalso()
+        leitor.transacoes[CORRENTE] = [_pix("c1")]
+
+        resultado = _sync(session, leitor)
+
+        assert resultado.promovidos == 0
+        assert resultado.na_revisao == {"duplicata": 1}
+        assert len(_transacoes_vivas(session)) == 1
+        (item,) = _itens(session)
+        assert item.status is StatusItem.DUPLICADO
+
+    def test_regra_do_usuario_tambem_da_categoria_para_promover(
+        self, session: Session, cenario: dict[str, Any], mercado: Categoria
+    ) -> None:
+        session.add(
+            RegraCategorizacao(
+                padrao="MERCADO EXEMPLO", tipo_match="contem", categoria_id=mercado.id
+            )
+        )
+        session.commit()
+        leitor = LeitorFalso()
+        leitor.transacoes[CORRENTE] = [
+            _tx("c1", CORRENTE, "2025-04-02T15:00:00Z", "-45.10", operacao="PIX")
+        ]
+        assert _sync(session, leitor).promovidos == 1
+
+    def test_simulacao_conta_sem_promover(
+        self, session: Session, cenario: dict[str, Any], mercado: Categoria
+    ) -> None:
+        leitor = LeitorFalso()
+        leitor.transacoes[CORRENTE] = [
+            _pix("c1"),
+            _tx("c2", CORRENTE, "2025-04-03T15:00:00Z", "-10.00", operacao="PIX"),
+        ]
+        resultado = _sync(session, leitor, simular=True)
+
+        assert resultado.promovidos == 1
+        assert resultado.na_revisao == {"sem_categoria": 1}
+        assert _transacoes_vivas(session) == []
+        amostra = _conta(resultado, cenario["mapa_corrente"]).amostra
+        assert {a["id_externo"]: a["destino"] for a in amostra} == {
+            "c1": "promover",
+            "c2": "sem_categoria",
+        }
