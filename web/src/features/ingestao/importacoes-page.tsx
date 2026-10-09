@@ -10,6 +10,7 @@ import { RevisaoTable } from "./components/revisao-table";
 import { UploadZone } from "./components/upload-zone";
 import {
   useAprovarItens,
+  useDesfazerImportacao,
   useImportacao,
   useImportacoes,
   useRejeitarItens,
@@ -19,23 +20,31 @@ import {
   STATUS_IMPORTACAO_LABEL,
   ehPdf,
   type ResultadoAprovacao,
+  type ResultadoDesfazer,
 } from "./types";
 
 /**
  * Tela de importação e revisão — passo 4 da fase 5.
  *
  * O ponto inteiro dela é a D-07: o agente escreve no staging, e é aqui que o
- * humano decide o que vira dado real. Nada é promovido sozinho.
+ * humano decide o que vira dado real. A única exceção é o item limpo da sync
+ * da Pluggy, que a própria sync promove (D-21) — e é daqui que se desfaz uma
+ * importação inteira, se ela entrou errada.
  */
 export function ImportacoesPage() {
   const [selecionadaId, setSelecionadaId] = useState<number | null>(null);
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
   const [resultado, setResultado] = useState<ResultadoAprovacao | null>(null);
+  const [confirmandoDesfazer, setConfirmandoDesfazer] = useState(false);
+  const [desfeita, setDesfeita] = useState<
+    (ResultadoDesfazer & { arquivo: string }) | null
+  >(null);
 
   const lista = useImportacoes();
   const detalhe = useImportacao(selecionadaId);
   const aprovar = useAprovarItens();
   const rejeitar = useRejeitarItens();
+  const desfazer = useDesfazerImportacao();
   const reaplicar = useReaplicarRegras();
 
   const itens = detalhe.data?.itens ?? [];
@@ -65,6 +74,15 @@ export function ImportacoesPage() {
       <>
         <UploadZone onImportado={setSelecionadaId} />
 
+        {desfeita ? (
+          <div role="status" className="bg-surface mt-8 rounded-md px-8 py-5">
+            <p className="text-body text-text-primary">
+              Importação {desfeita.arquivo} desfeita: {desfeita.transacoes} transação(ões) e{" "}
+              {desfeita.itens} item(ns) apagados. Tudo fica na auditoria.
+            </p>
+          </div>
+        ) : null}
+
         <h2 className="text-caption text-text-tertiary tracking-caps-wide mt-14 mb-5 font-semibold uppercase">
           Importações
         </h2>
@@ -85,6 +103,8 @@ export function ImportacoesPage() {
                   setSelecionadaId(importacao.id);
                   limparSelecao();
                   setResultado(null);
+                  setConfirmandoDesfazer(false);
+                  setDesfeita(null);
                 }}
                 className="border-border-faint hover:bg-surface flex w-full cursor-pointer items-center gap-6 border-b px-8 py-5 text-left last:border-b-0"
               >
@@ -173,7 +193,70 @@ export function ImportacoesPage() {
             Abrir o PDF
           </a>
         ) : null}
+        {importacao.status !== "cancelada" ? (
+          <Button
+            variant="danger"
+            onClick={() => setConfirmandoDesfazer(true)}
+            className={cn("px-0", ehPdf(importacao) ? "" : "ml-auto")}
+          >
+            Desfazer importação
+          </Button>
+        ) : null}
       </div>
+
+      {/* Confirmação em dois passos: desfazer apaga transações já lançadas,
+          inclusive as editadas depois. Volta pela auditoria (D-06). */}
+      {confirmandoDesfazer ? (
+        <div
+          role="alertdialog"
+          aria-labelledby="desfazer-titulo"
+          aria-describedby="desfazer-texto"
+          className="bg-alert-soft mb-8 rounded-md px-8 py-5"
+        >
+          <p id="desfazer-titulo" className="text-body text-alert font-semibold">
+            Desfazer esta importação?
+          </p>
+          <p id="desfazer-texto" className="text-body-sm text-text-secondary mt-2">
+            Apaga as {importacao.itens_aprovados} transação(ões) lançadas por ela, inclusive as
+            que você editou depois, e os {importacao.total_itens} itens da revisão, e marca a
+            importação como cancelada. Tudo fica na auditoria e pode voltar.
+            {importacao.origem === "pluggy"
+              ? " A próxima sync traz de volta o que ainda estiver na janela dela."
+              : ""}
+          </p>
+          <div className="mt-4 flex gap-4">
+            <Button
+              variant="danger"
+              disabled={desfazer.isPending}
+              onClick={() =>
+                desfazer.mutate(importacao.id, {
+                  onSuccess: (dados) => {
+                    setDesfeita({ ...dados, arquivo: importacao.arquivo_nome });
+                    setConfirmandoDesfazer(false);
+                    setSelecionadaId(null);
+                    limparSelecao();
+                  },
+                })
+              }
+              className="px-6 py-3"
+            >
+              {desfazer.isPending ? "Desfazendo..." : "Confirmar desfazer"}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmandoDesfazer(false)}
+              className="px-6 py-3"
+            >
+              Cancelar
+            </Button>
+          </div>
+          {desfazer.error instanceof ApiError ? (
+            <p role="alert" className="text-body-sm text-expense mt-3">
+              {desfazer.error.detail}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* A conferência contra o total do próprio documento. É o que permite
           aprovar sem reconferir linha a linha na mão. */}

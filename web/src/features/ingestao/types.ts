@@ -87,6 +87,12 @@ export interface ResultadoAprovacao {
   erros: Array<{ item_id: number; erro: string }>;
 }
 
+/** Quanto o desfazer apagou (soft delete) — D-21. */
+export interface ResultadoDesfazer {
+  transacoes: number;
+  itens: number;
+}
+
 export const STATUS_ITEM_LABEL: Record<StatusItem, string> = {
   pendente: "Pendente",
   aprovado: "Aprovado",

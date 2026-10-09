@@ -16,9 +16,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import func, select
+from sqlalchemy import CursorResult, func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -508,6 +508,42 @@ class IngestaoService:
             )
             if not pendentes:
                 importacao.status = StatusImportacao.CONCLUIDA
+
+    # -- desfazer -------------------------------------------------------
+
+    def desfazer(self, importacao_id: int) -> dict[str, int]:
+        """Soft delete de todas as transações e itens da importação (D-21).
+
+        A importação fica, marcada `cancelada`, com o comprovante guardado —
+        como na limpeza de PDF. Cada linha apagada passa pelo trigger de
+        auditoria com autor `desfazer_importacao`, e por isso volta, se
+        preciso, limpando `deleted_em` das linhas daquele autor (D-06).
+
+        O item apagado libera o `id_externo`: uma sync cuja janela ainda
+        cubra aquelas datas traz as transações de volta, como novas. Rodar de
+        novo não muda nada na segunda.
+        """
+        importacao = self.get(importacao_id)
+        self.session.execute(text("SELECT set_config('app.autor', 'desfazer_importacao', true)"))
+        transacoes = self.session.execute(
+            update(Transacao)
+            .where(Transacao.importacao_id == importacao_id, Transacao.deleted_em.is_(None))
+            .values(deleted_em=func.now())
+        )
+        itens = self.session.execute(
+            update(ImportacaoItem)
+            .where(
+                ImportacaoItem.importacao_id == importacao_id,
+                ImportacaoItem.deleted_em.is_(None),
+            )
+            .values(deleted_em=func.now())
+        )
+        importacao.status = StatusImportacao.CANCELADA
+        self._flush()
+        return {
+            "transacoes": int(cast(CursorResult[Any], transacoes).rowcount or 0),
+            "itens": int(cast(CursorResult[Any], itens).rowcount or 0),
+        }
 
     # -- regras ----------------------------------------------------------
 

@@ -94,3 +94,10 @@ class ResultadoAprovacao(BaseModel):
     promovidos: int
     duplicados: int
     erros: list[dict[str, Any]]
+
+
+class ResultadoDesfazer(BaseModel):
+    """Quanto o desfazer apagou (soft delete) — D-21."""
+
+    transacoes: int
+    itens: int

@@ -7,6 +7,7 @@ import type {
   ItemAjuste,
   ItemImportacao,
   ResultadoAprovacao,
+  ResultadoDesfazer,
 } from "./types";
 
 export const ingestaoKeys = {
@@ -71,6 +72,18 @@ export function useAprovarItens() {
   return useMutation({
     mutationFn: (ids: number[]) =>
       api.post<ResultadoAprovacao>("/importacoes/itens/aprovar", { ids }),
+    onSuccess: invalidar,
+  });
+}
+
+/**
+ * Desfaz a importação inteira: soft delete das transações e dos itens dela
+ * (D-21). A importação fica cancelada, com o comprovante.
+ */
+export function useDesfazerImportacao() {
+  const invalidar = useInvalidar();
+  return useMutation({
+    mutationFn: (id: number) => api.post<ResultadoDesfazer>(`/importacoes/${id}/desfazer`),
     onSuccess: invalidar,
   });
 }

@@ -22,6 +22,7 @@ from app.schemas.ingestao import (
     LoteItens,
     LoteRejeitar,
     ResultadoAprovacao,
+    ResultadoDesfazer,
 )
 from app.services.base import NaoEncontrado, RegraViolada
 from app.services.ingestao import IngestaoService
@@ -152,3 +153,16 @@ def rejeitar(payload: LoteRejeitar, session: SessionDep) -> Any:
     afetadas = IngestaoService(session).rejeitar(payload.ids, payload.motivo)
     session.commit()
     return LoteResponse(afetadas=afetadas)
+
+
+@router.post("/{importacao_id}/desfazer", response_model=ResultadoDesfazer)
+def desfazer(importacao_id: int, session: SessionDep) -> Any:
+    """Desfaz a importação: soft delete das transações e dos itens dela.
+
+    A importação fica `cancelada`, com o comprovante. Cada linha passa pela
+    auditoria com autor `desfazer_importacao` e pode voltar limpando o
+    `deleted_em` (D-06, D-21). Repetir não apaga mais nada.
+    """
+    resultado = IngestaoService(session).desfazer(importacao_id)
+    session.commit()
+    return resultado
