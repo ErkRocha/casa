@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias
+.PHONY: help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -64,6 +64,14 @@ sync: ## Sincroniza a Pluggy: limpos promovidos, resto na revisão — use: make
 # Lê os comprovantes das importações da Pluggy; só grava com aplicar=1.
 pluggy-categorias: ## Proposta de mapeamento das categorias da Pluggy — use: make pluggy-categorias [aplicar=1]
 	$(COMPOSE) run --rm api python -m scripts.pluggy_categorias $(if $(aplicar),--aplicar,)
+
+# Só lê: formas, categorias e operações de uma importação da Pluggy (D-21).
+pluggy-diagnostico-importacao: ## Diagnóstico de uma importação da Pluggy — use: make pluggy-diagnostico-importacao [i=4]
+	$(COMPOSE) run --rm api python -m scripts.pluggy_diagnostico_importacao $(if $(i),--importacao $(i),)
+
+# Simula por padrão; grava e promove os limpos só com executar=1 (D-21).
+pluggy-reprocessar: ## Reprocessa os pendentes de uma importação da Pluggy — use: make pluggy-reprocessar [i=4] [proposta=1] [executar=1]
+	$(COMPOSE) run --rm api python -m scripts.pluggy_reprocessar $(if $(i),--importacao $(i),) $(if $(proposta),--com-proposta,) $(if $(executar),--executar,)
 
 relatorio-seco: ## Mesmo relatório, só com os números (sem chamar modelo)
 	$(COMPOSE) run --rm api python -m scripts.relatorio --sem-ia $(if $(m),--competencia $(m),)

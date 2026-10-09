@@ -154,6 +154,103 @@ class ResultadoSync:
         return sum(c.novos for c in self.contas if c.erro is None)
 
 
+class ResolvedorDeForma:
+    """A forma de pagamento de um item de conta corrente, pela operação (D-21).
+
+    Separado da sync porque o reprocessamento dos itens pendentes tem que
+    chegar exatamente à mesma forma que a sync chegaria hoje.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+        self._por_conta: dict[int, list[FormaPagamento]] | None = None
+        self._novas: dict[tuple[int, TipoPagamento], FormaNova] = {}
+
+    def resolver(
+        self, mapa: ContaPluggy, item: ItemExtraido
+    ) -> tuple[int | None, FormaNova | None]:
+        """A forma da operação, entre as da própria conta mapeada.
+
+        Sem tipo dito pela operação, a do mapeamento (a conversão já deixou a
+        observação). Com tipo: a do mapeamento se for daquele tipo, senão a de
+        menor id da conta — critério fixo, porque a forma entra no
+        `hash_dedup`. Sem nenhuma, planeja criar. Se a conta só tem forma
+        daquele tipo **inativa**, alguém a desligou de propósito: fica a do
+        mapeamento, com observação, em vez de criar outra por cima.
+        """
+        tipo = item.forma_tipo
+        padrao = mapa.forma_pagamento
+        if tipo is None or padrao.tipo is tipo:
+            return mapa.forma_pagamento_id, None
+
+        do_tipo = [f for f in self.formas_da_conta(mapa.conta_id) if f.tipo is tipo]
+        ativas = [f for f in do_tipo if f.ativo]
+        if ativas:
+            return ativas[0].id, None
+        rotulo = ROTULO_FORMA.get(tipo, tipo.value)
+        if do_tipo:
+            _anotar(
+                item,
+                f"A operação indica {rotulo}, mas a forma desse tipo da conta está inativa "
+                f"('{do_tipo[0].apelido}'): ficou a forma padrão do mapeamento. Confira.",
+            )
+            return mapa.forma_pagamento_id, None
+
+        chave = (mapa.conta_id, tipo)
+        if chave not in self._novas:
+            self._novas[chave] = FormaNova(
+                conta_id=mapa.conta_id,
+                tipo=tipo,
+                apelido=f"{rotulo} {mapa.conta.nome}",
+                titular_id=mapa.conta.titular_id,
+            )
+        return None, self._novas[chave]
+
+    def criar(self, nova: FormaNova) -> int:
+        """Cria a forma planejada, pelo service e na conta certa. Uma vez só."""
+        if nova.id is None:
+            nova.id = (
+                FormaPagamentoService(self.session)
+                .criar(
+                    {
+                        "apelido": nova.apelido,
+                        "tipo": nova.tipo,
+                        "conta_id": nova.conta_id,
+                        "titular_id": nova.titular_id,
+                    }
+                )
+                .id
+            )
+        return nova.id
+
+    def formas_da_conta(self, conta_id: int) -> list[FormaPagamento]:
+        """Formas vivas da conta, ativas ou não, por id — carregadas uma vez."""
+        if self._por_conta is None:
+            self._por_conta = defaultdict(list)
+            for forma in self.session.scalars(
+                select(FormaPagamento)
+                .where(FormaPagamento.deleted_em.is_(None))
+                .order_by(FormaPagamento.id)
+            ):
+                if forma.conta_id is not None:
+                    self._por_conta[forma.conta_id].append(forma)
+        return self._por_conta.get(conta_id, [])
+
+    def formas_do_mapeamento(self, mapa: ContaPluggy, *, e_cartao: bool) -> set[int]:
+        """As formas que itens deste mapeamento podem ter recebido.
+
+        Cartão: só a do mapeamento. Conta: a do mapeamento e as da conta que
+        não são de crédito — o cartão também aponta para a conta que paga a
+        fatura, e misturar os dois juntaria itens de mapeamentos diferentes.
+        """
+        if e_cartao:
+            return {mapa.forma_pagamento_id}
+        da_conta = {
+            f.id for f in self.formas_da_conta(mapa.conta_id) if f.tipo is not TipoPagamento.CREDITO
+        }
+        return {mapa.forma_pagamento_id} | da_conta
+
+
 class SyncPluggyService:
     def __init__(
         self,
@@ -170,8 +267,7 @@ class SyncPluggyService:
         self._respostas_brutas = respostas_brutas or (lambda: [])
         self._agora = agora or (lambda: datetime.now(UTC))
         self._contas_por_item: dict[str, list[Conta]] = {}
-        self._formas_por_conta: dict[int, list[FormaPagamento]] | None = None
-        self._formas_novas: dict[tuple[int, TipoPagamento], FormaNova] = {}
+        self._formas = ResolvedorDeForma(session)
 
     # -- entrada ----------------------------------------------------------
 
@@ -312,7 +408,7 @@ class SyncPluggyService:
             forma_id, nova = (
                 (mapa.forma_pagamento_id, None)
                 if conta.e_cartao
-                else self._resolver_forma(mapa, item)
+                else self._formas.resolver(mapa, item)
             )
             itens.append(
                 ItemPlanejado(
@@ -329,77 +425,6 @@ class SyncPluggyService:
             )
         resultado.itens = itens
         resultado.novos = len(resultado.itens)
-
-    # -- forma de pagamento (D-21) ---------------------------------------
-
-    def _resolver_forma(
-        self, mapa: ContaPluggy, item: ItemExtraido
-    ) -> tuple[int | None, FormaNova | None]:
-        """A forma da operação, entre as da própria conta mapeada.
-
-        Sem tipo dito pela operação, a do mapeamento (a conversão já deixou a
-        observação). Com tipo: a do mapeamento se for daquele tipo, senão a de
-        menor id da conta — critério fixo, porque a forma entra no
-        `hash_dedup`. Sem nenhuma, planeja criar. Se a conta só tem forma
-        daquele tipo **inativa**, alguém a desligou de propósito: fica a do
-        mapeamento, com observação, em vez de criar outra por cima.
-        """
-        tipo = item.forma_tipo
-        padrao = mapa.forma_pagamento
-        if tipo is None or padrao.tipo is tipo:
-            return mapa.forma_pagamento_id, None
-
-        do_tipo = [f for f in self._formas_da_conta(mapa.conta_id) if f.tipo is tipo]
-        ativas = [f for f in do_tipo if f.ativo]
-        if ativas:
-            return ativas[0].id, None
-        rotulo = ROTULO_FORMA.get(tipo, tipo.value)
-        if do_tipo:
-            _anotar(
-                item,
-                f"A operação indica {rotulo}, mas a forma desse tipo da conta está inativa "
-                f"('{do_tipo[0].apelido}'): ficou a forma padrão do mapeamento. Confira.",
-            )
-            return mapa.forma_pagamento_id, None
-
-        chave = (mapa.conta_id, tipo)
-        if chave not in self._formas_novas:
-            self._formas_novas[chave] = FormaNova(
-                conta_id=mapa.conta_id,
-                tipo=tipo,
-                apelido=f"{rotulo} {mapa.conta.nome}",
-                titular_id=mapa.conta.titular_id,
-            )
-        return None, self._formas_novas[chave]
-
-    def _formas_da_conta(self, conta_id: int) -> list[FormaPagamento]:
-        """Formas vivas da conta, ativas ou não, por id — carregadas uma vez."""
-        if self._formas_por_conta is None:
-            self._formas_por_conta = defaultdict(list)
-            for forma in self.session.scalars(
-                select(FormaPagamento)
-                .where(FormaPagamento.deleted_em.is_(None))
-                .order_by(FormaPagamento.id)
-            ):
-                if forma.conta_id is not None:
-                    self._formas_por_conta[forma.conta_id].append(forma)
-        return self._formas_por_conta.get(conta_id, [])
-
-    def _formas_do_mapeamento(self, mapa: ContaPluggy, *, e_cartao: bool) -> set[int]:
-        """As formas que itens deste mapeamento podem ter recebido.
-
-        Cartão: só a do mapeamento. Conta: a do mapeamento e as da conta que
-        não são de crédito — o cartão também aponta para a conta que paga a
-        fatura, e misturar os dois juntaria itens de mapeamentos diferentes.
-        """
-        if e_cartao:
-            return {mapa.forma_pagamento_id}
-        da_conta = {
-            f.id
-            for f in self._formas_da_conta(mapa.conta_id)
-            if f.tipo is not TipoPagamento.CREDITO
-        }
-        return {mapa.forma_pagamento_id} | da_conta
 
     def _conta_remota(self, mapa: ContaPluggy) -> Conta:
         if mapa.pluggy_item_id not in self._contas_por_item:
@@ -517,7 +542,7 @@ class SyncPluggyService:
                 ImportacaoItem.deleted_em.is_(None),
                 ImportacaoItem.id_externo.is_not(None),
                 ImportacaoItem.forma_pagamento_sugerida_id.in_(
-                    self._formas_do_mapeamento(mapa, e_cartao=e_cartao)
+                    self._formas.formas_do_mapeamento(mapa, e_cartao=e_cartao)
                 ),
                 tuple_(
                     ImportacaoItem.data, ImportacaoItem.valor, ImportacaoItem.descricao_original
@@ -611,21 +636,10 @@ class SyncPluggyService:
 
     def _criar_formas(self, itens: Sequence[ItemLote]) -> None:
         """Cria, pelo service e na conta certa, as formas planejadas (D-21)."""
-        service = FormaPagamentoService(self.session)
         for lote in itens:
             nova = lote.forma_nova if isinstance(lote, ItemPlanejado) else None
-            if nova is None:
-                continue
-            if nova.id is None:
-                nova.id = service.criar(
-                    {
-                        "apelido": nova.apelido,
-                        "tipo": nova.tipo,
-                        "conta_id": nova.conta_id,
-                        "titular_id": nova.titular_id,
-                    }
-                ).id
-            lote.forma_pagamento_id = nova.id
+            if nova is not None:
+                lote.forma_pagamento_id = self._formas.criar(nova)
 
     def _comprovante(self, resultado: ResultadoSync, agora: datetime) -> bytes:
         """O JSON bruto recebido, como a Pluggy mandou, mais o resumo."""
