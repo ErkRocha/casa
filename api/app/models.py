@@ -501,6 +501,37 @@ class ContaPluggy(IdMixin, TimestampMixin, SoftDeleteMixin, Base):
     )
 
 
+class CategoriaPluggy(IdMixin, TimestampMixin, SoftDeleteMixin, Base):
+    """Liga uma categoria da Pluggy a uma `categoria` daqui (D-21).
+
+    O enriquecimento a usa depois das regras do usuário e antes do local
+    conhecido. Categoria ambígua não tem linha: o item vai para a revisão sem
+    categoria.
+    """
+
+    __tablename__ = "categorias_pluggy"
+
+    #: `categoryId` da Pluggy, 8 dígitos (ex. `11000000`).
+    pluggy_categoria_id: Mapped[str] = mapped_column(Text, nullable=False)
+    #: `category`, a descrição em inglês (ex. "Groceries").
+    pluggy_categoria_nome: Mapped[str] = mapped_column(Text, nullable=False)
+    categoria_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("categorias.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    categoria: Mapped[Categoria] = relationship(lazy="joined")
+
+    __table_args__ = (
+        Index(
+            "uq_categorias_pluggy_pluggy_categoria_id",
+            "pluggy_categoria_id",
+            unique=True,
+            postgresql_where=text("deleted_em IS NULL"),
+        ),
+    )
+
+
 class RegraCategorizacao(IdMixin, TimestampMixin, SoftDeleteMixin, Base):
     """Correção do usuário vira regra (D-09).
 

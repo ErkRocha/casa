@@ -241,6 +241,35 @@ cartão de débito em conta. Um mapeamento sem forma geraria itens sem forma,
 resolvidos à mão um a um na revisão. O cartão adicional continua resolvido
 pelo final do cartão, por cima desta padrão.
 
+Desde a D-21 a forma do mapeamento é a padrão, não a única: na conta
+corrente a sync usa a forma da operação (Pix, débito, boleto,
+transferência) entre as formas da mesma conta, e cria pelo service a que
+faltar. No cartão ela continua sendo a única.
+
+## `categorias_pluggy`
+Liga a categoria da Pluggy a uma `categoria` daqui (D-21, migration 0007).
+
+| coluna | tipo | notas |
+|---|---|---|
+| pluggy_categoria_id | text not null | `categoryId`, 8 dígitos (ex. `11000000`); único entre linhas vivas |
+| pluggy_categoria_nome | text not null | `category`, a descrição em inglês (ex. "Groceries") |
+| categoria_id | fk categorias not null | |
+| ativo | boolean not null default true | |
+| deleted_em | timestamptz | |
+
+Unique parcial em `pluggy_categoria_id` `where deleted_em is null`; índice em
+`categoria_id`. Triggers de auditoria e `atualizado_em`; `SELECT` para a role
+de insights.
+
+**Ordem no enriquecimento:** regra do usuário (D-09) > esta tabela > local
+conhecido; `origem_sugestao = 'pluggy'` quando é ela que decide. Só vale
+quando o tipo da categoria bate com o do item.
+
+**Sem linha = sem categoria.** Caso ambíguo não é mapeado, e o item vai para
+a revisão sem categoria — por isso `categoria_id` é obrigatória. As famílias
+de transferência da Pluggy (`Transfers`, `Same person transfer`,
+`Third-party transfers`) não podem apontar para categoria de despesa.
+
 ## Rastro do documento
 
 `importacoes` guarda o arquivo inteiro em `arquivo_conteudo` (bytea) desde a

@@ -230,3 +230,133 @@ class TestMigration0005:
                 text("SELECT has_table_privilege('casa_insights', 'contas_pluggy', 'SELECT')")
             ).scalar()
         assert pode_ler is True
+
+
+# --------------------------------------------------------------------------
+# Migration 0007: mapeamento de categorias da Pluggy (D-21)
+# --------------------------------------------------------------------------
+
+
+def _categoria(session: Session, nome: str = "Mercado") -> int:
+    from app.enums import TipoTransacao
+    from app.models import Categoria
+
+    cat = Categoria(nome=nome, tipo=TipoTransacao.DESPESA)
+    session.add(cat)
+    session.flush()
+    return cat.id
+
+
+def _categoria_pluggy(session: Session, categoria_id: int, pluggy_id: str = "11000000") -> int:
+    from app.models import CategoriaPluggy
+
+    cp = CategoriaPluggy(
+        pluggy_categoria_id=pluggy_id, pluggy_categoria_nome="Groceries", categoria_id=categoria_id
+    )
+    session.add(cp)
+    session.flush()
+    return cp.id
+
+
+class TestCategoriasPluggy:
+    def test_id_duplicado_ativo_e_recusado(self, session: Session) -> None:
+        cat = _categoria(session)
+        _categoria_pluggy(session, cat)
+        with pytest.raises(IntegrityError) as erro:
+            _categoria_pluggy(session, cat)
+        assert "uq_categorias_pluggy_pluggy_categoria_id" in str(erro.value)
+
+    def test_id_aceito_apos_soft_delete(self, session: Session) -> None:
+        cat = _categoria(session)
+        primeiro = _categoria_pluggy(session, cat)
+        session.execute(
+            text("UPDATE categorias_pluggy SET deleted_em = now() WHERE id = :id"), {"id": primeiro}
+        )
+        assert _categoria_pluggy(session, cat) != primeiro
+
+    def test_categoria_e_obrigatoria_e_existente(self, session: Session) -> None:
+        with pytest.raises(IntegrityError):
+            session.execute(
+                text(
+                    "INSERT INTO categorias_pluggy (pluggy_categoria_id, pluggy_categoria_nome, "
+                    "categoria_id) VALUES ('1', 'x', NULL)"
+                )
+            )
+        session.rollback()
+        with pytest.raises(IntegrityError):
+            session.execute(
+                text(
+                    "INSERT INTO categorias_pluggy (pluggy_categoria_id, pluggy_categoria_nome, "
+                    "categoria_id) VALUES ('1', 'x', 999999)"
+                )
+            )
+        session.rollback()
+
+    def test_defaults_auditoria_e_atualizado_em(self, session: Session) -> None:
+        cp = _categoria_pluggy(session, _categoria(session))
+        session.commit()
+        ativo, atualizado = session.execute(
+            text("SELECT ativo, atualizado_em FROM categorias_pluggy WHERE id = :id"), {"id": cp}
+        ).one()
+        assert ativo is True and atualizado is None
+
+        session.execute(
+            text("UPDATE categorias_pluggy SET ativo = false WHERE id = :id"), {"id": cp}
+        )
+        session.commit()
+        atualizado = session.execute(
+            text("SELECT atualizado_em FROM categorias_pluggy WHERE id = :id"), {"id": cp}
+        ).scalar()
+        assert atualizado is not None
+
+        acoes = session.execute(
+            text(
+                "SELECT acao FROM auditoria WHERE tabela = 'categorias_pluggy' "
+                "AND registro_id = :id ORDER BY id"
+            ),
+            {"id": cp},
+        ).scalars()
+        assert list(acoes) == ["INSERT", "UPDATE"]
+
+    def test_role_insights_le_e_nao_escreve(self) -> None:
+        engine_role = create_engine(get_settings().insights_database_url)
+        try:
+            with engine_role.connect() as conexao:
+                assert conexao.execute(text("SELECT count(*) FROM categorias_pluggy")).scalar() == 0
+                with pytest.raises((ProgrammingError, DBAPIError)) as erro:
+                    conexao.execute(
+                        text(
+                            "INSERT INTO categorias_pluggy (pluggy_categoria_id, "
+                            "pluggy_categoria_nome, categoria_id) VALUES ('1', 'x', 1)"
+                        )
+                    )
+                conexao.rollback()
+        finally:
+            engine_role.dispose()
+        assert getattr(erro.value.orig, "sqlstate", None) == "42501"
+
+
+class TestMigration0007:
+    def test_downgrade_e_upgrade_de_novo(self) -> None:
+        config = Config("alembic.ini")
+        config.set_main_option("sqlalchemy.url", url_para_alembic(os.environ["DATABASE_URL"]))
+        engine.dispose()
+
+        def _existe() -> bool:
+            with engine.connect() as conn:
+                tabela = conn.execute(text("SELECT to_regclass('categorias_pluggy')")).scalar()
+            engine.dispose()
+            return tabela is not None
+
+        try:
+            command.downgrade(config, "0006")
+            assert _existe() is False
+        finally:
+            command.upgrade(config, "head")
+
+        assert _existe() is True
+        with engine.connect() as conn:
+            pode_ler = conn.execute(
+                text("SELECT has_table_privilege('casa_insights', 'categorias_pluggy', 'SELECT')")
+            ).scalar()
+        assert pode_ler is True

@@ -70,6 +70,8 @@ _TABELAS = (
     # Antes de `formas_pagamento` e `contas`, que ela referencia.
     "contas_pluggy",
     "formas_pagamento",
+    # Antes de `categorias`, que ela referencia.
+    "categorias_pluggy",
     "categorias",
     "contas",
     "pessoas",
