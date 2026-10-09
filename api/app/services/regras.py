@@ -111,3 +111,40 @@ def contar_por_origem(session: Session) -> dict[str, int]:
         .group_by(RegraCategorizacao.criada_por)
     ).all()
     return {str(linha[0]): int(linha[1]) for linha in linhas}
+
+
+def reforcar_regra(
+    session: Session, padrao: str, categoria_id: int | None, pessoa_id: int | None
+) -> None:
+    """Correção vira regra, ou reforça a que já existe (D-09).
+
+    Serve à revisão e, desde a D-21, à edição de categoria na tela de
+    transações: as duas são o usuário dizendo "isto é aquilo", e as duas têm
+    que ensinar a próxima importação. `padrao` vazio (linha sem trecho
+    estável) não vira regra.
+    """
+    if not padrao:
+        return
+
+    existente = session.scalar(
+        select(RegraCategorizacao).where(
+            func.lower(RegraCategorizacao.padrao) == padrao.lower(),
+            RegraCategorizacao.tipo_match == "contem",
+            RegraCategorizacao.deleted_em.is_(None),
+        )
+    )
+    if existente is not None:
+        existente.categoria_id = categoria_id
+        existente.pessoa_id = pessoa_id
+        existente.acertos += 1
+        return
+
+    session.add(
+        RegraCategorizacao(
+            padrao=padrao,
+            tipo_match="contem",
+            categoria_id=categoria_id,
+            pessoa_id=pessoa_id,
+            criada_por="correcao_automatica",
+        )
+    )

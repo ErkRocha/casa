@@ -32,10 +32,31 @@ from app.schemas.common import Paginacao
 from app.schemas.transacoes import TransacaoFiltros
 from app.services.base import Conflito, NaoEncontrado, _mensagem_integridade
 from app.services.cadastros import primeiro_dia_do_mes
+from app.services.ingestao import _padrao_de
+from app.services.regras import reforcar_regra
 from app.views import vw_transacoes_completa as V
 
 #: Chave do balde conjunto nas agregações e no filtro.
 BALDE_CONJUNTO = "conjunto"
+
+#: Marca "pessoa não muda" no lote — `None` já quer dizer conjunto (D-03).
+_SEM_TROCA = object()
+
+
+def _aprende_categoria(
+    transacao: Transacao, categoria_nova: int | None, tipo: TipoTransacao | None
+) -> bool:
+    """A edição ensina uma regra? Só categoria que muda, em linha de extrato.
+
+    Lançamento manual não tem `descricao_original` e não vira padrão;
+    transferência não tem categoria.
+    """
+    return (
+        categoria_nova is not None
+        and categoria_nova != transacao.categoria_id
+        and bool(transacao.descricao_original)
+        and tipo is not TipoTransacao.TRANSFERENCIA
+    )
 
 
 def montar_filtros(f: TransacaoFiltros) -> list[ColumnElement[bool]]:
@@ -188,8 +209,15 @@ class TransacaoService:
         if "competencia" in dados and dados["competencia"] is not None:
             dados["competencia"] = primeiro_dia_do_mes(dados["competencia"])
 
+        aprender = _aprende_categoria(obj, dados.get("categoria_id"), dados.get("tipo", obj.tipo))
         for campo, valor in dados.items():
             setattr(obj, campo, valor)
+        if aprender and obj.descricao_original:
+            # D-09, estendida pela D-21: corrigir aqui ensina a próxima
+            # importação, como corrigir na revisão.
+            reforcar_regra(
+                self.session, _padrao_de(obj.descricao_original), obj.categoria_id, obj.pessoa_id
+            )
         self._flush()
         return self.get(id_)
 
@@ -227,6 +255,9 @@ class TransacaoService:
         if not valores:
             return 0
 
+        if categoria_id is not None:
+            self._aprender_em_lote(ids, categoria_id, valores.get("pessoa_id", _SEM_TROCA))
+
         stmt = (
             update(Transacao)
             .where(Transacao.id.in_(ids), Transacao.deleted_em.is_(None))
@@ -249,6 +280,27 @@ class TransacaoService:
         )
         resultado = self.session.execute(stmt)
         return int(cast(CursorResult[Any], resultado).rowcount or 0)
+
+    def _aprender_em_lote(self, ids: Sequence[int], categoria_id: int, pessoa: object) -> None:
+        """Cada transação do lote que muda de categoria ensina uma regra (D-09).
+
+        Antes do UPDATE, para comparar com a categoria antiga. Várias linhas
+        do mesmo estabelecimento caem na mesma regra, que é reforçada.
+        """
+        for transacao in self.session.scalars(
+            select(Transacao)
+            .where(Transacao.id.in_(ids), Transacao.deleted_em.is_(None))
+            .order_by(Transacao.id)
+        ):
+            if not _aprende_categoria(transacao, categoria_id, transacao.tipo):
+                continue
+            pessoa_id = transacao.pessoa_id if pessoa is _SEM_TROCA else pessoa
+            reforcar_regra(
+                self.session,
+                _padrao_de(transacao.descricao_original or ""),
+                categoria_id,
+                cast(int | None, pessoa_id),
+            )
 
     # -- utilidades ------------------------------------------------------
 

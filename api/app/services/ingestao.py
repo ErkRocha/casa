@@ -36,6 +36,7 @@ from app.models import (
 from app.services.base import Conflito, NaoEncontrado, RegraViolada, _mensagem_integridade
 from app.services.cadastros import normalizar_nome, primeiro_dia_do_mes
 from app.services.categorias_pluggy import carregar_mapa as carregar_categorias_pluggy
+from app.services.regras import reforcar_regra
 
 #: Confiança da categoria vinda do mapeamento da Pluggy: abaixo da regra do
 #: usuário (0.95), que é decisão explícita, e acima do local (0.80).
@@ -512,31 +513,11 @@ class IngestaoService:
 
     def _reforcar_regra(self, item: ImportacaoItem) -> None:
         """Correção vira regra, ou reforça a que já existe (D-09)."""
-        padrao = _padrao_de(item.linha_bruta)
-        if not padrao:
-            return
-
-        existente = self.session.scalar(
-            select(RegraCategorizacao).where(
-                func.lower(RegraCategorizacao.padrao) == padrao.lower(),
-                RegraCategorizacao.tipo_match == "contem",
-                RegraCategorizacao.deleted_em.is_(None),
-            )
-        )
-        if existente is not None:
-            existente.categoria_id = item.categoria_sugerida_id
-            existente.pessoa_id = item.pessoa_sugerida_id
-            existente.acertos += 1
-            return
-
-        self.session.add(
-            RegraCategorizacao(
-                padrao=padrao,
-                tipo_match="contem",
-                categoria_id=item.categoria_sugerida_id,
-                pessoa_id=item.pessoa_sugerida_id,
-                criada_por="correcao_automatica",
-            )
+        reforcar_regra(
+            self.session,
+            _padrao_de(item.linha_bruta),
+            item.categoria_sugerida_id,
+            item.pessoa_sugerida_id,
         )
 
     # -- utilidades ------------------------------------------------------
