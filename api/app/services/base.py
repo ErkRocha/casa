@@ -128,6 +128,10 @@ def _mensagem_integridade(exc: IntegrityError) -> str:
             "Esta conta da Pluggy já está mapeada. Edite o mapeamento existente "
             "ou desative-o antes de criar outro."
         ),
+        "uq_categorias_pluggy_pluggy_categoria_id": (
+            "Esta categoria da Pluggy já está mapeada. Edite o mapeamento existente "
+            "ou desative-o antes de criar outro."
+        ),
     }
     if constraint in conhecidas:
         return conhecidas[constraint]

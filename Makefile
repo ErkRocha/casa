@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync
+.PHONY: help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -60,6 +60,10 @@ pluggy-mapear: ## Lista as contas da Pluggy ainda sem mapeamento — use: make p
 # Grava só no staging: nada entra em `transacoes` sem aprovação (D-07, D-16).
 sync: ## Sincroniza a Pluggy para a revisão — use: make sync [simular=1]
 	$(COMPOSE) run --rm api python -m scripts.pluggy_sync $(if $(simular),--simular,)
+
+# Lê os comprovantes das importações da Pluggy; só grava com aplicar=1.
+pluggy-categorias: ## Proposta de mapeamento das categorias da Pluggy — use: make pluggy-categorias [aplicar=1]
+	$(COMPOSE) run --rm api python -m scripts.pluggy_categorias $(if $(aplicar),--aplicar,)
 
 relatorio-seco: ## Mesmo relatório, só com os números (sem chamar modelo)
 	$(COMPOSE) run --rm api python -m scripts.relatorio --sem-ia $(if $(m),--competencia $(m),)

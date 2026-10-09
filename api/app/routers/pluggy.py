@@ -1,4 +1,4 @@
-"""Router do mapeamento de contas da Pluggy (fase 5b, passo 4).
+"""Routers dos mapeamentos da Pluggy: contas (fase 5b, passo 4) e categorias (D-21).
 
 CRUD de `contas_pluggy`. A tela vem no passo 9; por ora isto serve ao
 `make pluggy-mapear` e a quem chamar a API direto.
@@ -15,7 +15,15 @@ from sqlalchemy.orm import Session
 from app.db import get_session
 from app.models import ContaPluggy
 from app.schemas.common import OkResponse, Page, Paginacao, paginacao
-from app.schemas.pluggy import ContaPluggyCreate, ContaPluggyRead, ContaPluggyUpdate
+from app.schemas.pluggy import (
+    CategoriaPluggyCreate,
+    CategoriaPluggyRead,
+    CategoriaPluggyUpdate,
+    ContaPluggyCreate,
+    ContaPluggyRead,
+    ContaPluggyUpdate,
+)
+from app.services.categorias_pluggy import CategoriaPluggyService
 from app.services.pluggy_mapeamento import ContaPluggyService
 
 router = APIRouter(prefix="/contas-pluggy", tags=["pluggy"])
@@ -66,5 +74,46 @@ def atualizar(id_: int, payload: ContaPluggyUpdate, session: SessionDep) -> Any:
 def remover(id_: int, session: SessionDep) -> Any:
     """Desativa o mapeamento: soft delete, nunca apaga a linha (regra 2)."""
     ContaPluggyService(session).remover(id_)
+    session.commit()
+    return OkResponse()
+
+
+# --------------------------------------------------------------------------
+# Mapeamento de categorias da Pluggy (D-21)
+# --------------------------------------------------------------------------
+
+categorias_router = APIRouter(prefix="/categorias-pluggy", tags=["pluggy"])
+
+
+@categorias_router.get("", response_model=Page[CategoriaPluggyRead])
+def listar_categorias(session: SessionDep, pag: PaginacaoDep, apenas_ativos: bool = False) -> Any:
+    itens, total = CategoriaPluggyService(session).listar(pag, apenas_ativos=apenas_ativos)
+    return Page(items=itens, total=total, limit=pag.limit, offset=pag.offset)
+
+
+@categorias_router.get("/{id_}", response_model=CategoriaPluggyRead)
+def obter_categoria(id_: int, session: SessionDep) -> Any:
+    return CategoriaPluggyService(session).get(id_)
+
+
+@categorias_router.post("", response_model=CategoriaPluggyRead, status_code=status.HTTP_201_CREATED)
+def criar_categoria(payload: CategoriaPluggyCreate, session: SessionDep) -> Any:
+    """Categoria de transferência da Pluggy não aponta para despesa (D-21): 422."""
+    obj = CategoriaPluggyService(session).criar(payload.model_dump())
+    session.commit()
+    return obj
+
+
+@categorias_router.patch("/{id_}", response_model=CategoriaPluggyRead)
+def atualizar_categoria(id_: int, payload: CategoriaPluggyUpdate, session: SessionDep) -> Any:
+    obj = CategoriaPluggyService(session).atualizar(id_, payload.model_dump(exclude_unset=True))
+    session.commit()
+    return obj
+
+
+@categorias_router.delete("/{id_}", response_model=OkResponse)
+def remover_categoria(id_: int, session: SessionDep) -> Any:
+    """Desativa o mapeamento: soft delete, nunca apaga a linha (regra 2)."""
+    CategoriaPluggyService(session).remover(id_)
     session.commit()
     return OkResponse()

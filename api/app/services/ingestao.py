@@ -4,8 +4,9 @@ O fluxo inteiro da D-07: o arquivo vira itens em staging, o enriquecimento
 sugere categoria/local/pessoa, e **nada entra em `transacoes` sem o usuário
 aprovar**. Aprovar é o único caminho de escrita no dado real.
 
-Ordem do enriquecimento (D-09): regras primeiro — exatas e gratuitas — depois
-o casamento por local já conhecido. LLM não entra aqui; é o passo 6 da fase 5.
+Ordem do enriquecimento (D-09, D-21): regras do usuário primeiro — exatas e
+gratuitas —, depois o mapeamento de categorias da Pluggy, depois o casamento
+por local já conhecido. LLM não entra aqui; é o passo 6 da fase 5.
 """
 
 from __future__ import annotations
@@ -34,6 +35,11 @@ from app.models import (
 )
 from app.services.base import Conflito, NaoEncontrado, RegraViolada, _mensagem_integridade
 from app.services.cadastros import normalizar_nome, primeiro_dia_do_mes
+from app.services.categorias_pluggy import carregar_mapa as carregar_categorias_pluggy
+
+#: Confiança da categoria vinda do mapeamento da Pluggy: abaixo da regra do
+#: usuário (0.95), que é decisão explícita, e acima do local (0.80).
+CONFIANCA_CATEGORIA_PLUGGY = Decimal("0.90")
 
 
 class IngestaoService:
@@ -180,7 +186,11 @@ class IngestaoService:
         coisa.
         """
         sugestao = contexto.sugerir_para(
-            extraido.descricao, extraido.cartao_final, forma_fixa_id=forma_fixa_id
+            extraido.descricao,
+            extraido.cartao_final,
+            forma_fixa_id=forma_fixa_id,
+            categoria_externa_id=extraido.categoria_externa_id,
+            tipo=extraido.tipo,
         )
         # D-16: regra e titular do cartão primeiro; sem eles, o titular da
         # conta mapeada. Conta conjunta chega aqui como `None` (regra 3).
@@ -641,10 +651,13 @@ class _ContextoEnriquecimento:
         regras: list[RegraCategorizacao],
         locais: list[Local],
         formas: list[FormaPagamento],
+        categorias_pluggy: dict[str, tuple[int, TipoTransacao]] | None = None,
     ) -> None:
         self.regras = sorted(regras, key=lambda r: r.prioridade)
         self.locais = locais
         self.formas = formas
+        #: `categoryId` da Pluggy -> (categoria daqui, tipo dela). D-21.
+        self.categorias_pluggy = categorias_pluggy or {}
         # Menor id entre os créditos, explicitamente — e não "o primeiro que a
         # lista trouxer". `forma_pagamento_id` entra no `hash_dedup`, então
         # esta escolha é o que decide se reimportar um extrato sobreposto vai
@@ -693,13 +706,25 @@ class _ContextoEnriquecimento:
                     .order_by(FormaPagamento.id)
                 )
             ),
+            carregar_categorias_pluggy(session),
         )
 
     def sugerir(self, extraido: ItemExtraido) -> _Sugestao:
-        return self.sugerir_para(extraido.descricao, extraido.cartao_final)
+        return self.sugerir_para(
+            extraido.descricao,
+            extraido.cartao_final,
+            categoria_externa_id=extraido.categoria_externa_id,
+            tipo=extraido.tipo,
+        )
 
     def sugerir_para(
-        self, descricao: str, cartao_final: str | None, *, forma_fixa_id: int | None = None
+        self,
+        descricao: str,
+        cartao_final: str | None,
+        *,
+        forma_fixa_id: int | None = None,
+        categoria_externa_id: str | None = None,
+        tipo: TipoTransacao | None = None,
     ) -> _Sugestao:
         """O motor de sugestão, em cima de texto puro.
 
@@ -721,8 +746,23 @@ class _ContextoEnriquecimento:
                 sugestao.confianca = Decimal("0.95")
                 break
 
-        # 2. Local já conhecido: casa pelo nome normalizado e herda a
-        #    categoria padrão dele.
+        # 2. Mapeamento de categorias da Pluggy (D-21), só quando a regra não
+        #    deu categoria e o tipo da categoria mapeada é o do item.
+        #    Transferência não recebe categoria: em `transacoes` ela não tem.
+        if (
+            sugestao.categoria_id is None
+            and categoria_externa_id
+            and tipo is not None
+            and tipo is not TipoTransacao.TRANSFERENCIA
+        ):
+            mapeada = self.categorias_pluggy.get(categoria_externa_id)
+            if mapeada is not None and mapeada[1] is tipo:
+                sugestao.categoria_id = mapeada[0]
+                sugestao.origem = "pluggy"
+                sugestao.confianca = CONFIANCA_CATEGORIA_PLUGGY
+
+        # 3. Local já conhecido: casa pelo nome normalizado e herda a
+        #    categoria padrão dele, se ninguém antes deu categoria.
         if sugestao.local_id is None:
             normalizado = normalizar_nome(descricao)
             for local in self.locais:
@@ -734,7 +774,7 @@ class _ContextoEnriquecimento:
                         sugestao.confianca = max(sugestao.confianca, Decimal("0.80"))
                     break
 
-        # 3. Forma fixa (sync da Pluggy): a forma vem sempre do mapeamento da
+        # 4. Forma fixa (sync da Pluggy): a forma vem sempre do mapeamento da
         #    conta, inclusive para cartão virtual com outro final — nunca o
         #    crédito genérico do seed. O final ainda serve para achar o
         #    titular de um cartão cadastrado com aqueles 4 dígitos (D-16).
@@ -748,7 +788,7 @@ class _ContextoEnriquecimento:
                     sugestao.pessoa_id = exata.titular_id
             return sugestao
 
-        # 3. Forma de pagamento pelo final do cartão. Casa com a forma cujo
+        # 4. Forma de pagamento pelo final do cartão. Casa com a forma cujo
         #    apelido termina nesses 4 dígitos ("Nubank •••• 7704"); sem ela,
         #    cai no cartão de crédito genérico do seed.
         if cartao_final:

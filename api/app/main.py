@@ -71,6 +71,7 @@ app.include_router(analytics.router)
 app.include_router(ingestao.router)
 app.include_router(regras.router)
 app.include_router(pluggy.router)
+app.include_router(pluggy.categorias_router)
 app.include_router(relatorios.router)
 
 

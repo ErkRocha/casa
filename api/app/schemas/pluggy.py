@@ -47,3 +47,35 @@ class ContaPluggyRead(BaseModel):
     #: Sobreposição com PDF já promovido nesta conta (D-16). Aviso, não
     #: bloqueio: o mapeamento é gravado mesmo assim.
     avisos: list[str] = Field(default_factory=list)
+
+
+# --- categorias (D-21) -------------------------------------------------------
+
+
+class CategoriaPluggyCreate(BaseModel):
+    #: `categoryId` da Pluggy, 8 dígitos (ex. `11000000`).
+    pluggy_categoria_id: Annotated[str, Field(min_length=1, max_length=20, pattern=r"^\d+$")]
+    #: `category`, a descrição em inglês (ex. "Groceries").
+    pluggy_categoria_nome: Annotated[str, Field(min_length=1, max_length=200)]
+    categoria_id: int
+    ativo: bool = True
+
+
+class CategoriaPluggyUpdate(BaseModel):
+    """Trocar o id da Pluggy é criar outro mapeamento, como em `contas_pluggy`."""
+
+    pluggy_categoria_nome: Annotated[str, Field(min_length=1, max_length=200)] | None = None
+    categoria_id: int | None = None
+    ativo: bool | None = None
+
+
+class CategoriaPluggyRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    criado_em: datetime
+    atualizado_em: datetime | None = None
+    pluggy_categoria_id: str
+    pluggy_categoria_nome: str
+    categoria_id: int
+    ativo: bool
