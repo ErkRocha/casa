@@ -130,6 +130,29 @@ e ids, e responde se as compras de cartão trazem `billId` e quais transações
 estão `PENDING`. Rode de novo depois do fechamento da fatura: o script compara
 com a execução anterior e diz se as pendentes viraram `POSTED` com o mesmo id.
 
+### Sync com promoção automática (D-21)
+
+Desde a D-21 a sync promove sozinha o item limpo: leitura 1.00, sem
+observação, sem suspeita de duplicata e com categoria. O resto vai para a
+revisão, e o `make sync` diz quantos ficaram e por quê. Para revisar a
+importação que entrou antes disso:
+
+```bash
+make pluggy-diagnostico-importacao        # só lê: formas, operações e categorias da 1ª sync
+make pluggy-categorias                    # proposta de mapeamento das categorias da Pluggy
+make pluggy-categorias aplicar=1          # grava a proposta, depois de revisar
+make pluggy-reprocessar proposta=1        # simula os pendentes com a proposta em memória
+make pluggy-reprocessar                   # simula com o mapeamento já gravado
+make pluggy-reprocessar executar=1        # grava e promove os limpos
+```
+
+No modo local, sem Docker: `source scripts/local/ambiente.sh` e
+`cd api && python -m scripts.<nome> [opções]` (`pluggy_diagnostico_importacao`,
+`pluggy_categorias --aplicar`, `pluggy_reprocessar --com-proposta | --executar`).
+
+Uma importação que entrou errada se desfaz pela tela de importações: as
+transações e os itens dela saem por soft delete, com auditoria.
+
 ---
 
 ## Estrutura

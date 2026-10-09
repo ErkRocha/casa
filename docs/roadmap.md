@@ -302,6 +302,27 @@ Nesta ordem, sem pular:
 10. **Execução agendada**, só depois de algumas semanas de `make sync` manual
    sem surpresa: uma vez por dia, depois da atualização da Pluggy. Falha vira
    log e aviso no painel, não retentativa infinita.
+11. **Ingestão mais direta (D-21, 09/10/2026).** Escrito, com testes de banco
+   que ainda não rodaram: a máquina onde foi feito não tem Docker nem
+   Postgres. Rodaram lint, mypy (SQLAlchemy 2.0 e 2.1), os testes sem banco e
+   lint, typecheck e build do web.
+   - forma de pagamento da conta corrente pela operação da Pluggy, na própria
+     conta mapeada, criando a que faltar;
+   - tabela `categorias_pluggy` (migration 0007), CRUD em
+     `/categorias-pluggy`, enriquecimento regra > Pluggy > local, e
+     `make pluggy-categorias` com a proposta inicial e as ambíguas;
+   - editar categoria na tela de transações ensina regra (D-09);
+   - a sync promove sozinha o item limpo, pelo `aprovar()` da revisão;
+   - desfazer importação na tela de importações;
+   - forma de pagamento em destaque na revisão e nas transações;
+   - `make pluggy-diagnostico-importacao` e `make pluggy-reprocessar`
+     (simulação por padrão) para a importação da primeira sync.
+
+   **Pendente, no PC de casa, nesta ordem:** `make validar` (aplica a 0007 e
+   roda a suíte inteira); o diagnóstico da importação #4; a proposta de
+   categorias, revisada antes de `aplicar=1`; a simulação do reprocessamento,
+   com e sem `proposta=1`. O reprocessamento real (`executar=1`) só depois de
+   o usuário ler a simulação.
 
 **Pronto quando**:
 - as transações de conta (débito, Pix, transferência) aparecem na tela de
