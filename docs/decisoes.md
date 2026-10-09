@@ -79,6 +79,10 @@ bagunçado em três meses.
 O `hash_dedup` protege a promoção: reimportar o mesmo PDF ou aprovar duas
 vezes esbarra no índice único.
 
+**Exceção restrita (09/10/2026): ver D-21.** Só a sync da Pluggy, e só o
+item limpo, é promovido sem a aprovação manual. PDF e LLM continuam sempre
+pelo staging.
+
 ---
 
 ## D-08 — Parser determinístico antes do LLM
@@ -196,6 +200,8 @@ O que não muda:
   cria uma `importacao` com `origem = 'pluggy'` e grava itens em
   `importacao_itens`, que o usuário revisa e promove pelo painel, como faz com
   qualquer PDF. Sincronização automática não é promoção automática.
+  **Revisto em 09/10/2026 pela D-21:** o item limpo da Pluggy é promovido
+  pela própria sync; o resto continua aqui.
 - **Um caminho só.** O JSON da Pluggy é convertido para `ItemExtraido`, o
   mesmo contrato dos parsers, e daí em diante passa pelo service de ingestão
   existente. O enriquecimento (D-09), a revisão e a promoção são os mesmos. Um
@@ -372,3 +378,85 @@ Não há tela de chat no painel por enquanto.
   envia agregados, o chat pode enviar ao modelo descrições de transações
   (nomes de estabelecimentos, de pessoas em Pix). O usuário aceitou isso
   para o uso pelo Claude Desktop.
+
+---
+
+## D-21 — Promoção automática por exceção, só na sync da Pluggy
+
+Decisão do usuário, 09/10/2026.
+
+A primeira sync (importação #4) pôs 747 itens na revisão, e quase todos eram
+compras e Pix que a Pluggy entrega estruturados, sem nada a interpretar.
+Aprovar isso linha a linha não protege o banco: treina o olho a clicar em
+"aprovar" sem ler, que é justamente o risco que a D-07 queria evitar. A
+revisão passa a ser o lugar do que precisa de decisão.
+
+**O que é promovido sozinho.** Só item de origem `pluggy`, e só o *limpo*:
+
+1. **leitura com confiança 1.00**, a da conversão (`ItemExtraido.confianca`),
+   e não o `confianca` do staging, que é o mínimo entre leitura e sugestão e
+   nunca chega a 1.00. A categoria tem critério próprio (item 4);
+2. **sem observação** nenhuma;
+3. **sem suspeita de duplicata**: nem a marca de gêmeo da própria Pluggy
+   (D-16) nem transação idêntica já em `transacoes` (status `duplicado`);
+4. **com categoria definida**, por regra do usuário, mapeamento da Pluggy ou
+   local conhecido.
+
+**Vai para o staging:** possível duplicata, encargos de fatura,
+transferência (todas abaixo de 1.00 hoje; e a promoção recusa transferência
+sem conta de origem e destino), o lado do cartão no pagamento de fatura,
+item com qualquer observação e item sem categoria. PDF e LLM **nunca** são
+promovidos sozinhos: continuam inteiros pelo staging.
+
+**Conta corrente também promove (decisão do usuário, 09/10/2026).** A escala
+de confiança veio do PDF, onde a linha de extrato valia 0.95 por depender de
+leitura de texto. Na Pluggy a linha de conta chega estruturada: com `type`
+`DEBIT`/`CREDIT` e a forma de pagamento resolvida pela operação sem dúvida,
+a leitura vale 1.00, como a compra de cartão. Sem correspondência clara de
+forma, fica 0.95 com observação e vai para a revisão.
+
+**Um caminho só de promoção.** A sync grava tudo no staging, como antes, e
+chama o mesmo `IngestaoService.aprovar()` da revisão sobre os ids limpos. O
+`hash_dedup` continua sendo a barreira: item que esbarra nele vira
+`duplicado` e fica para o usuário. Cada transação promovida assim tem
+`importacao_id`, item de staging `aprovado` apontando para ela e auditoria
+com autor `sync_pluggy` (D-06).
+
+**Forma de pagamento pela operação.** Em conta `BANK`, a forma sai do
+`operationType` da Pluggy, entre as formas da própria conta mapeada:
+
+| operação | forma |
+|---|---|
+| `PIX` | `pix` |
+| `CARTAO` | `debito` |
+| `BOLETO`, `CONVENIO_ARRECADACAO` | `boleto` |
+| `TED`, `DOC`, `TRANSFERENCIA_MESMA_INSTITUICAO` | `transferencia` |
+
+A forma que faltar na conta é criada pelo service, na conta certa e com o
+titular dela. Entre duas formas do mesmo tipo na conta vale a do mapeamento,
+senão a de menor id — critério fixo, porque a forma entra no `hash_dedup`.
+Operação fora da tabela (tarifa, saque, crédito, `OUTROS`, ausente) fica com
+a forma padrão do mapeamento e uma observação. Cartão continua sempre com a
+forma do mapeamento.
+
+**Categoria pelo mapeamento da Pluggy.** Tabela `categorias_pluggy` (id e
+nome da categoria da Pluggy → `categoria_id`), a única mudança de schema
+aprovada para esta decisão. A ordem do enriquecimento passa a ser **regra do
+usuário (D-09) > mapeamento da Pluggy > local conhecido**, com
+`origem_sugestao = 'pluggy'` no do meio. O mapeamento só vale quando o tipo
+da categoria bate com o do item (categoria de despesa nunca vai para
+receita). As categorias de transferência da Pluggy (famílias
+`Transfers`, `Same person transfer` e `Third-party transfers`) não podem
+apontar para categoria de despesa: um Pix para pessoa pode ser gasto ou
+repasse, e quem decide é a revisão. Caso ambíguo fica sem mapeamento e vai
+para a revisão sem categoria. Editar a categoria na tela de transações passa
+a criar ou reforçar regra, como a revisão já fazia (D-09).
+
+**Desfazer importação.** A tela de importações ganha um botão que aplica
+soft delete em todas as transações e itens de uma importação e a marca
+`cancelada`, com confirmação. A auditoria guarda cada linha (D-06), e o
+comprovante fica. Consequência a conhecer: o item apagado libera o
+`id_externo`, então uma sync cuja janela ainda cubra aquelas datas traz as
+transações de volta, como novas. É o comportamento certo para "desfazer e
+importar de novo com a regra corrigida"; para descartar de vez, rejeite em
+vez de desfazer.

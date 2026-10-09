@@ -39,7 +39,11 @@ Estas não são preferências. Violar qualquer uma delas é bug.
 4. **Schema só muda por migration nova.** Nunca edite uma migration já
    aplicada. Nunca use `create_all()` fora de teste.
 5. **O agente de ingestão nunca escreve em `transacoes`.** Ele grava em
-   `importacao_itens` (staging) e o usuário promove pelo painel.
+   `importacao_itens` (staging) e o usuário promove pelo painel. **Exceção
+   única (D-21):** a sync da Pluggy promove sozinha o item *limpo* — leitura
+   1.00, sem observação, sem suspeita de duplicata, com categoria —, pelo
+   mesmo `aprovar()` da revisão, com autor `sync_pluggy`. PDF e LLM nunca.
+   Qualquer outra origem que queira promover sozinha precisa de decisão nova.
 6. **O agente de insights usa role read-only do Postgres.** Sem exceção.
 7. **LLM não calcula.** Toda soma, média e comparação sai de SQL agregado. O
    modelo apenas interpreta números que já vieram prontos.
