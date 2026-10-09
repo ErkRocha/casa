@@ -9,6 +9,8 @@ sessão read-only nem do harness para mostrar um texto já gravado.
 
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
@@ -27,7 +29,10 @@ class RelatorioLeituraService:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def _vivos(self) -> Select[tuple[Relatorio]]:
+    def _vivos(self) -> Select[Any]:
+        # `Select[Any]`, e não `Select[tuple[Relatorio]]`: o SQLAlchemy 2.1
+        # passou a tipar `select(Model)` como `Select[Model]`, e a anotação
+        # da 2.0 quebrava o mypy na versão nova (e vice-versa).
         return select(Relatorio).where(Relatorio.deleted_em.is_(None))
 
     def listar(self, paginacao: Paginacao) -> tuple[list[Relatorio], int]:
