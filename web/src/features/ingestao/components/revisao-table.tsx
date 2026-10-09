@@ -1,5 +1,10 @@
 import { Checkbox, PessoaBadge, Select } from "@/components/ui/controls";
-import { useCategoriaOpcoes, usePessoas } from "@/features/cadastros/queries";
+import { FormaPagamentoTag } from "@/features/cadastros/forma-pagamento-tag";
+import {
+  useCategoriaOpcoes,
+  useFormasPagamento,
+  usePessoas,
+} from "@/features/cadastros/queries";
 import { corDoBalde, corSuaveDoBalde } from "@/features/filters/baldes";
 import { formatBRLTexto, formatDate, toNumero } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -36,6 +41,7 @@ export function RevisaoTable({
 }) {
   const { data: categorias } = useCategoriaOpcoes();
   const { data: pessoas = [] } = usePessoas();
+  const { data: formas = [] } = useFormasPagamento();
   const ajustar = useAjustarItem();
 
   const pendentes = itens.filter((item) => item.status === "pendente");
@@ -49,6 +55,7 @@ export function RevisaoTable({
           <col className="w-16" />
           <col className="w-46" />
           <col />
+          <col className="w-60" />
           <col className="w-95" />
           <col className="w-55" />
           {/* Valor e situação precisam de folga entre si: sem o `pr` na
@@ -68,6 +75,7 @@ export function RevisaoTable({
             </th>
             <Th>Data</Th>
             <Th>Linha original</Th>
+            <Th>Pagamento</Th>
             <Th>Categoria</Th>
             <Th>Pessoa</Th>
             <Th alinhamento="right" className="pr-5">
@@ -83,6 +91,7 @@ export function RevisaoTable({
             const transferencia = item.tipo_sugerido === "transferencia";
             const receita = item.tipo_sugerido === "receita";
             const confianca = toNumero(item.confianca);
+            const forma = formas.find((f) => f.id === item.forma_pagamento_sugerida_id);
 
             return (
               <tr
@@ -125,6 +134,20 @@ export function RevisaoTable({
                       {item.origem_sugestao ?? "parser"}
                     </div>
                   ) : null}
+                </td>
+
+                {/* Cartão, Pix, débito, boleto: na conta corrente a forma sai
+                    da operação da Pluggy (D-21), e é o que se confere aqui. */}
+                <td className="py-4 pr-4">
+                  <FormaPagamentoTag
+                    tipo={forma?.tipo}
+                    apelido={
+                      forma?.apelido ??
+                      (item.forma_pagamento_sugerida_id
+                        ? `forma #${item.forma_pagamento_sugerida_id}`
+                        : null)
+                    }
+                  />
                 </td>
 
                 <td className="py-4 pr-4">

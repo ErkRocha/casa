@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { Checkbox, PessoaBadge, Select } from "@/components/ui/controls";
+import { FormaPagamentoTag } from "@/features/cadastros/forma-pagamento-tag";
 import { useCategoriaOpcoes, usePessoas } from "@/features/cadastros/queries";
 import { corDoBalde, corSuaveDoBalde } from "@/features/filters/baldes";
 import { formatBRLTexto, formatDate } from "@/lib/format";
@@ -177,8 +178,11 @@ export function TransacoesTable({
                   )}
                 </td>
 
-                <td className="text-body-sm text-text-secondary truncate py-4 pr-4">
-                  {t.forma_pagamento_apelido ?? "—"}
+                <td className="py-4 pr-4">
+                  <FormaPagamentoTag
+                    tipo={t.forma_pagamento_tipo}
+                    apelido={t.forma_pagamento_apelido}
+                  />
                 </td>
 
                 {/* Pessoa — edição inline */}
