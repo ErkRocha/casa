@@ -128,6 +128,8 @@ class IngestaoService:
         """
         if not itens:
             raise RegraViolada("Importação sem itens não é criada.")
+        if any(i.forma_pagamento_id is None for i in itens):
+            raise RegraViolada("Item de lote sem forma de pagamento resolvida.")
 
         datas = [i.extraido.data for i in itens]
         importacao = Importacao(
@@ -605,7 +607,9 @@ class ItemLote:
     """
 
     extraido: ItemExtraido
-    forma_pagamento_id: int
+    #: Nulo só enquanto a sync planeja uma forma que ainda vai criar (D-21);
+    #: `importar_lote` recusa item que chegue sem forma.
+    forma_pagamento_id: int | None
     pessoa_padrao_id: int | None = None
     categoria_id: int | None = None
 

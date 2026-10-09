@@ -35,11 +35,11 @@ from app.conversao_pluggy import (
     converter_lote,
     e_pagamento_de_fatura,
 )
-from app.enums import TipoTransacao
+from app.enums import TipoPagamento, TipoTransacao
 from app.ingestao.base import ItemExtraido
-from app.models import Categoria, ContaPluggy, ImportacaoItem
+from app.models import Categoria, ContaPluggy, FormaPagamento, ImportacaoItem
 from app.pluggy.modelos import Conta, Fatura, Transacao
-from app.services.cadastros import normalizar_nome, primeiro_dia_do_mes
+from app.services.cadastros import FormaPagamentoService, normalizar_nome, primeiro_dia_do_mes
 from app.services.ingestao import IngestaoService, ItemLote, _ContextoEnriquecimento
 
 #: Quanto a janela volta antes do último sync. A Pluggy atualiza a cada 24h e
@@ -49,6 +49,17 @@ CENTAVO = Decimal("0.01")
 CONFIANCA_DUPLICATA = Decimal("0.50")
 CONFIANCA_ENCARGOS = Decimal("0.70")
 AUTOR = "sync_pluggy"
+
+#: Apelido da forma criada pela sync quando a conta não tem a da operação
+#: (D-21): "Débito Sicredi Conta Corrente".
+ROTULO_FORMA = {
+    TipoPagamento.PIX: "Pix",
+    TipoPagamento.DEBITO: "Débito",
+    TipoPagamento.BOLETO: "Boleto",
+    TipoPagamento.TRANSFERENCIA: "Transferência",
+    TipoPagamento.CREDITO: "Crédito",
+    TipoPagamento.DINHEIRO: "Dinheiro",
+}
 
 #: Nomes de categoria aceitos para os encargos, comparados sem acento e em
 #: maiúsculas. Só nome exato: na dúvida, o item vai sem categoria.
@@ -63,6 +74,28 @@ class LeitorPluggy(Protocol):
     def listar_transacoes(self, account_id: str, desde: date, ate: date) -> list[Transacao]: ...
 
     def listar_faturas(self, account_id: str) -> list[Fatura]: ...
+
+
+@dataclass(slots=True)
+class FormaNova:
+    """Forma que a conta mapeada não tem e a sync cria na gravação (D-21).
+
+    Planejada na leitura, criada só ao gravar: a simulação mostra o que
+    seria criado sem criar. `id` nasce na gravação.
+    """
+
+    conta_id: int
+    tipo: TipoPagamento
+    apelido: str
+    titular_id: int | None
+    id: int | None = None
+
+
+@dataclass(slots=True)
+class ItemPlanejado(ItemLote):
+    """Item da sync com a forma, quando ela ainda vai ser criada."""
+
+    forma_nova: FormaNova | None = None
 
 
 @dataclass(slots=True)
@@ -103,6 +136,8 @@ class ResultadoSync:
     simulado: bool
     contas: list[ResultadoConta] = field(default_factory=list)
     importacao_id: int | None = None
+    #: Formas criadas na gravação, ou que seriam criadas, na simulação.
+    formas_novas: list[FormaNova] = field(default_factory=list)
 
     @property
     def itens_novos(self) -> int:
@@ -125,6 +160,8 @@ class SyncPluggyService:
         self._respostas_brutas = respostas_brutas or (lambda: [])
         self._agora = agora or (lambda: datetime.now(UTC))
         self._contas_por_item: dict[str, list[Conta]] = {}
+        self._formas_por_conta: dict[int, list[FormaPagamento]] | None = None
+        self._formas_novas: dict[tuple[int, TipoPagamento], FormaNova] = {}
 
     # -- entrada ----------------------------------------------------------
 
@@ -150,6 +187,7 @@ class SyncPluggyService:
             resultado.contas.append(conta)
 
         _marcar_duplicatas_no_lote(resultado.contas)
+        resultado.formas_novas = _formas_novas_usadas(resultado.contas)
         if simular:
             # A amostra mostra a sugestão que o item teria no staging, pelo
             # mesmo código da gravação, sem gravar.
@@ -164,13 +202,15 @@ class SyncPluggyService:
                         categoria_fixa_id=lote.categoria_id,
                     )
                     i = lote.extraido
+                    nova = lote.forma_nova if isinstance(lote, ItemPlanejado) else None
                     conta.amostra.append(
                         {
                             "data": i.data,
                             "valor": i.valor,
                             "tipo": i.tipo.value,
                             "competencia": i.competencia,
-                            "forma_pagamento_id": sugestao.forma_pagamento_id,
+                            "forma_pagamento_id": lote.forma_pagamento_id,
+                            "forma_nova": nova.apelido if nova else None,
                             "pessoa_id": sugestao.pessoa_id,
                             "categoria_id": sugestao.categoria_id,
                             "confianca_conversao": i.confianca,
@@ -242,23 +282,102 @@ class SyncPluggyService:
             e for e in resultado.encargos if f"bill:{e.bill_id}:encargos" not in existentes
         ]
 
-        self._marcar_duplicatas_no_staging(mapa, novos)
+        self._marcar_duplicatas_no_staging(mapa, novos, e_cartao=conta.e_cartao)
 
         pessoa = mapa.conta.titular_id
-        resultado.itens = [
-            ItemLote(
-                extraido=item,
-                forma_pagamento_id=mapa.forma_pagamento_id,
-                pessoa_padrao_id=pessoa,
-                categoria_id=(
-                    categoria_encargos
-                    if item.id_externo and item.id_externo.startswith("bill:")
-                    else None
-                ),
+        itens: list[ItemLote] = []
+        for item in novos:
+            forma_id, nova = (
+                (mapa.forma_pagamento_id, None)
+                if conta.e_cartao
+                else self._resolver_forma(mapa, item)
             )
-            for item in novos
-        ]
+            itens.append(
+                ItemPlanejado(
+                    extraido=item,
+                    forma_pagamento_id=forma_id,
+                    pessoa_padrao_id=pessoa,
+                    categoria_id=(
+                        categoria_encargos
+                        if item.id_externo and item.id_externo.startswith("bill:")
+                        else None
+                    ),
+                    forma_nova=nova,
+                )
+            )
+        resultado.itens = itens
         resultado.novos = len(resultado.itens)
+
+    # -- forma de pagamento (D-21) ---------------------------------------
+
+    def _resolver_forma(
+        self, mapa: ContaPluggy, item: ItemExtraido
+    ) -> tuple[int | None, FormaNova | None]:
+        """A forma da operação, entre as da própria conta mapeada.
+
+        Sem tipo dito pela operação, a do mapeamento (a conversão já deixou a
+        observação). Com tipo: a do mapeamento se for daquele tipo, senão a de
+        menor id da conta — critério fixo, porque a forma entra no
+        `hash_dedup`. Sem nenhuma, planeja criar. Se a conta só tem forma
+        daquele tipo **inativa**, alguém a desligou de propósito: fica a do
+        mapeamento, com observação, em vez de criar outra por cima.
+        """
+        tipo = item.forma_tipo
+        padrao = mapa.forma_pagamento
+        if tipo is None or padrao.tipo is tipo:
+            return mapa.forma_pagamento_id, None
+
+        do_tipo = [f for f in self._formas_da_conta(mapa.conta_id) if f.tipo is tipo]
+        ativas = [f for f in do_tipo if f.ativo]
+        if ativas:
+            return ativas[0].id, None
+        rotulo = ROTULO_FORMA.get(tipo, tipo.value)
+        if do_tipo:
+            _anotar(
+                item,
+                f"A operação indica {rotulo}, mas a forma desse tipo da conta está inativa "
+                f"('{do_tipo[0].apelido}'): ficou a forma padrão do mapeamento. Confira.",
+            )
+            return mapa.forma_pagamento_id, None
+
+        chave = (mapa.conta_id, tipo)
+        if chave not in self._formas_novas:
+            self._formas_novas[chave] = FormaNova(
+                conta_id=mapa.conta_id,
+                tipo=tipo,
+                apelido=f"{rotulo} {mapa.conta.nome}",
+                titular_id=mapa.conta.titular_id,
+            )
+        return None, self._formas_novas[chave]
+
+    def _formas_da_conta(self, conta_id: int) -> list[FormaPagamento]:
+        """Formas vivas da conta, ativas ou não, por id — carregadas uma vez."""
+        if self._formas_por_conta is None:
+            self._formas_por_conta = defaultdict(list)
+            for forma in self.session.scalars(
+                select(FormaPagamento)
+                .where(FormaPagamento.deleted_em.is_(None))
+                .order_by(FormaPagamento.id)
+            ):
+                if forma.conta_id is not None:
+                    self._formas_por_conta[forma.conta_id].append(forma)
+        return self._formas_por_conta.get(conta_id, [])
+
+    def _formas_do_mapeamento(self, mapa: ContaPluggy, *, e_cartao: bool) -> set[int]:
+        """As formas que itens deste mapeamento podem ter recebido.
+
+        Cartão: só a do mapeamento. Conta: a do mapeamento e as da conta que
+        não são de crédito — o cartão também aponta para a conta que paga a
+        fatura, e misturar os dois juntaria itens de mapeamentos diferentes.
+        """
+        if e_cartao:
+            return {mapa.forma_pagamento_id}
+        da_conta = {
+            f.id
+            for f in self._formas_da_conta(mapa.conta_id)
+            if f.tipo is not TipoPagamento.CREDITO
+        }
+        return {mapa.forma_pagamento_id} | da_conta
 
     def _conta_remota(self, mapa: ContaPluggy) -> Conta:
         if mapa.pluggy_item_id not in self._contas_por_item:
@@ -354,12 +473,13 @@ class SyncPluggyService:
         return encargos
 
     def _marcar_duplicatas_no_staging(
-        self, mapa: ContaPluggy, novos: Sequence[ItemExtraido]
+        self, mapa: ContaPluggy, novos: Sequence[ItemExtraido], *, e_cartao: bool
     ) -> None:
         """Mesma data, valor e descrição de um item já no staging desta conta.
 
-        A conta chega pelo `forma_pagamento_sugerida_id`: na sync, a forma
-        vem sempre do mapeamento, e cada mapeamento tem a sua.
+        A conta chega pelo `forma_pagamento_sugerida_id`. No cartão a forma é
+        sempre a do mapeamento; na conta corrente ela varia com a operação
+        (D-21), então vale qualquer forma não-crédito da conta mapeada.
         """
         chaves = {(i.data, i.valor, i.linha_bruta) for i in novos}
         if not chaves:
@@ -374,13 +494,19 @@ class SyncPluggyService:
             ).where(
                 ImportacaoItem.deleted_em.is_(None),
                 ImportacaoItem.id_externo.is_not(None),
-                ImportacaoItem.forma_pagamento_sugerida_id == mapa.forma_pagamento_id,
+                ImportacaoItem.forma_pagamento_sugerida_id.in_(
+                    self._formas_do_mapeamento(mapa, e_cartao=e_cartao)
+                ),
                 tuple_(
                     ImportacaoItem.data, ImportacaoItem.valor, ImportacaoItem.descricao_original
                 ).in_(list(chaves)),
             )
         )
         for data, valor, descricao, id_externo in linhas:
+            # O filtro já exclui nulos; a checagem é para o tipo, que o
+            # SQLAlchemy 2.1 passou a declarar opcional.
+            if data is None or valor is None or id_externo is None:
+                continue
             gemeos[(data, valor, descricao or "")].append(id_externo)
 
         for item in novos:
@@ -400,6 +526,7 @@ class SyncPluggyService:
         itens = [lote for c in resultado.contas if c.erro is None for lote in c.itens]
 
         if itens:
+            self._criar_formas(itens)
             agora = self._agora()
             importacao = IngestaoService(self.session).importar_lote(
                 arquivo_nome=f"pluggy_{agora.astimezone(FUSO):%Y%m%dT%H%M%S}.json",
@@ -417,6 +544,24 @@ class SyncPluggyService:
             if mapa.id in sem_erro:
                 mapa.ultimo_sync_em = agora
         self.session.flush()
+
+    def _criar_formas(self, itens: Sequence[ItemLote]) -> None:
+        """Cria, pelo service e na conta certa, as formas planejadas (D-21)."""
+        service = FormaPagamentoService(self.session)
+        for lote in itens:
+            nova = lote.forma_nova if isinstance(lote, ItemPlanejado) else None
+            if nova is None:
+                continue
+            if nova.id is None:
+                nova.id = service.criar(
+                    {
+                        "apelido": nova.apelido,
+                        "tipo": nova.tipo,
+                        "conta_id": nova.conta_id,
+                        "titular_id": nova.titular_id,
+                    }
+                ).id
+            lote.forma_pagamento_id = nova.id
 
     def _comprovante(self, resultado: ResultadoSync, agora: datetime) -> bytes:
         """O JSON bruto recebido, como a Pluggy mandou, mais o resumo."""
@@ -480,6 +625,23 @@ def _marcar_duplicatas_no_lote(contas: Sequence[ResultadoConta]) -> None:
             for lote in conta.itens
             if lote.extraido.observacao and "Possível duplicata" in lote.extraido.observacao
         )
+
+
+def _formas_novas_usadas(contas: Sequence[ResultadoConta]) -> list[FormaNova]:
+    """As formas planejadas que algum item de conta sem erro usa, sem repetir."""
+    vistas: dict[int, FormaNova] = {}
+    for conta in contas:
+        if conta.erro is not None:
+            continue
+        for lote in conta.itens:
+            nova = lote.forma_nova if isinstance(lote, ItemPlanejado) else None
+            if nova is not None:
+                vistas.setdefault(id(nova), nova)
+    return list(vistas.values())
+
+
+def _anotar(item: ItemExtraido, nota: str) -> None:
+    item.observacao = f"{item.observacao} {nota}" if item.observacao else nota
 
 
 def _marcar(item: ItemExtraido, outros: Sequence[str], onde: str) -> None:

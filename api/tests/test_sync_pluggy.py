@@ -559,3 +559,157 @@ class TestSimulacao:
         compra = next(a for a in amostra if a["id_externo"] == "k1")
         assert compra["forma_pagamento_id"] == cenario["credito"].id
         assert compra["confianca_conversao"] == Decimal("1.00")
+
+
+class TestFormaPelaOperacao:
+    """D-21: na conta corrente, a forma sai do `operationType`, na própria conta."""
+
+    def _uma(self, session: Session, operacao: str | None, id_: str = "c1") -> ImportacaoItem:
+        leitor = LeitorFalso()
+        leitor.transacoes[CORRENTE] = [
+            _tx(id_, CORRENTE, "2025-04-02T15:00:00Z", "-45.10", operacao=operacao)
+        ]
+        _sync(session, leitor)
+        return next(i for i in _itens(session) if i.id_externo == id_)
+
+    def test_pix_fica_na_forma_pix_do_mapeamento(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        item = self._uma(session, "PIX")
+        assert item.forma_pagamento_sugerida_id == cenario["pix"].id
+        assert item.observacao is None
+
+    def test_debito_cria_a_forma_na_conta_certa_uma_vez_so(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        leitor = LeitorFalso()
+        leitor.transacoes[CORRENTE] = [
+            _tx("c1", CORRENTE, "2025-04-02T15:00:00Z", "-45.10", operacao="CARTAO"),
+            _tx("c2", CORRENTE, "2025-04-03T15:00:00Z", "-12.00", operacao="CARTAO"),
+        ]
+        resultado = _sync(session, leitor)
+
+        debitos = list(
+            session.scalars(
+                select(FormaPagamento).where(FormaPagamento.tipo == TipoPagamento.DEBITO)
+            )
+        )
+        assert len(debitos) == 1
+        debito = debitos[0]
+        assert debito.conta_id == cenario["mapa_corrente"].conta_id
+        assert debito.titular_id == cenario["titular"].id
+        assert debito.apelido == "Débito Banco A"
+        assert {i.forma_pagamento_sugerida_id for i in _itens(session)} == {debito.id}
+        assert [f.apelido for f in resultado.formas_novas] == ["Débito Banco A"]
+        autores = set(
+            session.scalars(
+                select(Auditoria.autor).where(
+                    Auditoria.tabela == "formas_pagamento", Auditoria.registro_id == debito.id
+                )
+            )
+        )
+        assert autores == {"sync_pluggy"}
+
+    def test_forma_existente_do_tipo_na_conta_e_usada_pelo_menor_id(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        conta_id = cenario["mapa_corrente"].conta_id
+        primeira = FormaPagamento(apelido="Boleto A", tipo=TipoPagamento.BOLETO, conta_id=conta_id)
+        session.add(primeira)
+        session.flush()
+        session.add(
+            FormaPagamento(apelido="Boleto B", tipo=TipoPagamento.BOLETO, conta_id=conta_id)
+        )
+        session.commit()
+
+        item = self._uma(session, "BOLETO")
+        assert item.forma_pagamento_sugerida_id == primeira.id
+
+    def test_forma_de_outra_conta_nao_serve(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        outra = Conta(nome="Banco B", tipo=TipoConta.CORRENTE)
+        session.add(outra)
+        session.flush()
+        alheia = FormaPagamento(apelido="Débito B", tipo=TipoPagamento.DEBITO, conta_id=outra.id)
+        session.add(alheia)
+        session.commit()
+
+        item = self._uma(session, "CARTAO")
+        assert item.forma_pagamento_sugerida_id != alheia.id
+        forma = session.get(FormaPagamento, item.forma_pagamento_sugerida_id)
+        assert forma is not None and forma.conta_id == cenario["mapa_corrente"].conta_id
+
+    def test_forma_inativa_nao_e_recriada(self, session: Session, cenario: dict[str, Any]) -> None:
+        session.add(
+            FormaPagamento(
+                apelido="Débito desligado",
+                tipo=TipoPagamento.DEBITO,
+                conta_id=cenario["mapa_corrente"].conta_id,
+                ativo=False,
+            )
+        )
+        session.commit()
+
+        item = self._uma(session, "CARTAO")
+        assert item.forma_pagamento_sugerida_id == cenario["pix"].id
+        assert item.observacao is not None and "inativa" in item.observacao
+        debitos = session.scalar(
+            select(func.count())
+            .select_from(FormaPagamento)
+            .where(FormaPagamento.tipo == TipoPagamento.DEBITO)
+        )
+        assert debitos == 1
+
+    def test_operacao_sem_forma_usa_a_do_mapeamento_com_observacao(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        item = self._uma(session, "OUTROS")
+        assert item.forma_pagamento_sugerida_id == cenario["pix"].id
+        assert item.observacao is not None and "forma de pagamento" in item.observacao
+
+    def test_cartao_fica_com_a_forma_do_mapeamento(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        leitor = LeitorFalso()
+        leitor.faturas[CARTAO] = [_fatura("f1", "2025-04-03", "2025-04-10", "87.90")]
+        leitor.transacoes[CARTAO] = [
+            _tx("k1", CARTAO, "2025-03-20T15:00:00Z", "87.90", fatura="f1", operacao="PIX")
+        ]
+        _sync(session, leitor)
+        (item,) = _itens(session)
+        assert item.forma_pagamento_sugerida_id == cenario["credito"].id
+
+    def test_simulacao_mostra_a_forma_nova_sem_criar(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        leitor = LeitorFalso()
+        leitor.transacoes[CORRENTE] = [
+            _tx("c1", CORRENTE, "2025-04-02T15:00:00Z", "-45.10", operacao="CARTAO")
+        ]
+        antes = session.scalar(select(func.count()).select_from(FormaPagamento))
+
+        resultado = _sync(session, leitor, simular=True)
+
+        assert session.scalar(select(func.count()).select_from(FormaPagamento)) == antes
+        assert [f.apelido for f in resultado.formas_novas] == ["Débito Banco A"]
+        (amostra,) = _conta(resultado, cenario["mapa_corrente"]).amostra
+        assert amostra["forma_pagamento_id"] is None
+        assert amostra["forma_nova"] == "Débito Banco A"
+
+    def test_duplicata_no_staging_vale_entre_formas_da_mesma_conta(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        """Gêmeo com forma diferente (Pix x débito) ainda é da mesma conta."""
+        leitor = LeitorFalso()
+        leitor.transacoes[CORRENTE] = [
+            _tx("c1", CORRENTE, "2025-05-15T15:00:00Z", "-45.10", operacao="PIX")
+        ]
+        _sync(session, leitor)
+        leitor.transacoes[CORRENTE] = [
+            _tx("c2", CORRENTE, "2025-05-15T18:00:00Z", "-45.10", operacao="CARTAO")
+        ]
+        _sync(session, leitor)
+
+        c2 = next(i for i in _itens(session) if i.id_externo == "c2")
+        assert c2.observacao is not None and "Possível duplicata" in c2.observacao

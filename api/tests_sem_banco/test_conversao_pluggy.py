@@ -16,8 +16,14 @@ from typing import Any
 
 import pytest
 
-from app.conversao_pluggy import converter, converter_lote, estimar_competencia
-from app.enums import TipoTransacao
+from app.conversao_pluggy import (
+    FORMA_DA_OPERACAO,
+    converter,
+    converter_lote,
+    estimar_competencia,
+    forma_da_operacao,
+)
+from app.enums import TipoPagamento, TipoTransacao
 from app.ingestao.base import ItemExtraido
 from app.pluggy.modelos import Conta, Fatura, Transacao
 
@@ -136,9 +142,13 @@ class TestConta:
         assert item.valor == Decimal("45.10")
         assert item.data == date(2025, 3, 18)
         assert item.competencia == date(2025, 3, 1)
-        assert item.confianca == Decimal("0.95")
+        # D-21: operação `CARTAO` diz a forma (débito) sem dúvida -> 1.00.
+        assert item.confianca == Decimal("1.00")
+        assert item.forma_tipo is TipoPagamento.DEBITO
+        assert item.observacao is None
         assert item.cartao_final is None
         assert item.linha_bruta == "Compra no débito|MERCADO EXEMPLO"
+        assert (item.operacao_externa, item.categoria_externa) == ("CARTAO", "Groceries")
 
     def test_credito(self) -> None:
         item = _conta("credito")
@@ -173,6 +183,69 @@ class TestConta:
 
     def test_pix_para_terceiro_e_despesa(self) -> None:
         assert _conta("virada_de_mes").tipo is TipoTransacao.DESPESA
+
+
+class TestFormaDaConta:
+    """D-21: a operação da Pluggy diz a forma da linha de conta corrente."""
+
+    def test_pix_recebido_e_pix_com_confianca_cheia(self) -> None:
+        item = _conta("credito")
+        assert item.forma_tipo is TipoPagamento.PIX
+        assert item.confianca == Decimal("1.00")
+        assert item.observacao is None
+
+    @pytest.mark.parametrize(
+        ("operacao", "esperado"),
+        [
+            ("PIX", TipoPagamento.PIX),
+            ("CARTAO", TipoPagamento.DEBITO),
+            ("BOLETO", TipoPagamento.BOLETO),
+            ("CONVENIO_ARRECADACAO", TipoPagamento.BOLETO),
+            ("TED", TipoPagamento.TRANSFERENCIA),
+            ("DOC", TipoPagamento.TRANSFERENCIA),
+            ("TRANSFERENCIA_MESMA_INSTITUICAO", TipoPagamento.TRANSFERENCIA),
+            ("pix", TipoPagamento.PIX),
+        ],
+    )
+    def test_operacao_com_forma(self, operacao: str, esperado: TipoPagamento) -> None:
+        item = _conta("debito", operationType=operacao)
+        assert item.forma_tipo is esperado
+        assert item.confianca == Decimal("1.00")
+
+    @pytest.mark.parametrize(
+        "operacao",
+        ["OUTROS", "TARIFA_SERVICOS_AVULSOS", "SAQUE", "OPERACAO_CREDITO", None],
+    )
+    def test_operacao_sem_forma_fica_095_com_observacao(self, operacao: str | None) -> None:
+        item = _conta("debito", operationType=operacao)
+        assert item.forma_tipo is None
+        assert item.confianca == Decimal("0.95")
+        assert item.observacao is not None and "forma de pagamento" in item.observacao
+
+    def test_transferencia_tem_forma_mas_nao_sobe_a_confianca(self) -> None:
+        """A forma sai da operação (Pix), mas transferência é interpretação."""
+        item = _conta("mesma_pessoa")
+        assert item.forma_tipo is TipoPagamento.PIX
+        assert item.confianca < Decimal("0.80")
+
+    def test_cartao_nao_declara_forma(self) -> None:
+        """No cartão a forma é sempre a do mapeamento: nada a declarar."""
+        item = _cartao("compra_simples")
+        assert item.forma_tipo is None
+        assert item.confianca == Decimal("1.00")
+
+    def test_tabela_so_tem_operacoes_de_conta_documentadas(self) -> None:
+        documentadas = {
+            "TED",
+            "DOC",
+            "PIX",
+            "TRANSFERENCIA_MESMA_INSTITUICAO",
+            "BOLETO",
+            "CONVENIO_ARRECADACAO",
+            "CARTAO",
+        }
+        assert set(FORMA_DA_OPERACAO) <= documentadas
+        assert forma_da_operacao(None) is None
 
 
 class TestSentido:

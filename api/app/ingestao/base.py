@@ -17,7 +17,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Protocol
 
-from app.enums import TipoTransacao
+from app.enums import TipoPagamento, TipoTransacao
 
 #: Meses como o Nubank escreve, em maiúsculas e sem acento.
 MESES_PT = {
@@ -103,6 +103,16 @@ class ItemExtraido:
     #: do documento inteiro (`DocumentoExtraido.competencia`); na Pluggy cada
     #: compra aponta para a sua fatura, e um lote mistura faturas.
     competencia: date | None = None
+    #: Tipo da forma de pagamento que a origem declara (D-21). Na Pluggy sai
+    #: do `operationType` da conta corrente (`PIX` -> pix, `CARTAO` ->
+    #: débito...); quem acha a forma concreta, na conta certa, é a sync. Nulo
+    #: no PDF e quando a operação não diz a forma sem dúvida.
+    forma_tipo: TipoPagamento | None = None
+    #: O que a origem disse, cru, para o enriquecimento e o diagnóstico: a
+    #: operação e a categoria da Pluggy (id e nome). Nulos no PDF.
+    operacao_externa: str | None = None
+    categoria_externa_id: str | None = None
+    categoria_externa: str | None = None
 
 
 @dataclass(slots=True)

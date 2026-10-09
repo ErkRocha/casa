@@ -77,6 +77,11 @@ def imprimir(resultado: ResultadoSync, session: Session) -> None:
             print("   " + _linha(linha, formas, pessoas))
         if len(c.amostra) > AMOSTRA_POR_CONTA:
             print(f"   ... e mais {len(c.amostra) - AMOSTRA_POR_CONTA} item(ns)")
+    if resultado.formas_novas:
+        verbo = "seria criada" if resultado.simulado else "criada"
+        print("\nformas de pagamento novas (D-21):")
+        for f in resultado.formas_novas:
+            print(f"   {verbo}: {f.apelido} ({f.tipo.value}, conta {f.conta_id})")
     print(f"\nitens novos no total: {resultado.itens_novos}")
     if resultado.importacao_id is not None:
         print(f"importação criada: #{resultado.importacao_id}")
@@ -91,9 +96,14 @@ def _linha(a: dict[str, Any], formas: dict[int, str], pessoas: dict[int, str]) -
     if a["observacao"] and "Competência" in a["observacao"]:
         marcas.append("COMPETÊNCIA ESTIMADA")
     pessoa = pessoas.get(a["pessoa_id"], "conjunto") if a["pessoa_id"] else "conjunto"
+    forma = (
+        f"nova: {a['forma_nova']}"
+        if a.get("forma_nova")
+        else formas.get(a["forma_pagamento_id"], "?")
+    )
     return (
         f"{a['data']:%d/%m/%Y}  {a['valor']:>9}  {a['tipo']:<13} comp {a['competencia']:%m/%Y}  "
-        f"{formas.get(a['forma_pagamento_id'], '?'):<32} {pessoa:<8} "
+        f"{forma:<32} {pessoa:<8} "
         f"conf {a['confianca_conversao']}/{a['confianca_staging']}  {' '.join(marcas)}"
     )
 

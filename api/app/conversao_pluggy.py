@@ -30,6 +30,13 @@ ler os dois lados, e cada lado tem uma guarda que o impede de morar nele:
   `T00:00:00Z`: convertida para São Paulo, viraria a véspera — e vencimento
   no dia 1º cairia no mês anterior.
 - Cobrança sem cartão (IOF, juros, multa) traz `cardNumber = "0000"`.
+
+**Forma de pagamento e confiança da conta corrente (D-21).** Em conta, o
+`operationType` diz a forma (`PIX`, `CARTAO` = débito, `BOLETO`, `TED`...):
+vai em `forma_tipo`, e a sync acha a forma concreta na conta mapeada. Com a
+forma dita sem dúvida, a linha de conta vale 1.00 — a escala antiga dava 0.95
+porque o extrato em PDF dependia de leitura de texto, o que a Pluggy não tem.
+Operação que não diz a forma deixa `forma_tipo` nulo, 0.95 e uma observação.
 """
 
 from __future__ import annotations
@@ -41,7 +48,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from app.enums import TipoTransacao
+from app.enums import TipoPagamento, TipoTransacao
 from app.ingestao.base import ItemExtraido, limpar_descricao, sem_acento
 from app.pluggy.modelos import Conta, Fatura, Transacao
 
@@ -53,6 +60,8 @@ CENTAVO = Decimal("0.01")
 #: competência estimada) é 0.70 — abaixo de 0.80, a revisão destaca.
 CONFIANCA_FATURA = Decimal("1.00")
 CONFIANCA_CONTA = Decimal("0.95")
+#: Linha de conta com `type` e forma de pagamento ditos pela Pluggy (D-21).
+CONFIANCA_ESTRUTURADA = Decimal("1.00")
 CONFIANCA_INTERPRETADA = Decimal("0.70")
 CONFIANCA_SEM_BASE = Decimal("0.50")
 
@@ -82,6 +91,19 @@ _OBS_MESMA_PESSOA = (
     "A Pluggy classifica como transferência para a mesma pessoa. Confira se "
     "é entre contas suas; se não for, troque para despesa ou receita."
 )
+#: Operação de conta corrente -> tipo da forma de pagamento (D-21). Só o que a
+#: operação diz sem dúvida; tarifa, saque, crédito e `OUTROS` ficam de fora e
+#: caem na forma padrão do mapeamento, com observação.
+FORMA_DA_OPERACAO: dict[str, TipoPagamento] = {
+    "PIX": TipoPagamento.PIX,
+    "CARTAO": TipoPagamento.DEBITO,
+    "BOLETO": TipoPagamento.BOLETO,
+    "CONVENIO_ARRECADACAO": TipoPagamento.BOLETO,
+    "TED": TipoPagamento.TRANSFERENCIA,
+    "DOC": TipoPagamento.TRANSFERENCIA,
+    "TRANSFERENCIA_MESMA_INSTITUICAO": TipoPagamento.TRANSFERENCIA,
+}
+
 _OBS_ESTORNO = (
     "Crédito no cartão que a Pluggy não marca como pagamento de fatura: "
     "tratado como estorno. Confira."
@@ -174,6 +196,15 @@ def converter(
     data_local = _data_local(transacao.date)
 
     tipo, direcao, confianca = _classificar(transacao, conta, entrada, observacoes)
+
+    # Cartão fica sempre com a forma do mapeamento; conta, com a da operação.
+    forma_tipo = None
+    if not conta.e_cartao:
+        forma_tipo = forma_da_operacao(transacao.operation_type)
+        if forma_tipo is None:
+            observacoes.append(_obs_forma(transacao.operation_type))
+        elif confianca == CONFIANCA_CONTA:
+            confianca = CONFIANCA_ESTRUTURADA
     confiancas.append(confianca)
 
     if conta.e_cartao:
@@ -212,6 +243,23 @@ def converter(
         observacao=" ".join(observacoes) or None,
         id_externo=transacao.id,
         competencia=competencia,
+        forma_tipo=forma_tipo,
+        operacao_externa=transacao.operation_type,
+        categoria_externa_id=transacao.category_id,
+        categoria_externa=transacao.category,
+    )
+
+
+def forma_da_operacao(operacao: str | None) -> TipoPagamento | None:
+    """O tipo de forma que a operação da conta corrente declara, ou nulo."""
+    return FORMA_DA_OPERACAO.get((operacao or "").upper())
+
+
+def _obs_forma(operacao: str | None) -> str:
+    dita = f"a operação {operacao!r}" if operacao else "nenhuma operação"
+    return (
+        f"A Pluggy informou {dita}, que não diz a forma de pagamento sem dúvida: "
+        "ficou a forma padrão do mapeamento da conta. Confira."
     )
 
 
