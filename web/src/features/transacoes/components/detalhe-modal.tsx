@@ -1,4 +1,5 @@
 import { Button, PessoaBadge } from "@/components/ui/controls";
+import { FormaPagamentoTag } from "@/features/cadastros/forma-pagamento-tag";
 import { usePessoas } from "@/features/cadastros/queries";
 import { corDoBalde, corSuaveDoBalde } from "@/features/filters/baldes";
 import { urlDaApi } from "@/lib/api";
@@ -54,7 +55,12 @@ export function DetalheModal({
           </Valor>
 
           <Chave>Pagamento</Chave>
-          <Valor>{transacao.forma_pagamento_apelido ?? "—"}</Valor>
+          <Valor>
+            <FormaPagamentoTag
+              tipo={transacao.forma_pagamento_tipo}
+              apelido={transacao.forma_pagamento_apelido}
+            />
+          </Valor>
 
           <Chave>Local</Chave>
           <Valor>{transacao.local_nome ?? "—"}</Valor>
