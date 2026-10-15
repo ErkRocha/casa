@@ -480,3 +480,11 @@ sem mapeamento:
 faltarem no banco antes de gravar o mapeamento, e não cria por cima de
 categoria inativa de mesmo nome. Ficam sem mapeamento **de propósito**:
 `Services`, `Loans`, `Loans and financing`, `Investments` e `Insurance`.
+
+**Retroativo nas transações já promovidas (decisão do usuário, 15/10/2026).**
+`make pluggy-retroativo` passa as transações vindas da Pluggy pelo que a sync
+de hoje faria: categoria pela ordem acima onde a transação está sem
+categoria, e forma pela operação (débito, boleto, transferência) nas de
+conta corrente. Nunca onde a auditoria mostra edição do usuário naquele
+campo — na tela de transações ou, antes de aprovar, na revisão. Simula por
+padrão; grava com `executar=1`, autor `retroativo_d21`.

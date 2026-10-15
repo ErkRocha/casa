@@ -144,11 +144,14 @@ make pluggy-categorias aplicar=1          # grava a proposta, depois de revisar
 make pluggy-reprocessar proposta=1        # simula os pendentes com a proposta em memória
 make pluggy-reprocessar                   # simula com o mapeamento já gravado
 make pluggy-reprocessar executar=1        # grava e promove os limpos
+make pluggy-retroativo                    # simula categoria e forma nas transações já promovidas
+make pluggy-retroativo executar=1         # grava, sem tocar no que o usuário editou
 ```
 
 No modo local, sem Docker: `source scripts/local/ambiente.sh` e
 `cd api && python -m scripts.<nome> [opções]` (`pluggy_diagnostico_importacao`,
-`pluggy_categorias --aplicar`, `pluggy_reprocessar --com-proposta | --executar`).
+`pluggy_categorias --aplicar`, `pluggy_reprocessar --com-proposta | --executar`,
+`pluggy_retroativo --executar`).
 
 Uma importação que entrou errada se desfaz pela tela de importações: as
 transações e os itens dela saem por soft delete, com auditoria.
