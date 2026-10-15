@@ -220,7 +220,14 @@ class TestFormaDaConta:
         item = _conta("debito", operationType=operacao)
         assert item.forma_tipo is None
         assert item.confianca == Decimal("0.95")
-        assert item.observacao is not None and "forma de pagamento" in item.observacao
+        assert item.observacao is not None
+        assert "forma padrão do mapeamento" in item.observacao
+
+    def test_sem_operacao_a_observacao_diz_isso(self) -> None:
+        item = _conta("debito", operationType=None)
+        assert item.observacao is not None
+        assert item.observacao.startswith("A Pluggy não informou a operação desta transação")
+        assert "nenhuma" not in item.observacao
 
     def test_transferencia_tem_forma_mas_nao_sobe_a_confianca(self) -> None:
         """A forma sai da operação (Pix), mas transferência é interpretação."""

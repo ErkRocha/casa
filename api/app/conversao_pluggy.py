@@ -258,11 +258,18 @@ def forma_da_operacao(operacao: str | None) -> TipoPagamento | None:
     return FORMA_DA_OPERACAO.get((operacao or "").upper())
 
 
+OBS_SEM_OPERACAO = (
+    "A Pluggy não informou a operação desta transação: ficou a forma padrão do "
+    "mapeamento da conta. Confira."
+)
+
+
 def _obs_forma(operacao: str | None) -> str:
-    dita = f"a operação {operacao!r}" if operacao else "nenhuma operação"
+    if not operacao:
+        return OBS_SEM_OPERACAO
     return (
-        f"A Pluggy informou {dita}, que não diz a forma de pagamento sem dúvida: "
-        "ficou a forma padrão do mapeamento da conta. Confira."
+        f"A Pluggy informou a operação {operacao!r}, que não diz a forma de pagamento "
+        "sem dúvida: ficou a forma padrão do mapeamento da conta. Confira."
     )
 
 
