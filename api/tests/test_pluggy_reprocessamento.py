@@ -76,7 +76,7 @@ TRANSACOES = [
     _tx("b-pix", CORRENTE, "2025-04-02", "-45.10", "PIX", GROCERIES, "MERCADO PIX"),
     _tx("b-deb", CORRENTE, "2025-04-03", "-12.00", "CARTAO", GROCERIES, "MERCADO DEBITO"),
     _tx("b-out", CORRENTE, "2025-04-04", "-10.00", "OUTROS", None, "TARIFA QUALQUER"),
-    _tx("b-sem", CORRENTE, "2025-04-05", "-20.00", "PIX", ("09010000", "Online shopping"), "LOJA"),
+    _tx("b-sem", CORRENTE, "2025-04-05", "-20.00", "PIX", ("07000000", "Services"), "LOJA"),
     _tx("b-dup", CORRENTE, "2025-04-06", "-30.00", "PIX", GROCERIES, "MERCADO GEMEO"),
     _tx("k1", CARTAO, "2025-03-20", "87.90", None, GROCERIES, "MERCADO CARTAO"),
     _tx("k-edit", CARTAO, "2025-03-21", "15.00", None, GROCERIES, "MERCADO EDITADO"),
@@ -283,7 +283,7 @@ class TestPlano:
         assert plano.promoveria == 3  # b-pix, b-deb e k1
         assert plano.na_revisao == {
             "observacao": 1,  # b-out (OUTROS)
-            "sem_categoria": 1,  # b-sem (Online shopping, ambígua)
+            "sem_categoria": 1,  # b-sem (Services, sem mapeamento de propósito)
             "possivel_duplicata": 1,  # b-dup: a nota da sync é mantida
             "encargos": 1,
         }

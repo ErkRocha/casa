@@ -10,12 +10,13 @@ from app.services.categorias_pluggy import (
     AMBIGUAS,
     PROPOSTA_INICIAL,
     e_transferencia_pluggy,
+    planejar_criacao,
     proposta_para,
 )
 
 #: Alvos que não vêm do seed: dependem de a categoria existir no banco.
-#: "Juros e encargos" foi criada como dado em 06/10/2026; "Pets" é da D-04.
-FORA_DO_SEED = {"Juros e encargos", "Pets"}
+#: "Juros e encargos" foi criada como dado em 06/10/2026.
+FORA_DO_SEED = {"Juros e encargos"}
 
 
 def _caminhos_do_seed() -> dict[str, TipoTransacao]:
@@ -82,6 +83,76 @@ def test_familias_de_transferencia(pluggy_id: str | None, nome: str) -> None:
 
 def test_proposta_para() -> None:
     assert proposta_para("Groceries") == ("mapear", ("Alimentação › Mercado",))
-    assert proposta_para("Online shopping")[0] == "ambigua"
+    assert proposta_para("Services")[0] == "ambigua"
     assert proposta_para("Categoria que a Pluggy inventou") == ("sem_proposta", "")
     assert not e_transferencia_pluggy("11000000", "Groceries")
+
+
+@pytest.mark.parametrize(
+    ("nome", "alvo"),
+    [
+        ("Shopping", "Compras"),
+        ("Online shopping", "Compras › Online"),
+        ("Electronics", "Compras › Eletrônicos"),
+        ("Office supplies", "Compras"),
+        ("Office Supplies", "Compras"),
+        ("Pet supplies and vet", "Pets"),
+        ("Digital services", "Assinaturas"),
+        ("Car rental", "Transporte"),
+        ("Gambling", "Lazer"),
+    ],
+)
+def test_decisoes_de_15_10_2026(nome: str, alvo: str) -> None:
+    assert proposta_para(nome) == ("mapear", (alvo,))
+
+
+@pytest.mark.parametrize(
+    "nome", ["Services", "Loans", "Loans and financing", "Investments", "Insurance"]
+)
+def test_sem_mapeamento_de_proposito(nome: str) -> None:
+    tipo, motivo = proposta_para(nome)
+    assert tipo == "ambigua"
+    assert "decisão do usuário" in str(motivo)
+
+
+def test_compras_e_pets_estao_no_seed_depois_das_antigas() -> None:
+    raizes = [raiz for raiz, *_ in ARVORE_CATEGORIAS]
+    # Categoria nova entra no fim: inserir no meio repintaria as seguintes.
+    assert raizes[-2:] == ["Compras", "Pets"]
+    filhas = {raiz: f for raiz, _t, _c, f in ARVORE_CATEGORIAS}
+    assert filhas["Compras"] == ["Online", "Eletrônicos"]
+
+
+# --- planejar_criacao: o que o --aplicar criaria -----------------------------
+
+
+def test_cria_raiz_e_filha_quando_faltam_as_duas() -> None:
+    alvo, nos = planejar_criacao({}, [], ("Compras › Online",)) or ("", [])
+    assert alvo == "Compras › Online"
+    assert [(n.caminho, n.pai, n.tipo) for n in nos] == [
+        ("Compras", None, TipoTransacao.DESPESA),
+        ("Compras › Online", "Compras", TipoTransacao.DESPESA),
+    ]
+
+
+def test_cria_so_a_filha_quando_a_raiz_existe() -> None:
+    plano = planejar_criacao({"COMPRAS": object()}, ["Compras"], ("Compras › Eletrônicos",))
+    assert plano is not None
+    assert [n.caminho for n in plano[1]] == ["Compras › Eletrônicos"]
+
+
+def test_nao_cria_o_que_ja_existe_nem_o_que_nao_e_do_seed() -> None:
+    assert planejar_criacao({"PETS": object()}, ["Pets"], ("Pets",)) is None
+    assert planejar_criacao({}, [], ("Juros e encargos",)) is None
+
+
+def test_nao_cria_por_cima_de_inativa() -> None:
+    # Viva mas inativa: está em `vivas` e não em `caminhos`.
+    assert planejar_criacao({}, ["Pets"], ("Pets",)) is None
+    assert planejar_criacao({}, ["Compras"], ("Compras › Online",)) is None
+    assert (
+        planejar_criacao(
+            {"COMPRAS": object()}, ["Compras", "Compras › Online"], ("Compras › Online",)
+        )
+        is None
+    )

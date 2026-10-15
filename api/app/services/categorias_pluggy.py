@@ -16,6 +16,8 @@ Duas guardas, as duas da D-21:
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import select
@@ -196,8 +198,16 @@ PROPOSTA_INICIAL: dict[str, tuple[str, ...]] = {
     # Pessoal
     "Clothing": ("Pessoal › Vestuário",),
     "Wellness": ("Pessoal › Cuidados pessoais",),
-    # Pets é categoria (D-04), mas não está no seed: só vale se existir.
+    # Decisões do usuário de 15/10/2026. "Compras" (com Online e Eletrônicos)
+    # e "Pets" (D-04) entraram no seed; o script cria as que faltarem no banco.
+    "Shopping": ("Compras",),
+    "Online shopping": ("Compras › Online",),
+    "Electronics": ("Compras › Eletrônicos",),
+    "Office supplies": ("Compras",),
     "Pet supplies and vet": ("Pets",),
+    "Digital services": ("Assinaturas",),
+    "Car rental": ("Transporte",),
+    "Gambling": ("Lazer",),
     # Juros e encargos: criada como dado em 06/10/2026 (encargos de fatura).
     "Interests charged": ("Juros e encargos",),
     "Late payment and overdraft costs": ("Juros e encargos",),
@@ -212,18 +222,13 @@ PROPOSTA_INICIAL: dict[str, tuple[str, ...]] = {
 #: sem categoria. Transferência não está aqui porque tem regra própria
 #: (`e_transferencia_pluggy`).
 AMBIGUAS: dict[str, str] = {
-    "Shopping": "genérica: compra de qualquer coisa",
-    "Online shopping": "loja online vende de tudo; a categoria depende do que foi comprado",
-    "Electronics": "sem categoria equivalente na árvore",
     "Sports goods": "sem categoria equivalente na árvore",
-    "Office Supplies": "sem categoria equivalente na árvore",
     "Kids and toys": "sem categoria equivalente na árvore",
     "Cashback": "crédito de cashback: receita ou estorno, a decidir",
     "Donations": "doação não é presente, e a árvore só tem Presentes",
-    "Gambling": "sem categoria equivalente na árvore",
     "Lottery": "sem categoria equivalente na árvore",
     "Online bet": "sem categoria equivalente na árvore",
-    "Insurance": "sem categoria de seguros",
+    "Insurance": "sem categoria de seguros (decisão do usuário, 15/10/2026)",
     "Life insurance": "sem categoria de seguros",
     "Home Insurance": "sem categoria de seguros",
     "Vehicle insurance": "sem categoria de seguros",
@@ -235,14 +240,16 @@ AMBIGUAS: dict[str, str] = {
     "Urban land and building tax": "IPTU: Casa › Contas ou imposto, a decidir",
     "Loans and financing": (
         "parcela de empréstimo ou financiamento; nos dados reais também cobre "
-        "pagamento de fatura por débito automático (D-05)"
+        "pagamento de fatura por débito automático (D-05); decisão do usuário, 15/10/2026"
     ),
-    "Loans": "parcela de empréstimo: dívida, não gasto do mês",
+    "Loans": "parcela de empréstimo: dívida, não gasto do mês (decisão do usuário, 15/10/2026)",
     "Financing": "parcela de financiamento: dívida, não gasto do mês",
     "Real estate financing": "parcela de financiamento: dívida, não gasto do mês",
     "Vehicle Financing": "parcela de financiamento: dívida, não gasto do mês",
     "Student loan": "parcela de financiamento: dívida, não gasto do mês",
-    "Investments": "aplicação é dinheiro mudando de lugar, não gasto",
+    "Investments": (
+        "aplicação é dinheiro mudando de lugar, não gasto (decisão do usuário, 15/10/2026)"
+    ),
     "Automatic investment": "aplicação é dinheiro mudando de lugar, não gasto",
     "Fixed income": "aplicação é dinheiro mudando de lugar, não gasto",
     "Mutual funds": "aplicação é dinheiro mudando de lugar, não gasto",
@@ -252,13 +259,15 @@ AMBIGUAS: dict[str, str] = {
     "Legal obligations": "sem categoria equivalente na árvore",
     "Blocked balances": "sem categoria equivalente na árvore",
     "Alimony": "sem categoria equivalente na árvore",
-    "Services": "genérica demais",
-    "Digital services": "genérica: streaming, jogo ou software",
+    "Services": "genérica demais (decisão do usuário, 15/10/2026)",
     "Wellness and fitness": "genérica: academia, esporte ou bem-estar",
     "Sports practice": "Academia ou Hobbies, a decidir",
     "Mileage programs": "sem categoria equivalente na árvore",
-    "Car rental": "Viagem ou Transporte, a decidir",
 }
+
+
+_PROPOSTA_POR_CHAVE = {k.casefold(): v for k, v in PROPOSTA_INICIAL.items()}
+_AMBIGUAS_POR_CHAVE = {k.casefold(): v for k, v in AMBIGUAS.items()}
 
 
 def proposta_para(nome: str) -> tuple[str, tuple[str, ...] | str]:
@@ -266,13 +275,17 @@ def proposta_para(nome: str) -> tuple[str, tuple[str, ...] | str]:
 
     Devolve `("mapear", caminhos)`, `("ambigua", motivo)`,
     `("transferencia", motivo)` ou `("sem_proposta", "")`.
+
+    Sem diferença de maiúscula: a Pluggy publica "Office Supplies" na
+    árvore e manda "Office supplies" nas transações.
     """
     if e_transferencia_pluggy(None, nome):
         return "transferencia", "transferência: não recebe categoria de despesa (D-21)"
-    if nome in PROPOSTA_INICIAL:
-        return "mapear", PROPOSTA_INICIAL[nome]
-    if nome in AMBIGUAS:
-        return "ambigua", AMBIGUAS[nome]
+    chave = nome.strip().casefold()
+    if chave in _PROPOSTA_POR_CHAVE:
+        return "mapear", _PROPOSTA_POR_CHAVE[chave]
+    if chave in _AMBIGUAS_POR_CHAVE:
+        return "ambigua", _AMBIGUAS_POR_CHAVE[chave]
     return "sem_proposta", ""
 
 
@@ -307,3 +320,114 @@ def resolver_alvo(caminhos: dict[str, Categoria], alvos: tuple[str, ...]) -> Cat
         if categoria is not None:
             return categoria
     return None
+
+
+# --------------------------------------------------------------------------
+# Criação das categorias da proposta que faltam (decisões de 15/10/2026)
+# --------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class CategoriaACriar:
+    """Um nó da árvore do seed que a proposta precisa e o banco não tem."""
+
+    nome: str
+    tipo: TipoTransacao
+    cor: str | None
+    #: Nome da raiz, para filha; nulo para raiz.
+    pai: str | None
+
+    @property
+    def caminho(self) -> str:
+        return f"{self.pai} › {self.nome}" if self.pai else self.nome
+
+
+def _arvore_do_seed() -> dict[str, CategoriaACriar]:
+    """Caminho normalizado -> nó, para cada categoria que o seed conhece."""
+    from app.seed import ARVORE_CATEGORIAS
+    from app.services.cadastros import normalizar_nome
+
+    nos: dict[str, CategoriaACriar] = {}
+    for raiz, tipo, cor, filhas in ARVORE_CATEGORIAS:
+        nos[normalizar_nome(raiz)] = CategoriaACriar(raiz, tipo, cor, None)
+        for filha in filhas:
+            nos[normalizar_nome(f"{raiz} › {filha}")] = CategoriaACriar(filha, tipo, cor, raiz)
+    return nos
+
+
+def planejar_criacao(
+    caminhos: Mapping[str, object], vivas: Iterable[str], alvos: tuple[str, ...]
+) -> tuple[str, list[CategoriaACriar]] | None:
+    """O primeiro alvo da proposta que dá para criar, e os nós que faltam.
+
+    `caminhos` são os das categorias vivas e ativas (`categorias_por_caminho`);
+    `vivas`, os de todas as não apagadas, inativas inclusive
+    (`caminhos_vivos`).
+
+    Só cria o que está no seed: um alvo fora dele (como "Juros e encargos",
+    que é dado) continua "proposta sem alvo". E não cria por cima de
+    categoria **inativa** com o mesmo caminho: alguém a desligou de
+    propósito, e o nome repetido seria recusado pelo índice único. Apagada
+    não conta — o soft delete libera o nome.
+    """
+    from app.services.cadastros import normalizar_nome
+
+    seed = _arvore_do_seed()
+    existentes = {normalizar_nome(c) for c in vivas}
+    for alvo in alvos:
+        chave = normalizar_nome(alvo)
+        no = seed.get(chave)
+        if no is None or chave in caminhos:
+            continue
+        faltam: list[CategoriaACriar] = []
+        if no.pai is not None and normalizar_nome(no.pai) not in caminhos:
+            raiz = seed[normalizar_nome(no.pai)]
+            if normalizar_nome(raiz.caminho) in existentes:
+                continue
+            faltam.append(raiz)
+        if chave in existentes:
+            continue
+        faltam.append(no)
+        return alvo, faltam
+    return None
+
+
+def criar_caminho(
+    session: Session, caminhos: dict[str, Categoria], nos: list[CategoriaACriar]
+) -> Categoria:
+    """Cria os nós pelo service, raiz antes da filha, e devolve o último.
+
+    Atualiza `caminhos`: a segunda proposta que usa a mesma raiz (Shopping e
+    Office supplies -> Compras) acha a categoria recém-criada e não cria outra.
+    """
+    from app.services.cadastros import CategoriaService, normalizar_nome
+
+    service = CategoriaService(session)
+    criada: Categoria | None = None
+    for no in nos:
+        chave = normalizar_nome(no.caminho)
+        if chave in caminhos:
+            criada = caminhos[chave]
+            continue
+        pai_id = caminhos[normalizar_nome(no.pai)].id if no.pai else None
+        criada = service.criar(
+            {"nome": no.nome, "tipo": no.tipo, "cor": no.cor, "categoria_pai_id": pai_id}
+        )
+        caminhos[chave] = criada
+    assert criada is not None, "criar_caminho sem nó"
+    return criada
+
+
+def caminhos_vivos(session: Session) -> list[str]:
+    """Caminhos das categorias não apagadas, inclusive as inativas."""
+    todas = list(
+        session.scalars(
+            select(Categoria).where(Categoria.deleted_em.is_(None)).order_by(Categoria.id)
+        )
+    )
+    por_id = {c.id: c for c in todas}
+    caminhos: list[str] = []
+    for categoria in todas:
+        pai = por_id.get(categoria.categoria_pai_id) if categoria.categoria_pai_id else None
+        caminhos.append(f"{pai.nome} › {categoria.nome}" if pai else categoria.nome)
+    return caminhos

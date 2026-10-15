@@ -38,6 +38,10 @@ ARVORE_CATEGORIAS: list[tuple[str, TipoTransacao, str | None, list[str]]] = [
     ("Pessoal", TipoTransacao.DESPESA, "cat-8", ["Vestuário", "Cuidados pessoais"]),
     ("Presentes", TipoTransacao.DESPESA, "cat-9", []),
     ("Receita", TipoTransacao.RECEITA, None, ["Salário", "Freelance", "Outros"]),
+    # Decisões de 15/10/2026, para as categorias da Pluggy (D-21). Sem cor: a
+    # rampa vai só até `cat-9`, e cor nula cai na cor neutra do gráfico.
+    ("Compras", TipoTransacao.DESPESA, None, ["Online", "Eletrônicos"]),
+    ("Pets", TipoTransacao.DESPESA, None, []),
 ]
 
 #: A ordem importa: a primeira vira o balde A dos gráficos, a segunda o B.

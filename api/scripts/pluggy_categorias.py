@@ -9,9 +9,11 @@ cada uma, o que acontece com ela: já mapeada, proposta (com o alvo achado
 na árvore daqui), ambígua (fica sem mapeamento, com o motivo), transferência
 (nunca vira despesa) ou sem proposta.
 
-Sem `--aplicar`, só lê. Com ele, grava as propostas cujo alvo existe, pelo
-service, com autor `mapeamento_categorias_pluggy` na auditoria. Rodar de novo
-não duplica: categoria já mapeada é pulada.
+Sem `--aplicar`, só lê. Com ele, cria antes as categorias do seed que a
+proposta usa e o banco ainda não tem ("Compras", "Compras › Online", "Pets"...)
+e grava as propostas, tudo pelos services, com autor
+`mapeamento_categorias_pluggy` na auditoria. Rodar de novo não duplica:
+categoria já mapeada é pulada, e categoria já criada é achada pelo caminho.
 
 No terminal só saem ids, nomes de categoria e contagens.
 """
@@ -29,10 +31,14 @@ if __package__ in (None, ""):
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.models import CategoriaPluggy, Importacao
+from app.models import Categoria, CategoriaPluggy, Importacao
 from app.services.categorias_pluggy import (
+    CategoriaACriar,
     CategoriaPluggyService,
+    caminhos_vivos,
     categorias_por_caminho,
+    criar_caminho,
+    planejar_criacao,
     proposta_para,
     resolver_alvo,
 )
@@ -76,7 +82,9 @@ def main(argv: list[str] | None = None) -> int:
             )
         }
         caminhos = categorias_por_caminho(session)
-        a_gravar: list[tuple[str, str, int, str]] = []
+        vivas = caminhos_vivos(session)
+        #: (id da Pluggy, nome, categoria existente ou nula, caminho, nós a criar)
+        a_gravar: list[tuple[str, str, Categoria | None, str, list[CategoriaACriar]]] = []
         resumo: Counter[str] = Counter()
 
         print(f"{'transações':>10}  {'categoryId':<10}  categoria da Pluggy -> destino")
@@ -97,14 +105,21 @@ def main(argv: list[str] | None = None) -> int:
             if tipo == "mapear":
                 assert isinstance(detalhe, tuple)
                 alvo = resolver_alvo(caminhos, detalhe)
-                if alvo is None:
-                    print(f"{rotulo} -> PROPOSTA SEM ALVO: nenhum de {', '.join(detalhe)} existe")
-                    resumo["sem_alvo"] += n
-                else:
+                criacao = planejar_criacao(caminhos, vivas, detalhe) if alvo is None else None
+                if alvo is not None:
                     caminho = next(c for c in detalhe if resolver_alvo(caminhos, (c,)) is alvo)
                     print(f"{rotulo} -> proposta: {caminho} (#{alvo.id})")
-                    a_gravar.append((pluggy_id, nome, alvo.id, caminho))
+                    a_gravar.append((pluggy_id, nome, alvo, caminho, []))
                     resumo["proposta"] += n
+                elif criacao is not None:
+                    caminho, nos = criacao
+                    novas = ", ".join(no.caminho for no in nos)
+                    print(f"{rotulo} -> proposta: {caminho} (categoria a criar: {novas})")
+                    a_gravar.append((pluggy_id, nome, None, caminho, nos))
+                    resumo["proposta_criar"] += n
+                else:
+                    print(f"{rotulo} -> PROPOSTA SEM ALVO: nenhum de {', '.join(detalhe)} existe")
+                    resumo["sem_alvo"] += n
             elif tipo == "ambigua":
                 print(f"{rotulo} -> AMBÍGUA, fica sem mapeamento: {detalhe}")
                 resumo["ambigua"] += n
@@ -120,6 +135,7 @@ def main(argv: list[str] | None = None) -> int:
         for chave, texto in [
             ("ja_mapeada", "já mapeadas"),
             ("proposta", "com proposta e alvo"),
+            ("proposta_criar", "com proposta e alvo a criar"),
             ("sem_alvo", "com proposta sem alvo no banco"),
             ("ambigua", "ambíguas"),
             ("transferencia", "transferências"),
@@ -129,7 +145,10 @@ def main(argv: list[str] | None = None) -> int:
             if resumo[chave]:
                 print(f"   {texto}: {resumo[chave]}")
 
+        a_criar = _categorias_a_criar(a_gravar)
         if not args.aplicar:
+            if a_criar:
+                print(f"\n{len(a_criar)} categoria(s) seriam criadas: {', '.join(a_criar)}")
             print(f"\n{len(a_gravar)} mapeamento(s) seriam criados. Nada foi gravado.")
             print("Revise a lista e rode com --aplicar para gravar.")
             session.rollback()
@@ -137,18 +156,34 @@ def main(argv: list[str] | None = None) -> int:
 
         session.execute(text("SELECT set_config('app.autor', :autor, true)"), {"autor": AUTOR})
         service = CategoriaPluggyService(session)
-        for pluggy_id, nome, categoria_id, caminho in a_gravar:
+        for pluggy_id, nome, categoria, caminho, nos in a_gravar:
+            if categoria is None:
+                antes = len(caminhos)
+                categoria = criar_caminho(session, caminhos, nos)
+                if len(caminhos) > antes:
+                    print(f"   categoria criada: {caminho} (#{categoria.id})")
             service.criar(
                 {
                     "pluggy_categoria_id": pluggy_id,
                     "pluggy_categoria_nome": nome,
-                    "categoria_id": categoria_id,
+                    "categoria_id": categoria.id,
                 }
             )
             print(f"   criado: {pluggy_id} {nome} -> {caminho}")
         session.commit()
-        print(f"\n{len(a_gravar)} mapeamento(s) criados.")
+        print(f"\n{len(a_criar)} categoria(s) e {len(a_gravar)} mapeamento(s) criados.")
     return 0
+
+
+def _categorias_a_criar(
+    a_gravar: list[tuple[str, str, Categoria | None, str, list[CategoriaACriar]]],
+) -> list[str]:
+    """Caminhos que a aplicação criaria, sem repetir a raiz compartilhada."""
+    vistos: dict[str, None] = {}
+    for *_resto, nos in a_gravar:
+        for no in nos:
+            vistos.setdefault(no.caminho, None)
+    return list(vistos)
 
 
 if __name__ == "__main__":

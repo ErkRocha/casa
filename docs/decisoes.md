@@ -460,3 +460,23 @@ comprovante fica. Consequência a conhecer: o item apagado libera o
 transações de volta, como novas. É o comportamento certo para "desfazer e
 importar de novo com a regra corrigida"; para descartar de vez, rejeite em
 vez de desfazer.
+
+**Categorias ambíguas decididas (decisão do usuário, 15/10/2026).** Com a
+contagem real da importação #4, o usuário fechou as que a proposta deixava
+sem mapeamento:
+
+| categoria da Pluggy | categoria daqui |
+|---|---|
+| `Shopping`, `Office supplies` | Compras |
+| `Online shopping` | Compras › Online |
+| `Electronics` | Compras › Eletrônicos |
+| `Pet supplies and vet` | Pets (D-04) |
+| `Digital services` | Assinaturas |
+| `Car rental` | Transporte |
+| `Gambling` | Lazer |
+
+"Compras" (com "Online" e "Eletrônicos") e "Pets" entram no seed, no fim da
+árvore e sem cor. `make pluggy-categorias aplicar=1` cria pelo service as que
+faltarem no banco antes de gravar o mapeamento, e não cria por cima de
+categoria inativa de mesmo nome. Ficam sem mapeamento **de propósito**:
+`Services`, `Loans`, `Loans and financing`, `Investments` e `Insurance`.
