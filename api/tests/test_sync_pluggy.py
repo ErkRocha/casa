@@ -387,7 +387,8 @@ class TestDuplicataPossivel:
         segundo = next(i for i in _itens(session) if i.id_externo == "c2")
         assert segundo.observacao is not None and "c1" in segundo.observacao
         primeiro = next(i for i in _itens(session) if i.id_externo == "c1")
-        assert primeiro.observacao is None
+        # Sem operação informada, a D-21 anota a forma padrão; duplicata, não.
+        assert "Possível duplicata" not in (primeiro.observacao or "")
 
     def test_valor_diferente_nao_e_duplicata(
         self, session: Session, cenario: dict[str, Any]
@@ -398,7 +399,7 @@ class TestDuplicataPossivel:
             _tx("c2", CORRENTE, "2025-04-02T16:00:00Z", "-45.11"),
         ]
         _sync(session, leitor)
-        assert all(i.observacao is None for i in _itens(session))
+        assert all("Possível duplicata" not in (i.observacao or "") for i in _itens(session))
 
 
 class TestEncargos:

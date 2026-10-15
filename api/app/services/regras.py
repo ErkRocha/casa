@@ -148,3 +148,7 @@ def reforcar_regra(
             criada_por="correcao_automatica",
         )
     )
+    # A sessão não faz autoflush: sem isto, a próxima linha do mesmo
+    # estabelecimento no mesmo lote não acharia a regra pendente, criaria
+    # outra igual, e o índice único derrubaria o lote inteiro.
+    session.flush()
