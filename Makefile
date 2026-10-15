@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo
+.PHONY: help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-resgates
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -76,6 +76,10 @@ pluggy-reprocessar: ## Reprocessa os pendentes de uma importação da Pluggy —
 # Simula por padrão; grava só com executar=1, e nunca onde o usuário editou (D-21).
 pluggy-retroativo: ## Categoria e forma retroativas nas transações da Pluggy — use: make pluggy-retroativo [executar=1]
 	$(COMPOSE) run --rm api python -m scripts.pluggy_retroativo $(if $(executar),--executar,)
+
+# Só lê: aplicações e resgates da Pluggy, contraparte no mesmo dia e conclusão.
+pluggy-resgates: ## Investiga os resgates e aplicações da Pluggy (somente leitura)
+	$(COMPOSE) run --rm api python -m scripts.pluggy_resgates
 
 relatorio-seco: ## Mesmo relatório, só com os números (sem chamar modelo)
 	$(COMPOSE) run --rm api python -m scripts.relatorio --sem-ia $(if $(m),--competencia $(m),)
