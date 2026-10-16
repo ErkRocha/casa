@@ -3,16 +3,15 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Primitiva de superfície no padrão shadcn/ui, com os tokens deste design.
- * O protótipo chama de `S.card` (tabela) e `S.panel` (analytics): mesma
- * superfície `surface-sunken` com raio 4px, o que muda é o padding.
+ * Bloco do desenho (D-22): superfície branca, raio 20px. Tudo no painel é um
+ * bloco destes sobre o fundo `#EEF1F6`.
  */
 
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("bg-surface-sunken rounded-md overflow-hidden", className)}
+      className={cn("bg-superficie rounded-bloco overflow-hidden", className)}
       {...props}
     />
   ),
@@ -26,14 +25,12 @@ const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 );
 CardHeader.displayName = "CardHeader";
 
+/** Título de bloco: 18px/650, sem caixa alta (README). */
 const CardTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn(
-        "text-caption font-semibold uppercase tracking-caps-wide text-text-tertiary",
-        className,
-      )}
+      className={cn("text-bloco font-forte text-texto", className)}
       {...props}
     />
   ),
@@ -47,4 +44,28 @@ const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
 );
 CardContent.displayName = "CardContent";
 
-export { Card, CardContent, CardHeader, CardTitle };
+/**
+ * Cabeçalho de bloco das pranchetas: título à esquerda e, na linha de base,
+ * um texto de apoio ou um link à direita ("Ver análise", "dia 16 de 31").
+ */
+function CabecalhoBloco({
+  titulo,
+  direita,
+  nivel = "h2",
+  className,
+}: {
+  titulo: React.ReactNode;
+  direita?: React.ReactNode;
+  nivel?: "h2" | "h3";
+  className?: string;
+}) {
+  const Titulo = nivel;
+  return (
+    <div className={cn("flex flex-wrap items-baseline justify-between gap-4", className)}>
+      <Titulo className="text-bloco-celular md:text-bloco font-forte m-0">{titulo}</Titulo>
+      {direita ? <span className="text-apoio text-texto-2">{direita}</span> : null}
+    </div>
+  );
+}
+
+export { CabecalhoBloco, Card, CardContent, CardHeader, CardTitle };

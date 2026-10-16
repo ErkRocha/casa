@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Relatórios do mês no computador</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1F4FBF}a:hover{color:#163A8F}
+</style>
+</helmet>
+<div style="min-height: 1100px; box-sizing: border-box; background: #EEF1F6; font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; color: #172033; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; display: flex; flex-wrap: wrap; align-items: stretch">
+
+<aside style="flex: 1 1 220px; max-width: 248px; box-sizing: border-box; background: #FFFFFF; box-shadow: 1px 0 0 #E2E6EE; padding: 26px 14px; display: flex; flex-direction: column; gap: 26px">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 8px">
+<span style="width: 32px; height: 32px; border-radius: 9px; background: #1F4FBF; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg></span>
+<span style="font-size: 17px; font-weight: 700">Controle de Casa</span>
+</div>
+<nav aria-label="Navegação principal" style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<a href="InicioDesktop.dc.html" style="text-decoration: none; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; color: #2C364A; font-size: 15px; font-weight: 500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg>Início</a>
+<a href="LancamentosDesktop.dc.html" style="text-decoration: none; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; color: #2C364A; font-size: 15px; font-weight: 500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>Lançamentos</a>
+<a href="RevisarDesktop.dc.html" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 10px; color: #2C364A; font-size: 15px; font-weight: 500"><span style="display: flex; align-items: center; gap: 12px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg>Revisar</span><span style="background: #8A5A00; color: #FFFFFF; font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 8px">6</span></a>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<a href="AnalisesDesktop.dc.html" style="text-decoration: none; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; color: #2C364A; font-size: 15px; font-weight: 500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"></path></svg>Análises</a>
+<a href="#relatorios" aria-current="page" style="text-decoration: none; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: #EAF0FD; color: #163A8F; font-size: 15px; font-weight: 650"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M9 12h7M9 16h7"></path></svg>Relatórios do mês</a>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<a href="#contas" style="text-decoration: none; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; color: #2C364A; font-size: 15px; font-weight: 500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 10h18"></path></svg>Contas e cartões</a>
+<a href="#categorias" style="text-decoration: none; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; color: #2C364A; font-size: 15px; font-weight: 500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>Categorias</a>
+</div>
+</nav>
+<p style="margin: auto 0 0 0; padding: 0 12px; font-size: 13px; line-height: 1.5; color: #556070">Bancos atualizados hoje às 6h</p>
+</aside>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 44px 32px">
+<div style="max-width: 1100px; display: flex; flex-direction: column; gap: 16px">
+
+<h1 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.4px">Relatórios do mês</h1>
+
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+
+<nav aria-label="Meses" style="flex: 1 1 200px; max-width: 230px; background: #FFFFFF; border-radius: 20px; padding: 8px; display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{meses}}" as="m" hint-placeholder-count="8">
+<a href="#mes" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 11px 12px; border-radius: 12px; background: {{m.fundo}}; color: #172033">
+<span style="font-size: 15px; font-weight: {{m.peso}}">{{m.nome}}</span>
+<span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 7px; background: {{m.seloFundo}}; color: {{m.seloCor}}">{{m.selo}}</span>
+</a>
+</sc-for>
+</nav>
+
+<article style="flex: 999 1 420px; min-width: 0; background: #FFFFFF; border-radius: 20px; padding: 26px 30px; display: flex; flex-direction: column; gap: 16px">
+<header style="display: flex; flex-direction: column; gap: 8px; padding-bottom: 6px; box-shadow: inset 0 -1px 0 #EEF1F6">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<h2 style="margin: 0; font-size: 22px; font-weight: 700">Setembro de 2026</h2>
+<span style="font-size: 12px; font-weight: 650; border-radius: 6px; padding: 3px 8px; background: #EAF0FD; color: #163A8F">Escrito com IA</span>
+</div>
+<p style="margin: 0 0 10px 0; font-size: 14px; color: #556070">Gerado em 1 de outubro. Os números ao lado são exatamente os que o modelo recebeu.</p>
+</header>
+<div style="max-width: 640px; display: flex; flex-direction: column; gap: 14px; font-size: 16px; line-height: 1.6">
+<h3 style="margin: 0; font-size: 18px; font-weight: 650">Resumo</h3>
+<p style="margin: 0; text-wrap: pretty">Setembro fechou com R$ 6.530 em despesas, perto da média dos últimos meses, e uma sobra de R$ 1.310. O orçamento foi cumprido em quatro de cinco categorias.</p>
+<h3 style="margin: 4px 0 0 0; font-size: 18px; font-weight: 650">O que pesou</h3>
+<p style="margin: 0; text-wrap: pretty">Restaurante foi o maior desvio: R$ 880, 42% acima da média. A maior parte se concentrou nos fins de semana. Compras online também subiram, puxadas por duas compras no cartão Nubank.</p>
+<h3 style="margin: 4px 0 0 0; font-size: 18px; font-weight: 650">O que melhorou</h3>
+<p style="margin: 0; text-wrap: pretty">Mercado caiu 13% em relação à média, e delivery praticamente parou. Juntos, os dois economizaram cerca de R$ 270 no mês.</p>
+<h3 style="margin: 4px 0 0 0; font-size: 18px; font-weight: 650">Fique de olho</h3>
+<p style="margin: 0; text-wrap: pretty">O streaming foi reajustado e passa a custar R$ 44,90 a partir de outubro.</p>
+</div>
+</article>
+
+<aside aria-label="Números usados no relatório" style="flex: 1 1 240px; max-width: 280px; display: flex; flex-direction: column; gap: 12px">
+<section style="background: #FFFFFF; border-radius: 20px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+<h3 style="margin: 0; font-size: 16px; font-weight: 650">Números do mês</h3>
+<sc-for list="{{numeros}}" as="n" hint-placeholder-count="5">
+<div style="display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 6px 0; box-shadow: inset 0 1px 0 #EEF1F6"><span style="color: #556070">{{n.nome}}</span><span style="font-weight: 650">{{n.valor}}</span></div>
+</sc-for>
+</section>
+<section style="background: #FFFFFF; border-radius: 20px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+<h3 style="margin: 0; font-size: 16px; font-weight: 650">Maiores categorias</h3>
+<sc-for list="{{categorias}}" as="c" hint-placeholder-count="4">
+<div style="display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 6px 0; box-shadow: inset 0 1px 0 #EEF1F6"><span style="color: #556070">{{c.nome}}</span><span style="font-weight: 650">{{c.valor}}</span></div>
+</sc-for>
+</section>
+</aside>
+
+</div>
+
+<section style="background: #FFFFFF; border-radius: 20px; padding: 18px 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<span style="display: flex; flex-direction: column; gap: 2px; flex: 1 1 320px"><span style="font-size: 15px; font-weight: 650">Outubro ainda não tem relatório</span><span style="font-size: 14px; color: #556070">Ele é gerado depois que o mês fecha. Para gerar agora, rode no computador de casa:</span></span>
+<code style="font-family: 'Consolas', 'Menlo', monospace; font-size: 14px; background: #F4F6FA; border-radius: 8px; padding: 8px 12px">make relatorio m=2026-10</code>
+</section>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var ia = { seloFundo: '#EAF0FD', seloCor: '#163A8F', selo: 'Com IA' };
+    var seco = { seloFundo: '#F4F6FA', seloCor: '#2C364A', selo: 'Só números' };
+    var nada = { seloFundo: 'transparent', seloCor: '#8A94A6', selo: 'Sem relatório' };
+    function m(nome, tipo, ativo) { return { nome: nome, selo: tipo.selo, seloFundo: tipo.seloFundo, seloCor: tipo.seloCor, fundo: ativo ? '#EAF0FD' : 'transparent', peso: ativo ? '650' : '450' }; }
+    return {
+      meses: [
+        m('Outubro', nada, false), m('Setembro', ia, true), m('Agosto', ia, false), m('Julho', seco, false),
+        m('Junho', ia, false), m('Maio', nada, false), m('Abril', nada, false), m('Março', nada, false)
+      ],
+      numeros: [
+        { nome: 'Despesas', valor: 'R$ 6.530' },
+        { nome: 'Receitas', valor: 'R$ 7.840' },
+        { nome: 'Sobra', valor: 'R$ 1.310' },
+        { nome: 'Média de 6 meses', valor: 'R$ 6.270' },
+        { nome: 'Com categoria', valor: '96%' }
+      ],
+      categorias: [
+        { nome: 'Mercado', valor: 'R$ 1.050' },
+        { nome: 'Restaurante', valor: 'R$ 880' },
+        { nome: 'Contas da casa', valor: 'R$ 870' },
+        { nome: 'Compras online', valor: 'R$ 640' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

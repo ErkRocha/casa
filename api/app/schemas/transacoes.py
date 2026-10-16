@@ -140,6 +140,9 @@ class TransacaoRead(BaseModel):
     forma_pagamento_id: int | None
     forma_pagamento_apelido: str | None
     forma_pagamento_tipo: TipoPagamento | None
+    #: Conta da forma de pagamento (o banco do cartão, do Pix, do débito). É o
+    #: que a tela usa para escrever "Cartão Nubank 7704" (D-22).
+    forma_pagamento_conta_nome: str | None = None
 
     local_id: int | None
     local_nome: str | None

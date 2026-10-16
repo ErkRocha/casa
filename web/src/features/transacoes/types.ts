@@ -42,6 +42,8 @@ export interface Transacao {
   forma_pagamento_id: number | null;
   forma_pagamento_apelido: string | null;
   forma_pagamento_tipo: TipoPagamento | null;
+  /** Conta da forma: o banco do cartão, do Pix, do débito (D-22). */
+  forma_pagamento_conta_nome?: string | null;
 
   local_id: number | null;
   local_nome: string | null;

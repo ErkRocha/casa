@@ -20,8 +20,10 @@ from app.schemas.analytics import (
     EvolucaoMensal,
     ProgressoOrcamento,
 )
+from app.schemas.inicio import Inicio
 from app.schemas.transacoes import TransacaoFiltros, transacao_filtros
 from app.services.analytics import AnalyticsService
+from app.services.inicio import InicioService
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -84,3 +86,20 @@ def orcamento(
 def comparativo(session: SessionDep, filtros: FiltrosDep) -> Any:
     """Este mês, o anterior e a média da janela."""
     return AnalyticsService(session).comparativo(filtros)
+
+
+@router.get("/inicio", response_model=Inicio)
+def inicio(
+    session: SessionDep,
+    competencia: Annotated[
+        date | None, Query(description="Qualquer dia do mês; padrão: hoje")
+    ] = None,
+) -> Any:
+    """A tela Início (D-22): o mês num relance, tudo somado no banco.
+
+    Gasto acumulado por dia, o mês anterior no mesmo dia, orçamento, previsão
+    no ritmo atual (mês corrente), receitas, quem gastou, categorias e os
+    avisos das detecções do relatório. Mês futuro volta zerado, com
+    `situacao = "futuro"`.
+    """
+    return InicioService(session).resumo(competencia)
