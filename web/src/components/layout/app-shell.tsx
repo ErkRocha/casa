@@ -1,33 +1,60 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
-import { Sidebar, type ScreenId } from "@/components/layout/sidebar";
+import type { Rota } from "@/lib/rotas";
+import { BarraInferior } from "./barra-inferior";
+import { BarraLateral } from "./barra-lateral";
+
+const CHAVE_RECOLHIDA = "controle-casa:menu-recolhido";
+
+function lerRecolhida(): boolean {
+  try {
+    return window.localStorage.getItem(CHAVE_RECOLHIDA) !== "nao";
+  } catch {
+    return true;
+  }
+}
 
 /**
- * Casca da aplicação: sidebar fixa + coluna de conteúdo que rola sozinha
- * (`S.page` / `S.main` / `S.contentScroll` do protótipo).
- *
- * Só a região `<main>` rola — a topbar e a barra de filtro ficam presas, que
- * é o que permite mexer no filtro sem perder o gráfico de vista.
+ * Casca do painel (D-22): barra lateral a partir de 768px, barra inferior
+ * abaixo disso. A página rola inteira; a barra lateral fica presa.
  */
-export function AppShell({
-  activeScreen,
-  onNavigate,
-  header,
-  children,
-}: {
-  activeScreen: ScreenId;
-  onNavigate: (screen: ScreenId) => void;
-  /** Topbar, barra de filtro, chips — tudo que não deve rolar. */
-  header?: ReactNode;
-  children: ReactNode;
-}) {
+export function AppShell({ rota, children }: { rota: Rota; children: ReactNode }) {
+  // Entre 768 e 1023px a barra começa recolhida, para sobrar espaço.
+  const [recolhida, setRecolhida] = useState(lerRecolhida);
+
+  function alternar() {
+    setRecolhida((atual) => {
+      try {
+        window.localStorage.setItem(CHAVE_RECOLHIDA, atual ? "nao" : "sim");
+      } catch {
+        // Sem armazenamento (aba privada): vale só nesta visita.
+      }
+      return !atual;
+    });
+  }
+
   return (
-    <div className="bg-bg text-text-primary font-sans text-body-lg flex h-screen w-full overflow-hidden">
-      <Sidebar activeScreen={activeScreen} onNavigate={onNavigate} />
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {header}
-        <main className="flex-1 overflow-auto px-14 pb-16">{children}</main>
-      </div>
+    <div className="bg-fundo text-texto flex min-h-screen w-full">
+      <a
+        href="#conteudo"
+        onClick={(evento) => {
+          // O hash é a rota: pular para o conteúdo não pode trocar de tela.
+          evento.preventDefault();
+          document.getElementById("conteudo")?.focus();
+        }}
+        className="bg-destaque rounded-interno sr-only z-50 px-8 py-4 text-white focus:not-sr-only focus:fixed focus:top-4 focus:left-4"
+      >
+        Pular para o conteúdo
+      </a>
+      <BarraLateral rota={rota} recolhida={recolhida} onAlternar={alternar} />
+      <main
+        id="conteudo"
+        tabIndex={-1}
+        className="min-w-0 flex-1 px-7 pt-8 pb-60 outline-none md:px-16 md:pt-14 md:pb-22"
+      >
+        {children}
+      </main>
+      <BarraInferior rota={rota} />
     </div>
   );
 }

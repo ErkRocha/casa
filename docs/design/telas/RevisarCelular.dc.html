@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Revisar no celular</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1F4FBF}a:hover{color:#163A8F}
+</style>
+</helmet>
+<div style="width: 390px; height: 1500px; position: relative; box-sizing: border-box; background: #EEF1F6; font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; color: #172033; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow: hidden">
+
+<div style="display: flex; flex-direction: column; gap: 14px; padding: 18px 14px 120px 14px">
+
+<header style="display: flex; flex-direction: column; gap: 6px; padding: 0 2px">
+<h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.4px">Revisar</h1>
+<p style="margin: 0; font-size: 15px; line-height: 1.45; color: #556070; text-wrap: pretty">O resto já entrou sozinho. Só estes 6 precisam de você.</p>
+</header>
+
+<div role="tablist" aria-label="Filtrar por motivo" style="display: flex; gap: 8px; overflow-x: auto">
+<button role="tab" aria-selected="true" style="flex-shrink: 0; height: 40px; border: none; border-radius: 999px; background: #172033; color: #FFFFFF; padding: 0 14px; font-family: inherit; font-size: 14px; font-weight: 600">Tudo (6)</button>
+<button role="tab" aria-selected="false" style="flex-shrink: 0; height: 40px; border: none; border-radius: 999px; background: #FFFFFF; color: #172033; padding: 0 14px; font-family: inherit; font-size: 14px">Duplicatas (2)</button>
+<button role="tab" aria-selected="false" style="flex-shrink: 0; height: 40px; border: none; border-radius: 999px; background: #FFFFFF; color: #172033; padding: 0 14px; font-family: inherit; font-size: 14px">Transferências (4)</button>
+</div>
+
+<section style="background: #FFFFFF; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="align-self: flex-start; font-size: 12px; font-weight: 650; color: #5C3D00; background: #FFF3D6; border-radius: 6px; padding: 2px 8px">Possível duplicata</span></div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="background: #F4F6FA; border-radius: 12px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 600">Pagamento recebido</span><span style="font-size: 13px; color: #556070">9 set, cartão Nubank Gold</span></span><span style="font-size: 16px; font-weight: 700">R$ 1.911,62</span></div>
+<div style="background: #F4F6FA; border-radius: 12px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 600">Pagamento recebido</span><span style="font-size: 13px; color: #556070">9 set, cartão Nubank Gold</span></span><span style="font-size: 16px; font-weight: 700">R$ 1.911,62</span></div>
+</div>
+<span style="font-size: 15px; font-weight: 600">É o mesmo pagamento?</span>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<button style="height: 48px; border: none; border-radius: 12px; background: #1F4FBF; color: #FFFFFF; font-family: inherit; font-size: 15px; font-weight: 650">Sim, manter um</button>
+<button style="height: 48px; border: none; border-radius: 12px; background: #FFFFFF; color: #172033; font-family: inherit; font-size: 15px; font-weight: 600; box-shadow: inset 0 0 0 1px #D5DBE5">Não, são dois</button>
+</div>
+</section>
+
+<section style="background: #FFFFFF; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<span style="align-self: flex-start; font-size: 12px; font-weight: 650; color: #5C3D00; background: #FFF3D6; border-radius: 6px; padding: 2px 8px">Possível duplicata</span>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="background: #F4F6FA; border-radius: 12px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 600">Transferência enviada</span><span style="font-size: 13px; color: #556070">10 jan, conta Nubank</span></span><span style="font-size: 16px; font-weight: 700">R$ 834,00</span></div>
+<div style="background: #F4F6FA; border-radius: 12px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 600">Transferência enviada</span><span style="font-size: 13px; color: #556070">10 jan, conta Nubank</span></span><span style="font-size: 16px; font-weight: 700">R$ 834,00</span></div>
+</div>
+<span style="font-size: 15px; font-weight: 600">É a mesma transferência?</span>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<button style="height: 48px; border: none; border-radius: 12px; background: #1F4FBF; color: #FFFFFF; font-family: inherit; font-size: 15px; font-weight: 650">Sim, manter uma</button>
+<button style="height: 48px; border: none; border-radius: 12px; background: #FFFFFF; color: #172033; font-family: inherit; font-size: 15px; font-weight: 600; box-shadow: inset 0 0 0 1px #D5DBE5">Não, são duas</button>
+</div>
+</section>
+
+<section style="background: #FFFFFF; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-bottom: 6px">
+<h2 style="margin: 0; font-size: 16px; font-weight: 650">Transferências entre suas contas</h2>
+<button style="flex-shrink: 0; height: 40px; border: none; border-radius: 10px; background: #EAF0FD; color: #163A8F; padding: 0 12px; font-family: inherit; font-size: 14px; font-weight: 650">Confirmar as 4</button>
+</div>
+<sc-for list="{{transferencias}}" as="t" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 0; box-shadow: inset 0 1px 0 #EEF1F6">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px"><span style="font-size: 15px; font-weight: 600">{{t.descricao}}</span><span style="font-size: 16px; font-weight: 700; white-space: nowrap">{{t.valor}}</span></div>
+<span style="font-size: 13px; line-height: 1.45; color: #556070">{{t.data}}. Saiu de {{t.de}}, foi para {{t.para}}.</span>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<button style="height: 44px; border: none; border-radius: 12px; background: #1F4FBF; color: #FFFFFF; font-family: inherit; font-size: 14px; font-weight: 650">{{t.acao}}</button>
+<button style="height: 44px; border: none; border-radius: 12px; background: #FFFFFF; color: #172033; font-family: inherit; font-size: 14px; font-weight: 600; box-shadow: inset 0 0 0 1px #D5DBE5">Não é transferência</button>
+</div>
+</div>
+</sc-for>
+</section>
+
+</div>
+
+<nav aria-label="Navegação principal" style="position: absolute; left: 0; right: 0; bottom: 0; background: #FFFFFF; box-shadow: 0 -1px 0 #E2E6EE; padding: 6px 8px 20px 8px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px">
+<a href="InicioCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 12px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg>Início</a>
+<a href="LancamentosCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 12px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>Lançamentos</a>
+<a href="#revisar" aria-current="page" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #1F4FBF; font-size: 12px; font-weight: 650"><span style="position: relative; display: flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg><span style="position: absolute; top: -5px; right: -12px; background: #8A5A00; color: #FFFFFF; font-size: 10px; font-weight: 700; border-radius: 999px; padding: 1px 6px">6</span></span>Revisar</a>
+<a href="#analises" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 12px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7"></path></svg>Análises</a>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      transferencias: [
+        { descricao: 'Pagamento de fatura', data: '14 out', de: 'Conta Nubank', para: 'Fatura Nubank Gold', valor: 'R$ 1.911,62', acao: 'Confirmar' },
+        { descricao: 'Lado do cartão do mesmo pagamento', data: '14 out', de: 'Conta Nubank', para: 'Fatura Nubank Gold', valor: 'R$ 1.911,62', acao: 'Descartar' },
+        { descricao: 'Pix para mim mesmo', data: '11 out', de: 'Sicredi Conta Corrente', para: 'Conta Nubank', valor: 'R$ 500,00', acao: 'Confirmar' },
+        { descricao: 'Pagamento de fatura', data: '6 out', de: 'Conta Mercado Pago', para: 'Fatura Mercado Pago', valor: 'R$ 742,18', acao: 'Confirmar' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

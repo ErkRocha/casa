@@ -4,47 +4,240 @@
  *
  * Nenhuma destas funções calcula: elas só apresentam número que já veio
  * pronto. Agregação é do banco (D-14).
+ *
+ * **Dinheiro é formatado como texto** (D-22): a API manda `numeric(12,2)`
+ * como string (`"1234.56"`), e as funções `reais*` trabalham nos dígitos,
+ * sem passar por `Number`. Um `float` no meio já seria o tipo de erro que a
+ * regra 1 existe para impedir. `toNumero` continua existindo, só para a
+ * geometria de gráfico (altura de barra, posição de ponto).
  */
 
-const brl = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+/** Sinal de menos tipográfico, como nas pranchetas ("− R$ 186,40"). */
+export const MENOS = "−";
 
-const brlAxis = new Intl.NumberFormat("pt-BR", {
-  maximumFractionDigits: 0,
-});
+type Valor = string | null | undefined;
 
-const percent = new Intl.NumberFormat("pt-BR", {
-  maximumFractionDigits: 0,
-});
+interface Partes {
+  negativo: boolean;
+  inteiro: string;
+  fracao: string;
+}
 
-/** `R$ 1.234,56`. Aceita negativo para saldo. */
-export function formatBRL(value: number): string {
-  return brl.format(value);
+function partes(valor: Valor): Partes {
+  const texto = (valor ?? "").trim() || "0";
+  const negativo = texto.startsWith("-");
+  const [inteiroBruto = "0", fracao = ""] = texto.replace(/^[-+]/, "").split(".");
+  const inteiro = inteiroBruto.replace(/^0+(?=\d)/, "") || "0";
+  return { negativo, inteiro, fracao: fracao.replace(/\D/g, "") };
+}
+
+/** Soma 1 a um número escrito em dígitos decimais ("199" -> "200"). */
+function incrementar(digitos: string): string {
+  const lista = digitos.split("");
+  for (let i = lista.length - 1; i >= 0; i -= 1) {
+    if (lista[i] !== "9") {
+      lista[i] = String(Number(lista[i]) + 1);
+      return lista.join("");
+    }
+    lista[i] = "0";
+  }
+  return `1${lista.join("")}`;
+}
+
+/** Arredonda meio para cima, nos dígitos: `("12", "345", 2)` -> `("12", "35")`. */
+function arredondar(inteiro: string, fracao: string, casas: number): [string, string] {
+  if (fracao.length <= casas) return [inteiro, fracao.padEnd(casas, "0")];
+  const mantida = fracao.slice(0, casas);
+  if ((fracao[casas] ?? "0") < "5") return [inteiro, mantida];
+  const junto = incrementar(`${inteiro}${mantida}`);
+  const corte = junto.length - casas;
+  return [junto.slice(0, corte) || "0", junto.slice(corte)];
+}
+
+function agrupar(inteiro: string): string {
+  return inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+function ehZero(inteiro: string, fracao: string): boolean {
+  return /^0*$/.test(inteiro) && /^0*$/.test(fracao);
 }
 
 /**
- * A API manda dinheiro como string (`"1234.56"`) porque `numeric(12,2)`
- * virando number em JS perde centavo em algum ponto. Aqui a conversão é só
- * para exibir — nada é somado depois disso.
+ * `R$ 1.234,56` (ou `R$ 1.235` com `centavos: false`), com `−` à frente se
+ * negativo.
  */
-export function formatBRLTexto(value: string | null | undefined): string {
-  if (value === null || value === undefined || value === "") return brl.format(0);
-  return brl.format(Number(value));
+export function reais(valor: Valor, opcoes: { centavos?: boolean } = {}): string {
+  const { negativo, inteiro, fracao } = partes(valor);
+  const casas = opcoes.centavos === false ? 0 : 2;
+  const [int, frac] = arredondar(inteiro, fracao, casas);
+  const corpo = casas ? `R$ ${agrupar(int)},${frac}` : `R$ ${agrupar(int)}`;
+  return negativo && !ehZero(int, frac) ? `${MENOS}${corpo}` : corpo;
 }
 
-/** Igual acima, mas para os rótulos compactos do gráfico. */
-export function toNumero(value: string | null | undefined): number {
+/** O valor sem sinal, para quando o sinal vai em outro lugar. */
+export function reaisAbs(valor: Valor, opcoes: { centavos?: boolean } = {}): string {
+  return reais((valor ?? "0").replace(/^-/, ""), opcoes);
+}
+
+/** Um decimal em texto arredondado para inteiro, nos dígitos: `"90.91"` -> `"91"`. */
+export function inteiro(valor: Valor): string {
+  const { negativo, inteiro: int, fracao } = partes(valor);
+  const [arredondado] = arredondar(int, fracao, 0);
+  return negativo && arredondado !== "0" ? `${MENOS}${arredondado}` : arredondado;
+}
+
+/** `-1`, `0` ou `1`, lido do texto. */
+export function sinal(valor: Valor): -1 | 0 | 1 {
+  const { negativo, inteiro, fracao } = partes(valor);
+  if (ehZero(inteiro, fracao)) return 0;
+  return negativo ? -1 : 1;
+}
+
+/**
+ * Valor de um lançamento como nas pranchetas: despesa `− R$ 186,40`, receita
+ * `+ R$ 320,00`, transferência sem sinal (não é gasto nem ganho, D-05).
+ */
+export function reaisDoLancamento(valor: Valor, tipo: string | null | undefined): string {
+  const corpo = reaisAbs(valor);
+  if (tipo === "despesa") return `${MENOS} ${corpo}`;
+  if (tipo === "receita") return `+ ${corpo}`;
+  return corpo;
+}
+
+// --------------------------------------------------------------------------
+// Datas
+// --------------------------------------------------------------------------
+
+const MESES = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+] as const;
+
+const DIAS_SEMANA = [
+  "Domingo",
+  "Segunda",
+  "Terça",
+  "Quarta",
+  "Quinta",
+  "Sexta",
+  "Sábado",
+] as const;
+
+function maiuscula(texto: string): string {
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+function lerData(iso: string): { ano: number; mes: number; dia: number } {
+  const [ano = "0", mes = "1", dia = "1"] = iso.slice(0, 10).split("-");
+  return { ano: Number(ano), mes: Number(mes), dia: Number(dia) };
+}
+
+/** `outubro` — mês 1..12. */
+export function nomeDoMes(mes: number): string {
+  return MESES[mes - 1] ?? "";
+}
+
+/** `Outubro de 2026` a partir de `2026-10-01`. */
+export function mesPorExtenso(competencia: string): string {
+  const { ano, mes } = lerData(competencia);
+  return `${maiuscula(nomeDoMes(mes))} de ${ano}`;
+}
+
+/** `Out 2026`, para o seletor de mês do celular. */
+export function mesCurto(competencia: string): string {
+  const { ano, mes } = lerData(competencia);
+  return `${maiuscula(nomeDoMes(mes).slice(0, 3))} ${ano}`;
+}
+
+/** `16 out`. */
+export function diaEMes(iso: string): string {
+  const { mes, dia } = lerData(iso);
+  return `${dia} ${nomeDoMes(mes).slice(0, 3)}`;
+}
+
+/** `16 de outubro`. */
+export function diaDeMes(iso: string): string {
+  const { mes, dia } = lerData(iso);
+  return `${dia} de ${nomeDoMes(mes)}`;
+}
+
+/** `Quinta, 16 de outubro`. */
+export function diaDaSemanaEMes(iso: string): string {
+  const { ano, mes, dia } = lerData(iso);
+  const semana = DIAS_SEMANA[new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay()];
+  return `${semana}, ${diaDeMes(iso)}`;
+}
+
+/** Competência (dia 1º) do mês de uma data local. */
+export function competenciaDe(data: Date): string {
+  const mes = String(data.getMonth() + 1).padStart(2, "0");
+  return `${data.getFullYear()}-${mes}-01`;
+}
+
+/** A competência `n` meses adiante (ou atrás, com `n` negativo). */
+export function somarMeses(competencia: string, n: number): string {
+  const { ano, mes } = lerData(competencia);
+  const indice = ano * 12 + (mes - 1) + n;
+  const novoMes = String((indice % 12) + 1).padStart(2, "0");
+  return `${Math.floor(indice / 12)}-${novoMes}-01`;
+}
+
+/** `6h` ou `18h30`. */
+function hora(momento: Date): string {
+  const minutos = momento.getMinutes();
+  return minutos ? `${momento.getHours()}h${String(minutos).padStart(2, "0")}` : `${momento.getHours()}h`;
+}
+
+/**
+ * `hoje às 6h`, `ontem às 18h30`, `14 out às 6h`. Para "Bancos atualizados
+ * ..." e o histórico da sincronização.
+ */
+export function quandoRelativo(iso: string, agora: Date = new Date()): string {
+  const momento = new Date(iso);
+  const dia = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diferenca = Math.round((dia(agora) - dia(momento)) / 86_400_000);
+  if (diferenca === 0) return `hoje às ${hora(momento)}`;
+  if (diferenca === 1) return `ontem às ${hora(momento)}`;
+  const isoLocal = `${momento.getFullYear()}-${momento.getMonth() + 1}-${momento.getDate()}`;
+  return `${diaEMes(isoLocal)} às ${hora(momento)}`;
+}
+
+// --------------------------------------------------------------------------
+// Funções das telas ainda não redesenhadas. Saem com elas.
+// --------------------------------------------------------------------------
+
+const brlEixo = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const percentual = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+
+/** `R$ 1.234,56` a partir de número — só rótulo de gráfico antigo. */
+export function formatBRL(value: number): string {
+  return reais(value.toFixed(2));
+}
+
+/** `R$ 1.234,56` a partir do texto da API, sem passar por float. */
+export function formatBRLTexto(value: Valor): string {
+  return reais(value);
+}
+
+/** Número para geometria de gráfico. Nada é somado depois disso. */
+export function toNumero(value: Valor): number {
   if (value === null || value === undefined || value === "") return 0;
   return Number(value);
 }
 
 /** `R$ 1.235` — rótulo de eixo, sem centavos. */
 export function formatBRLAxis(value: number): string {
-  return `R$ ${brlAxis.format(Math.round(value))}`;
+  return `R$ ${brlEixo.format(Math.round(value))}`;
 }
 
 /** `1,2k` acima de mil, senão o inteiro. Rótulo em cima da barra. */
@@ -57,13 +250,10 @@ export function formatBRLCompact(value: number): string {
 
 /** `42%`. */
 export function formatPercent(value: number): string {
-  return `${percent.format(value)}%`;
+  return `${percentual.format(value)}%`;
 }
 
-/**
- * Delta percentual com seta. Para gasto, subir é ruim — daí `tone`.
- * Base zero não vira divisão por zero: devolve `null` e o chamador decide.
- */
+/** Delta percentual com seta, para a tela antiga de analytics. */
 export function formatDelta(
   current: number,
   base: number,
@@ -78,20 +268,17 @@ export function formatDelta(
   };
 }
 
-const MONTH_SHORT = [
+const MES_CURTO = [
   "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
   "Jul", "Ago", "Set", "Out", "Nov", "Dez",
 ] as const;
 
 /** `Ago` — mês 1..12. */
 export function monthShort(month: number): string {
-  return MONTH_SHORT[month - 1] ?? "";
+  return MES_CURTO[month - 1] ?? "";
 }
 
-/**
- * `Ago/2026` a partir de uma competência ISO (`2026-08-01`).
- * Competência é sempre o dia 1º do mês de referência (D-02).
- */
+/** `Ago/2026` a partir de uma competência ISO (`2026-08-01`). */
 export function formatCompetencia(competencia: string): string {
   const [year = "", month = ""] = competencia.split("-");
   return `${monthShort(Number(month))}/${year}`;

@@ -43,6 +43,9 @@ function useInvalidar() {
     void client.invalidateQueries({ queryKey: ingestaoKeys.todas });
     void client.invalidateQueries({ queryKey: ["transacoes"] });
     void client.invalidateQueries({ queryKey: ["analytics"] });
+    // O contador de "Revisar" e os números da sincronização mudam junto.
+    void client.invalidateQueries({ queryKey: ["revisar"] });
+    void client.invalidateQueries({ queryKey: ["sincronizacao"] });
   };
 }
 

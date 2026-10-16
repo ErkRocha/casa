@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Lançamentos no celular</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1F4FBF}a:hover{color:#163A8F}
+</style>
+</helmet>
+<div style="width: 390px; height: 1600px; position: relative; box-sizing: border-box; background: #EEF1F6; font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; color: #172033; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow: hidden">
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px 14px 130px 14px">
+
+<header style="display: flex; align-items: center; justify-content: space-between; padding: 0 2px">
+<h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.4px">Lançamentos</h1>
+<div style="display: flex; align-items: center; background: #FFFFFF; border-radius: 12px">
+<button aria-label="Mês anterior" style="width: 40px; height: 44px; border: none; background: transparent; color: #172033; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></button>
+<span style="font-size: 14px; font-weight: 600">Out 2026</span>
+<button aria-label="Próximo mês" style="width: 40px; height: 44px; border: none; background: transparent; color: #172033; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"></path></svg></button>
+</div>
+</header>
+
+<label style="display: flex; align-items: center; gap: 8px; height: 48px; border-radius: 14px; background: #FFFFFF; padding: 0 14px; color: #556070"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden">Buscar lançamentos</span><input placeholder="Buscar descrição ou valor" style="flex: 1 1 auto; border: none; background: transparent; font-family: inherit; font-size: 16px; color: #172033; outline: none"></label>
+
+<div style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px">
+<button style="flex-shrink: 0; height: 40px; border: none; border-radius: 999px; background: #172033; color: #FFFFFF; padding: 0 14px; font-family: inherit; font-size: 14px; font-weight: 600">Todos</button>
+<button style="flex-shrink: 0; height: 40px; border: none; border-radius: 999px; background: #FFFFFF; color: #172033; padding: 0 14px; font-family: inherit; font-size: 14px">Erik</button>
+<button style="flex-shrink: 0; height: 40px; border: none; border-radius: 999px; background: #FFFFFF; color: #172033; padding: 0 14px; font-family: inherit; font-size: 14px">Laura</button>
+<button style="flex-shrink: 0; height: 40px; border: none; border-radius: 999px; background: #FFFFFF; color: #172033; padding: 0 14px; font-family: inherit; font-size: 14px">Juntos</button>
+<button style="flex-shrink: 0; height: 40px; border: 1.5px dashed #C99A3A; border-radius: 999px; background: #FFF8E8; color: #5C3D00; padding: 0 14px; font-family: inherit; font-size: 14px; font-weight: 600">12 sem categoria</button>
+<button style="flex-shrink: 0; height: 40px; border: none; border-radius: 999px; background: #FFFFFF; color: #172033; padding: 0 14px; font-family: inherit; font-size: 14px; display: flex; align-items: center; gap: 6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>Filtros</button>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<div style="background: #FFFFFF; border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; color: #556070">Despesas</span><span style="font-size: 19px; font-weight: 700">R$ 4.218,40</span></div>
+<div style="background: #FFFFFF; border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; color: #556070">Receitas</span><span style="font-size: 19px; font-weight: 700; color: #1C7A55">R$ 7.840,00</span></div>
+</div>
+
+<sc-for list="{{dias}}" as="d" hint-placeholder-count="3">
+<section style="background: #FFFFFF; border-radius: 20px; padding: 6px 16px 8px 16px; display: flex; flex-direction: column">
+<div style="display: flex; justify-content: space-between; align-items: baseline; padding: 12px 0 6px 0"><h2 style="margin: 0; font-size: 15px; font-weight: 650">{{d.titulo}}</h2><span style="font-size: 13px; color: #556070">{{d.total}}</span></div>
+<sc-for list="{{d.itens}}" as="l" hint-placeholder-count="3">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 0; box-shadow: inset 0 1px 0 #EEF1F6">
+<div style="display: flex; flex-direction: column; gap: 5px; min-width: 0">
+<span style="font-size: 15px; font-weight: 550">{{l.descricao}}</span>
+<span style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px">
+<span style="border-radius: 6px; padding: 2px 7px; font-weight: 600; background: {{l.catFundo}}; color: {{l.catCor}}; box-shadow: {{l.catBorda}}">{{l.categoria}}</span>
+<span style="border-radius: 6px; padding: 2px 7px; font-weight: 600; background: #EAF0FD; color: #163A8F">{{l.forma}}</span>
+<span style="color: #556070">{{l.quem}}</span>
+</span>
+</div>
+<span style="font-size: 15px; font-weight: 650; white-space: nowrap; color: {{l.cor}}">{{l.valor}}</span>
+</div>
+</sc-for>
+</section>
+</sc-for>
+
+</div>
+
+<button aria-label="Novo lançamento" style="position: absolute; right: 18px; bottom: 100px; width: 58px; height: 58px; border: none; border-radius: 18px; background: #1F4FBF; color: #FFFFFF; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(31,79,191,0.35)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+
+<nav aria-label="Navegação principal" style="position: absolute; left: 0; right: 0; bottom: 0; background: #FFFFFF; box-shadow: 0 -1px 0 #E2E6EE; padding: 6px 8px 20px 8px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px">
+<a href="InicioCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 12px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg>Início</a>
+<a href="#lancamentos" aria-current="page" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #1F4FBF; font-size: 12px; font-weight: 650"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>Lançamentos</a>
+<a href="RevisarCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 12px; font-weight: 500"><span style="position: relative; display: flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg><span style="position: absolute; top: -5px; right: -12px; background: #8A5A00; color: #FFFFFF; font-size: 10px; font-weight: 700; border-radius: 999px; padding: 1px 6px">6</span></span>Revisar</a>
+<a href="#analises" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 12px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7"></path></svg>Análises</a>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var ok = { catFundo: '#F4F6FA', catCor: '#2C364A', catBorda: 'none' };
+    var sem = { catFundo: '#FFF8E8', catCor: '#5C3D00', catBorda: 'inset 0 0 0 1.5px #E5C27A' };
+    function l(base, dados) { var o = {}; var k; for (k in base) o[k] = base[k]; for (k in dados) o[k] = dados[k]; return o; }
+    return {
+      dias: [
+        { titulo: 'Quinta, 16 de outubro', total: 'R$ 818,00', itens: [
+          l(ok, { descricao: 'Supermercado', categoria: 'Mercado', forma: 'Nubank 7704', quem: 'Juntos', valor: '− R$ 186,40', cor: '#172033' }),
+          l(sem, { descricao: 'Pagamento online', categoria: 'Sem categoria', forma: 'Nubank 7924', quem: 'Erik', valor: '− R$ 89,90', cor: '#172033' }),
+          l(sem, { descricao: 'Serviço digital', categoria: 'Sem categoria', forma: 'Mercado Pago 1857', quem: 'Laura', valor: '− R$ 29,90', cor: '#172033' })
+        ]},
+        { titulo: 'Quarta, 15 de outubro', total: 'R$ 640,00', itens: [
+          l(ok, { descricao: 'Posto de combustível', categoria: 'Combustível', forma: 'Débito Sicredi', quem: 'Erik', valor: '− R$ 150,00', cor: '#172033' }),
+          l(ok, { descricao: 'Pix recebido', categoria: 'Receita', forma: 'Pix Nubank', quem: 'Erik', valor: '+ R$ 320,00', cor: '#1C7A55' }),
+          l(ok, { descricao: 'Restaurante', categoria: 'Restaurante', forma: 'Nubank 7704', quem: 'Juntos', valor: '− R$ 112,50', cor: '#172033' })
+        ]},
+        { titulo: 'Terça, 14 de outubro', total: 'R$ 310,00', itens: [
+          l(ok, { descricao: 'Farmácia', categoria: 'Farmácia', forma: 'Mercado Pago 1857', quem: 'Laura', valor: '− R$ 47,89', cor: '#172033' }),
+          l(ok, { descricao: 'Conta de luz', categoria: 'Contas da casa', forma: 'Boleto', quem: 'Juntos', valor: '− R$ 212,30', cor: '#172033' })
+        ]}
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

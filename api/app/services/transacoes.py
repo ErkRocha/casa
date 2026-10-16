@@ -27,7 +27,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.enums import TipoTransacao
-from app.models import Transacao
+from app.models import Conta, FormaPagamento, Transacao
 from app.schemas.common import Paginacao
 from app.schemas.transacoes import TransacaoFiltros
 from app.services.base import Conflito, NaoEncontrado, _mensagem_integridade
@@ -119,6 +119,23 @@ def montar_filtros(f: TransacaoFiltros) -> list[ColumnElement[bool]]:
     return where
 
 
+def _com_conta_da_forma() -> Select[Any]:
+    """A linha da view com o nome da conta da forma de pagamento.
+
+    É o que deixa a tela escrever "Cartão Nubank 7704" ou "Débito Sicredi"
+    (D-22): o cartão é forma da conta que paga a fatura, e o nome do banco
+    está na conta, não no apelido. Join na consulta, não na view: a view é
+    schema, e o redesenho não muda schema.
+    """
+    forma = FormaPagamento.__table__
+    conta = Conta.__table__
+    return select(V, conta.c.nome.label("forma_pagamento_conta_nome")).select_from(
+        V.outerjoin(forma, forma.c.id == V.c.forma_pagamento_id).outerjoin(
+            conta, conta.c.id == forma.c.conta_id
+        )
+    )
+
+
 class TransacaoService:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -135,7 +152,7 @@ class TransacaoService:
         # Mais recente primeiro; `id` desempata para a paginação ser estável
         # quando várias transações caem no mesmo dia.
         base: Select[Any] = (
-            select(V)
+            _com_conta_da_forma()
             .where(and_(True, *where))
             .order_by(V.c.data.desc(), V.c.id.desc())
             .limit(paginacao.limit)
@@ -182,7 +199,7 @@ class TransacaoService:
         }
 
     def get(self, id_: int) -> dict[str, Any]:
-        linha = self.session.execute(select(V).where(V.c.id == id_)).mappings().first()
+        linha = self.session.execute(_com_conta_da_forma().where(V.c.id == id_)).mappings().first()
         if linha is None:
             raise NaoEncontrado("transação", id_)
         return dict(linha)

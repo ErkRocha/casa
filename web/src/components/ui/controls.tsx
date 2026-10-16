@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Controles de formulário no padrão shadcn/ui (forwardRef + `cn`), com os
- * tokens deste design.
+ * tokens do desenho (D-22): alvo de toque de 44px, raio interno de 12px.
  *
  * Nada de Radix aqui: o protótipo usa `<select>` e `<input>` nativos e
  * popover posicionado na mão. Manter isso evita cinco dependências para
@@ -16,9 +16,8 @@ export const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"in
     <input
       ref={ref}
       className={cn(
-        "bg-surface-sunken text-text-primary placeholder:text-text-tertiary",
-        "text-body rounded-lg border-none px-5 py-3.5 outline-none",
-        "focus-visible:ring-accent focus-visible:ring-1",
+        "bg-superficie-2 text-texto placeholder:text-texto-2",
+        "text-corpo rounded-interno min-h-22 border-none px-7 outline-none",
         className,
       )}
       {...props}
@@ -32,9 +31,8 @@ export const Select = React.forwardRef<HTMLSelectElement, React.ComponentProps<"
     <select
       ref={ref}
       className={cn(
-        "bg-surface-sunken text-text-primary text-body cursor-pointer",
-        "rounded-lg border-none px-4 py-3 outline-none",
-        "focus-visible:ring-accent focus-visible:ring-1",
+        "bg-superficie-2 text-texto text-apoio cursor-pointer",
+        "rounded-interno min-h-22 border-none px-6 outline-none",
         className,
       )}
       {...props}
@@ -46,12 +44,13 @@ Select.displayName = "Select";
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "filter" | "filterActive";
 
 const VARIANTES: Record<ButtonVariant, string> = {
-  primary: "bg-accent text-accent-fg font-semibold",
-  secondary: "bg-surface text-text-primary font-semibold",
-  ghost: "bg-transparent text-text-secondary hover:text-text-primary",
-  danger: "bg-transparent text-expense font-semibold",
-  filter: "bg-surface-sunken text-text-secondary",
-  filterActive: "bg-surface text-text-primary",
+  primary: "bg-destaque hover:bg-destaque-hover font-forte text-white",
+  secondary:
+    "bg-superficie text-texto font-semibold shadow-[inset_0_0_0_1px_var(--color-contorno)]",
+  ghost: "bg-transparent text-texto-2 hover:text-texto",
+  danger: "bg-transparent text-perigo font-semibold",
+  filter: "bg-superficie-2 text-texto",
+  filterActive: "bg-texto font-semibold text-white",
 };
 
 export const Button = React.forwardRef<
@@ -62,7 +61,8 @@ export const Button = React.forwardRef<
     ref={ref}
     type={type}
     className={cn(
-      "text-body cursor-pointer rounded-lg px-7 py-4 whitespace-nowrap",
+      "text-apoio rounded-interno inline-flex min-h-22 cursor-pointer items-center",
+      "justify-center gap-4 border-none px-8 whitespace-nowrap",
       "disabled:cursor-not-allowed disabled:opacity-50",
       VARIANTES[variant],
       className,
@@ -77,7 +77,7 @@ export const Checkbox = React.forwardRef<HTMLInputElement, React.ComponentProps<
     <input
       ref={ref}
       type="checkbox"
-      className={cn("accent-accent size-6 cursor-pointer", className)}
+      className={cn("accent-destaque size-9 cursor-pointer", className)}
       {...props}
     />
   ),
@@ -127,8 +127,8 @@ export function Popover({
     <div
       ref={ref}
       className={cn(
-        "bg-surface border-border-faint shadow-popover absolute top-[calc(100%+4px)] left-0 z-20",
-        "min-w-100 rounded-xl border p-3",
+        "bg-superficie shadow-popover absolute top-[calc(100%+4px)] left-0 z-20",
+        "rounded-interno min-w-120 p-3",
         className,
       )}
     >
@@ -143,8 +143,8 @@ export function CheckBox({ marcado }: { marcado: boolean }) {
     <span
       aria-hidden
       className={cn(
-        "inline-block size-6 shrink-0 rounded-sm border-[1.5px]",
-        marcado ? "bg-accent border-accent" : "border-border bg-transparent",
+        "inline-block size-9 shrink-0 rounded-[5px] border-[1.5px]",
+        marcado ? "bg-destaque border-destaque" : "border-caixa bg-superficie",
       )}
     />
   );
@@ -166,7 +166,7 @@ export function PessoaBadge({
     <span
       onClick={onClick}
       className={cn(
-        "text-caption inline-block rounded-md px-4 py-1.5 font-semibold",
+        "text-pequeno rounded-selo inline-block px-4 py-1 font-semibold",
         onClick && "cursor-pointer",
       )}
       style={{ background: fundo, color: cor }}
@@ -175,3 +175,62 @@ export function PessoaBadge({
     </span>
   );
 }
+
+
+type TomSelo = "atencao" | "atencaoSolido" | "receita" | "destaque" | "neutro" | "inativo";
+
+const TONS_SELO: Record<TomSelo, string> = {
+  atencao: "bg-atencao-fundo text-atencao-texto",
+  atencaoSolido: "bg-atencao-selo text-white",
+  receita: "bg-receita-fundo text-receita-texto",
+  destaque: "bg-destaque-fundo text-destaque-hover",
+  neutro: "bg-superficie-2 text-texto-apoio",
+  inativo: "bg-transparent text-texto-inativo",
+};
+
+/** Selo das pranchetas: 13px/650, raio 6px ("Reajuste", "Sincronizando"). */
+export function Selo({
+  tom = "neutro",
+  className,
+  children,
+}: {
+  tom?: TomSelo;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "text-pequeno font-forte rounded-selo inline-block px-4 py-0.5 leading-snug",
+        TONS_SELO[tom],
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/**
+ * Botão só com ícone, 44px (o alvo mínimo do README). `rotulo` vira o
+ * `aria-label`: sem ele o leitor de tela anunciaria só "botão".
+ */
+export const BotaoIcone = React.forwardRef<
+  HTMLButtonElement,
+  Omit<React.ComponentProps<"button">, "aria-label"> & { rotulo: string }
+>(({ rotulo, className, type = "button", ...props }, ref) => (
+  <button
+    ref={ref}
+    type={type}
+    aria-label={rotulo}
+    title={rotulo}
+    className={cn(
+      "bg-superficie text-texto rounded-interno flex size-22 shrink-0 cursor-pointer",
+      "items-center justify-center border-none",
+      "disabled:cursor-not-allowed disabled:opacity-40",
+      className,
+    )}
+    {...props}
+  />
+));
+BotaoIcone.displayName = "BotaoIcone";
