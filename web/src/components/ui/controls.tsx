@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { Icone } from "./icone";
 
 /**
  * Controles de formulário no padrão shadcn/ui (forwardRef + `cn`), com os
@@ -211,6 +212,49 @@ export function Selo({
   );
 }
 
+const FUNDO_PILULA = {
+  superficie: "bg-superficie",
+  "superficie-2": "bg-superficie-2",
+  adaptavel: "bg-superficie md:bg-superficie-2",
+} as const;
+
+/**
+ * Pílula das pranchetas: "Todos / Erik / Laura / Juntos", as abas de motivo
+ * da revisão e o atalho "12 sem categoria" (`atencao`, borda tracejada).
+ * Alvo de 44px, um pouco acima dos 36–40px desenhados (README: alvos de
+ * 44px). `fundo` é o da pílula inativa: cinza dentro de bloco branco,
+ * branca sobre o fundo da página; `adaptavel` é branca no celular, onde os
+ * filtros ficam soltos na página, e cinza a partir de 768px, dentro do bloco.
+ */
+export const Pilula = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentProps<"button"> & {
+    ativa?: boolean;
+    fundo?: "superficie" | "superficie-2" | "adaptavel";
+    atencao?: boolean;
+  }
+>(({ ativa = false, fundo = "superficie-2", atencao = false, className, type = "button", ...props }, ref) => (
+  <button
+    ref={ref}
+    type={type}
+    className={cn(
+      "text-apoio inline-flex min-h-22 shrink-0 cursor-pointer items-center gap-3",
+      "rounded-full px-7 whitespace-nowrap",
+      atencao
+        ? cn(
+            "text-atencao-texto border-atencao-borda border-[1.5px] font-semibold",
+            ativa ? "bg-atencao-fundo border-solid" : "bg-atencao-fundo-2 border-dashed",
+          )
+        : ativa
+          ? "bg-texto border-none font-semibold text-white"
+          : cn("text-texto border-none", FUNDO_PILULA[fundo]),
+      className,
+    )}
+    {...props}
+  />
+));
+Pilula.displayName = "Pilula";
+
 /**
  * Botão só com ícone, 44px (o alvo mínimo do README). `rotulo` vira o
  * `aria-label`: sem ele o leitor de tela anunciaria só "botão".
@@ -234,3 +278,49 @@ export const BotaoIcone = React.forwardRef<
   />
 ));
 BotaoIcone.displayName = "BotaoIcone";
+
+/** Contorno de foco no invólucro, quando quem tem o foco é o select invisível. */
+const FOCO_NO_SELECT =
+  "has-[select:focus-visible]:outline-2 has-[select:focus-visible]:outline-offset-2 " +
+  "has-[select:focus-visible]:outline-destaque has-[select:focus-visible]:outline-solid";
+
+/**
+ * Um `<select>` nativo, invisível, por cima de uma pílula desenhada: a
+ * categoria editável da linha ("Mercado ⌄"), "Definir categoria" da barra
+ * de lote. A pílula mede o texto que mostra, e não a maior opção da lista;
+ * teclado, leitor de tela e a roda de opções do celular continuam os do
+ * navegador. `rotulo` vira o `aria-label` do select.
+ */
+export function SelectSobreposto({
+  rotulo,
+  mostrar,
+  className,
+  children,
+  ...props
+}: Omit<React.ComponentProps<"select">, "aria-label"> & {
+  rotulo: string;
+  mostrar: React.ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "relative inline-flex max-w-full min-w-0 items-center gap-3",
+        FOCO_NO_SELECT,
+        className,
+      )}
+    >
+      <span aria-hidden className="truncate">
+        {mostrar}
+      </span>
+      <Icone nome="baixo" tamanho={12} espessura={2.2} className="shrink-0" />
+      <select
+        aria-label={rotulo}
+        className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0 disabled:cursor-not-allowed"
+        {...props}
+      >
+        {children}
+      </select>
+    </span>
+  );
+}
+

@@ -6,6 +6,7 @@ a memória só para contar ou somar.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
@@ -27,7 +28,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.enums import TipoTransacao
-from app.models import Conta, FormaPagamento, Transacao
+from app.models import Conta, FormaPagamento, Money, Transacao
 from app.schemas.common import Paginacao
 from app.schemas.transacoes import TransacaoFiltros
 from app.services.base import Conflito, NaoEncontrado, _mensagem_integridade
@@ -108,15 +109,39 @@ def montar_filtros(f: TransacaoFiltros) -> list[ColumnElement[bool]]:
 
     if f.texto:
         alvo = f"%{f.texto}%"
-        where.append(
-            or_(
-                V.c.descricao.ilike(alvo),
-                V.c.local_nome.ilike(alvo),
-                V.c.categoria_caminho.ilike(alvo),
-            )
-        )
+        opcoes: list[ColumnElement[bool]] = [
+            V.c.descricao.ilike(alvo),
+            V.c.descricao_original.ilike(alvo),
+            V.c.local_nome.ilike(alvo),
+            V.c.categoria_caminho.ilike(alvo),
+        ]
+        valor = _valor_buscado(f.texto)
+        if valor is not None:
+            opcoes.append(V.c.valor == valor)
+        where.append(or_(*opcoes))
+
+    if f.sem_categoria:
+        where.append(V.c.categoria_id.is_(None))
+        where.append(V.c.tipo != TipoTransacao.TRANSFERENCIA)
 
     return where
+
+
+def _valor_buscado(texto: str) -> Decimal | None:
+    """ "186,40", "R$ 1.186,40" ou "186.40" como valor; senão nulo.
+
+    Com vírgula, o ponto é milhar (pt-BR). Sem vírgula, um único ponto seguido
+    de uma ou duas casas é decimal ("186.40"); pontos a cada três casas são
+    milhar ("1.186"). Qualquer outra forma não é valor.
+    """
+    limpo = texto.strip().removeprefix("R$").strip().replace(" ", "")
+    if re.fullmatch(r"\d{1,3}(?:\.\d{3})*,\d{1,2}|\d{1,10},\d{1,2}", limpo):
+        return Decimal(limpo.replace(".", "").replace(",", "."))
+    if re.fullmatch(r"\d{1,10}\.\d{1,2}", limpo):
+        return Decimal(limpo)
+    if re.fullmatch(r"\d{1,3}(?:\.\d{3})+|\d{1,10}", limpo):
+        return Decimal(limpo.replace(".", ""))
+    return None
 
 
 def _com_conta_da_forma() -> Select[Any]:
@@ -189,6 +214,25 @@ class TransacaoService:
             .group_by(balde)
         ).all()
 
+        # Transferências e o atalho "sem categoria" (D-22). O atalho conta sem
+        # o próprio filtro de sem categoria: é ele que diz quantas ligá-lo
+        # mostraria.
+        sem_filtro_proprio = montar_filtros(filtros.model_copy(update={"sem_categoria": False}))
+        extras = self.session.execute(
+            select(
+                sql_cast(
+                    func.coalesce(
+                        func.sum(V.c.valor).filter(V.c.tipo == TipoTransacao.TRANSFERENCIA), 0
+                    ),
+                    Money,
+                ).label("transferencia"),
+                func.count().filter(V.c.tipo == TipoTransacao.TRANSFERENCIA).label("qtd_transf"),
+                func.count()
+                .filter(V.c.tipo != TipoTransacao.TRANSFERENCIA, V.c.categoria_id.is_(None))
+                .label("sem_categoria"),
+            ).where(and_(True, *sem_filtro_proprio))
+        ).one()
+
         despesa = Decimal(agregado.despesa)
         receita = Decimal(agregado.receita)
         return {
@@ -196,7 +240,46 @@ class TransacaoService:
             "total_receita": receita,
             "resultado": receita - despesa,
             "por_balde": {str(linha.balde): Decimal(linha.total) for linha in baldes},
+            "total_transferencia": Decimal(extras.transferencia),
+            "quantidade_transferencias": int(extras.qtd_transf or 0),
+            "sem_categoria": int(extras.sem_categoria or 0),
         }
+
+    def dias(self, filtros: TransacaoFiltros) -> list[dict[str, Any]]:
+        """O total de cada dia do filtro, mais recente primeiro (D-22).
+
+        Para a listagem agrupada por dia: o total do dia vem daqui, somado no
+        banco, e não da página que o navegador recebeu — com paginação, o dia
+        pode estar dividido entre duas páginas.
+        """
+        where = montar_filtros(filtros)
+        linhas = self.session.execute(
+            select(
+                V.c.data,
+                # Com centavos mesmo no dia sem receita: "0.00", não "0".
+                sql_cast(
+                    func.coalesce(func.sum(V.c.valor).filter(V.c.tipo == TipoTransacao.DESPESA), 0),
+                    Money,
+                ).label("despesas"),
+                sql_cast(
+                    func.coalesce(func.sum(V.c.valor).filter(V.c.tipo == TipoTransacao.RECEITA), 0),
+                    Money,
+                ).label("receitas"),
+                func.count().label("quantidade"),
+            )
+            .where(and_(True, *where))
+            .group_by(V.c.data)
+            .order_by(V.c.data.desc())
+        ).all()
+        return [
+            {
+                "data": linha.data,
+                "despesas": Decimal(linha.despesas),
+                "receitas": Decimal(linha.receitas),
+                "quantidade": int(linha.quantidade),
+            }
+            for linha in linhas
+        ]
 
     def get(self, id_: int) -> dict[str, Any]:
         linha = self.session.execute(_com_conta_da_forma().where(V.c.id == id_)).mappings().first()
