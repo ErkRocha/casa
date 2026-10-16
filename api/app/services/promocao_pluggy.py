@@ -11,6 +11,7 @@ o motivo do item.
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 
 from app.conversao_pluggy import OBS_PAGAMENTO_NO_CARTAO
@@ -20,6 +21,8 @@ from app.ingestao.base import ItemExtraido
 LEITURA_LIMPA = Decimal("1.00")
 #: Trecho da observação que a sync põe no gêmeo vindo da própria Pluggy.
 MARCA_DUPLICATA = "Possível duplicata"
+#: A nota inteira, para tirá-la da observação quando a revisão decide.
+NOTA_DUPLICATA = re.compile(rf"{MARCA_DUPLICATA}.*?aprovar os dois\.", re.S)
 
 #: Motivo -> texto do relatório, na ordem em que são checados.
 MOTIVOS: dict[str, str] = {

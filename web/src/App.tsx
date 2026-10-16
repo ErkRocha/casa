@@ -1,8 +1,7 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/controls";
 import { AnalyticsPage } from "@/features/analytics/analytics-page";
 import { ActiveChips } from "@/features/filters/active-chips";
 import { FilterBar } from "@/features/filters/filter-bar";
@@ -11,7 +10,7 @@ import { InicioPage } from "@/features/inicio/inicio-page";
 import { MaisPage } from "@/features/navegacao/mais-page";
 import { RegrasPage } from "@/features/regras/regras-page";
 import { RelatoriosPage } from "@/features/relatorios/relatorios-page";
-import { TransacoesPage } from "@/features/transacoes/transacoes-page";
+import { LancamentosPage } from "@/features/transacoes/lancamentos-page";
 import { TITULO_DA_ROTA, useRota, type Rota } from "@/lib/rotas";
 
 /**
@@ -31,27 +30,13 @@ export default function App() {
 }
 
 function Tela({ rota }: { rota: Rota }) {
-  const [drawerAberto, setDrawerAberto] = useState(false);
-
   switch (rota) {
     case "inicio":
       return <InicioPage />;
     case "mais":
       return <MaisPage />;
     case "lancamentos":
-      return (
-        <TelaAnterior
-          rota={rota}
-          acao={<Button onClick={() => setDrawerAberto(true)}>Novo lançamento</Button>}
-          filtro
-        >
-          <TransacoesPage
-            drawerAberto={drawerAberto}
-            onAbrirDrawer={() => setDrawerAberto(true)}
-            onFecharDrawer={() => setDrawerAberto(false)}
-          />
-        </TelaAnterior>
-      );
+      return <LancamentosPage />;
     case "analises":
       return (
         <TelaAnterior rota={rota} filtro>

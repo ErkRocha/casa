@@ -1,13 +1,15 @@
-import { Button, PessoaBadge } from "@/components/ui/controls";
+import type { ReactNode } from "react";
+
+import { Button } from "@/components/ui/controls";
+import { Dialogo } from "@/components/ui/dialogo";
 import { FormaPagamentoTag } from "@/features/cadastros/forma-pagamento-tag";
-import { usePessoas } from "@/features/cadastros/queries";
-import { corDoBalde, corSuaveDoBalde } from "@/features/filters/baldes";
+import { ROTULO_JUNTOS } from "@/features/filters/baldes";
 import { urlDaApi } from "@/lib/api";
-import { formatBRLTexto, formatCompetencia, formatDate } from "@/lib/format";
+import { diaDeMes, mesPorExtenso, reaisDoLancamento } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Transacao } from "../types";
 
-/** Detalhe de uma transação, com a exclusão (soft delete) à mão. */
+/** Detalhe de um lançamento, com a exclusão (soft delete) à mão. */
 export function DetalheModal({
   transacao,
   onFechar,
@@ -19,160 +21,169 @@ export function DetalheModal({
   onExcluir: (id: number) => void;
   excluindo: boolean;
 }) {
-  const { data: pessoas = [] } = usePessoas();
-  if (!transacao) return null;
+  return (
+    <Dialogo aberto={transacao !== null} onFechar={onFechar} titulo={transacao?.descricao ?? ""}>
+      {transacao ? (
+        <Conteudo
+          transacao={transacao}
+          excluindo={excluindo}
+          onExcluir={onExcluir}
+          onFechar={onFechar}
+        />
+      ) : null}
+    </Dialogo>
+  );
+}
 
-  const receita = transacao.tipo === "receita";
-  const transferencia = transacao.tipo === "transferencia";
-
+function Conteudo({
+  transacao,
+  excluindo,
+  onExcluir,
+  onFechar,
+}: {
+  transacao: Transacao;
+  excluindo: boolean;
+  onExcluir: (id: number) => void;
+  onFechar: () => void;
+}) {
+  const ano = transacao.data.slice(0, 4);
   return (
     <>
-      <div className="fixed inset-0 z-30 bg-black/50" onClick={onFechar} />
-      <div
-        role="dialog"
-        aria-label={transacao.descricao}
-        className="bg-surface shadow-modal fixed top-1/2 left-1/2 z-31 max-h-[80vh] w-220 -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-11"
+      <p
+        className={cn(
+          "text-valor m-0 pb-6 font-bold",
+          transacao.tipo === "receita" && "text-receita",
+          transacao.tipo === "transferencia" && "text-texto-2",
+        )}
       >
-        <h2 className="text-title-lg text-text-primary mb-6 font-bold">{transacao.descricao}</h2>
+        {reaisDoLancamento(transacao.valor, transacao.tipo)}
+      </p>
 
-        <dl className="text-body-lg grid grid-cols-[110px_1fr] gap-y-4">
-          <Chave>Data</Chave>
-          <Valor>{formatDate(transacao.data)}</Valor>
+      <dl className="text-corpo m-0 grid grid-cols-[120px_1fr] gap-x-6 gap-y-5">
+        <Chave>Data</Chave>
+        <Valor>
+          {diaDeMes(transacao.data)} de {ano}
+        </Valor>
 
-          <Chave>Competência</Chave>
-          <Valor>{formatCompetencia(transacao.competencia)}</Valor>
+        <Chave>Mês</Chave>
+        <Valor>{mesPorExtenso(transacao.competencia)}</Valor>
 
-          <Chave>Categoria</Chave>
-          <Valor>{transacao.categoria_caminho ?? "— sem categoria —"}</Valor>
+        <Chave>Categoria</Chave>
+        <Valor>
+          {transacao.tipo === "transferencia"
+            ? "Transferência, sem categoria"
+            : (transacao.categoria_caminho ?? "Sem categoria")}
+        </Valor>
 
-          <Chave>Pessoa</Chave>
-          <Valor>
-            <PessoaBadge
-              nome={transacao.pessoa_nome}
-              fundo={corSuaveDoBalde(transacao.pessoa_id ?? "conjunto", pessoas)}
-              cor={corDoBalde(transacao.pessoa_id ?? "conjunto", pessoas)}
-            />
-          </Valor>
+        <Chave>Quem</Chave>
+        <Valor>{transacao.pessoa_id === null ? ROTULO_JUNTOS : transacao.pessoa_nome}</Valor>
 
-          <Chave>Pagamento</Chave>
-          <Valor>
-            <FormaPagamentoTag
-              tipo={transacao.forma_pagamento_tipo}
-              apelido={transacao.forma_pagamento_apelido}
-            />
-          </Valor>
+        <Chave>Pagamento</Chave>
+        <Valor>
+          <FormaPagamentoTag
+            tipo={transacao.forma_pagamento_tipo}
+            apelido={transacao.forma_pagamento_apelido}
+            contaNome={transacao.forma_pagamento_conta_nome}
+          />
+        </Valor>
 
-          <Chave>Local</Chave>
-          <Valor>{transacao.local_nome ?? "—"}</Valor>
-
-          {transacao.parcela_num ? (
-            <>
-              <Chave>Parcela</Chave>
-              <Valor>
-                {transacao.parcela_num} de {transacao.parcela_total}
-              </Valor>
-            </>
-          ) : null}
-
-          <Chave>Valor</Chave>
-          <dd
-            className={cn(
-              "tabular text-title-sm font-bold",
-              transferencia ? "text-text-tertiary" : receita ? "text-income" : "text-expense",
-            )}
-          >
-            {transferencia ? "↔ " : receita ? "↑ " : "↓ "}
-            {formatBRLTexto(transacao.valor)}
-          </dd>
-
-          {transacao.observacao ? (
-            <>
-              <Chave>Observação</Chave>
-              <Valor>{transacao.observacao}</Valor>
-            </>
-          ) : null}
-        </dl>
-
-        {/* Texto cru do extrato — imutável (regra 11). Mostrado para conferir
-            contra a fatura, nunca editável. */}
-        {transacao.descricao_original ? (
-          <div className="border-border-faint mt-8 border-t pt-6">
-            <div className="text-label text-text-tertiary tracking-caps mb-2 font-semibold uppercase">
-              Texto original do extrato
-            </div>
-            <p className="text-body-sm text-text-secondary font-mono">
-              {transacao.descricao_original}
-            </p>
-          </div>
+        {transacao.local_nome ? (
+          <>
+            <Chave>Local</Chave>
+            <Valor>{transacao.local_nome}</Valor>
+          </>
         ) : null}
 
-        {/* Origem: fecha o rastro até o documento. Só aparece em lançamento
-            importado — em transação digitada à mão não há o que mostrar, e um
-            "Origem: —" seria ruído. */}
-        {transacao.importacao_id ? (
-          <div className="border-border-faint mt-8 border-t pt-6">
-            <div className="text-label text-text-tertiary tracking-caps mb-2 font-semibold uppercase">
-              Origem
-            </div>
-            <p className="text-body-sm text-text-secondary">
-              Importado de{" "}
-              <span className="text-text-primary font-medium">
-                {transacao.importacao_arquivo ?? "arquivo sem nome"}
-              </span>
-              {transacao.importacao_em
-                ? ` em ${new Date(transacao.importacao_em).toLocaleDateString("pt-BR")}`
-                : null}
-              .
-            </p>
-            {/* A view não traz o tipo do arquivo; a sync da Pluggy grava o
-                comprovante como `.json`, e JSON não é "PDF original". */}
-            {transacao.importacao_arquivo?.toLowerCase().endsWith(".json") ? (
-              <p className="text-caption text-text-tertiary mt-2">
-                Sincronizado pela Pluggy: não há PDF para abrir.
-              </p>
-            ) : transacao.importacao_tem_arquivo ? (
-              <a
-                href={urlDaApi(`/importacoes/${transacao.importacao_id}/arquivo`)}
-                target="_blank"
-                rel="noreferrer"
-                className="text-body-sm text-accent mt-2 inline-block underline underline-offset-2"
-              >
-                Abrir o PDF original
-              </a>
-            ) : (
-              // Importação anterior à migration 0004: o vínculo existe, o
-              // arquivo não foi guardado. Dizer isso é melhor que oferecer um
-              // link que daria 404.
-              <p className="text-caption text-text-tertiary mt-2">
-                O arquivo desta importação não foi guardado.
-              </p>
-            )}
-          </div>
+        {transacao.parcela_num ? (
+          <>
+            <Chave>Parcela</Chave>
+            <Valor>
+              {transacao.parcela_num} de {transacao.parcela_total}
+            </Valor>
+          </>
         ) : null}
 
-        <div className="mt-9 flex justify-end gap-4">
-          <Button
-            variant="danger"
-            disabled={excluindo}
-            onClick={() => onExcluir(transacao.id)}
-          >
-            {excluindo ? "Excluindo..." : "Excluir transação"}
-          </Button>
-          <Button onClick={onFechar}>Fechar</Button>
-        </div>
+        {transacao.observacao ? (
+          <>
+            <Chave>Observação</Chave>
+            <Valor>{transacao.observacao}</Valor>
+          </>
+        ) : null}
+      </dl>
+
+      {/* Texto cru do extrato — imutável (regra 11). Para conferir contra o
+          documento, nunca editável. */}
+      {transacao.descricao_original ? (
+        <Secao titulo="Texto original do banco">
+          <p className="text-apoio text-texto-apoio m-0 break-words">
+            {transacao.descricao_original}
+          </p>
+        </Secao>
+      ) : null}
+
+      {/* Origem: o rastro até o documento. Só em lançamento importado. */}
+      {transacao.importacao_id ? (
+        <Secao titulo="Origem">
+          <p className="text-apoio text-texto-2 m-0">
+            Importado de{" "}
+            <span className="text-texto font-medio">
+              {transacao.importacao_arquivo ?? "arquivo sem nome"}
+            </span>
+            {transacao.importacao_em
+              ? ` em ${new Date(transacao.importacao_em).toLocaleDateString("pt-BR")}`
+              : null}
+            .
+          </p>
+          {/* A view não traz o tipo do arquivo; a sync da Pluggy grava o
+              comprovante como `.json`, e JSON não é "PDF original". */}
+          {transacao.importacao_arquivo?.toLowerCase().endsWith(".json") ? (
+            <p className="text-pequeno text-texto-2 m-0 mt-2">
+              Veio da sincronização com o banco: não há PDF para abrir.
+            </p>
+          ) : transacao.importacao_tem_arquivo ? (
+            <a
+              href={urlDaApi(`/importacoes/${transacao.importacao_id}/arquivo`)}
+              target="_blank"
+              rel="noreferrer"
+              className="text-apoio mt-2 inline-block font-semibold"
+            >
+              Abrir o PDF original
+            </a>
+          ) : (
+            // Importação anterior à migration 0004: o vínculo existe, o
+            // arquivo não foi guardado.
+            <p className="text-pequeno text-texto-2 m-0 mt-2">
+              O arquivo desta importação não foi guardado.
+            </p>
+          )}
+        </Secao>
+      ) : null}
+
+      <div className="mt-10 flex flex-wrap justify-end gap-4">
+        <Button variant="danger" disabled={excluindo} onClick={() => onExcluir(transacao.id)}>
+          {excluindo ? "Excluindo..." : "Excluir lançamento"}
+        </Button>
+        <Button variant="secondary" onClick={onFechar}>
+          Fechar
+        </Button>
       </div>
     </>
   );
 }
 
-function Chave({ children }: { children: React.ReactNode }) {
+function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
-    <dt className="text-caption text-text-tertiary tracking-label self-center uppercase">
+    <div className="linha-acima mt-8 pt-6">
+      <h3 className="text-apoio font-forte m-0 mb-2">{titulo}</h3>
       {children}
-    </dt>
+    </div>
   );
 }
 
-function Valor({ children }: { children: React.ReactNode }) {
-  return <dd className="text-text-primary">{children}</dd>;
+function Chave({ children }: { children: ReactNode }) {
+  return <dt className="text-apoio text-texto-2">{children}</dt>;
+}
+
+function Valor({ children }: { children: ReactNode }) {
+  return <dd className="text-texto m-0">{children}</dd>;
 }

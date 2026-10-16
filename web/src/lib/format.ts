@@ -104,6 +104,29 @@ export function reaisDoLancamento(valor: Valor, tipo: string | null | undefined)
   return corpo;
 }
 
+/**
+ * O valor que a pessoa digitou, como a API espera (`"1234.56"`), ou nulo.
+ *
+ * Aceita "186,40", "1.186,40", "R$ 1.186,40" e "186.40". Com vírgula, o
+ * ponto é milhar; sem vírgula, um ponto com uma ou duas casas depois é
+ * decimal. Tudo em texto: o número nunca passa por `float` (regra 1).
+ */
+export function valorDigitado(texto: string): string | null {
+  const limpo = texto.trim().replace(/^R\$/, "").replace(/\s/g, "");
+  let inteiro: string;
+  let fracao = "";
+  if (/^(\d{1,3}(\.\d{3})*|\d{1,10}),\d{1,2}$/.test(limpo)) {
+    [inteiro = "", fracao = ""] = limpo.replace(/\./g, "").split(",");
+  } else if (/^\d{1,10}\.\d{1,2}$/.test(limpo)) {
+    [inteiro = "", fracao = ""] = limpo.split(".");
+  } else if (/^(\d{1,3}(\.\d{3})+|\d{1,10})$/.test(limpo)) {
+    inteiro = limpo.replace(/\./g, "");
+  } else {
+    return null;
+  }
+  return `${inteiro.replace(/^0+(?=\d)/, "")}.${fracao.padEnd(2, "0")}`;
+}
+
 // --------------------------------------------------------------------------
 // Datas
 // --------------------------------------------------------------------------

@@ -11,6 +11,7 @@ from app.schemas.common import LoteResponse, OkResponse, Paginacao, paginacao
 from app.schemas.transacoes import (
     LoteAtribuir,
     LoteExcluir,
+    TotalDia,
     TransacaoCreate,
     TransacaoFiltros,
     TransacaoListagem,
@@ -50,6 +51,16 @@ def listar(session: SessionDep, filtros: FiltrosDep, pag: PaginacaoDep) -> Any:
 def competencias(session: SessionDep) -> Any:
     """Meses que têm lançamento — alimenta o seletor de período."""
     return TransacaoService(session).competencias_disponiveis()
+
+
+@router.get("/dias", response_model=list[TotalDia])
+def dias(session: SessionDep, filtros: FiltrosDep) -> Any:
+    """O total de cada dia do filtro, para a listagem agrupada por dia (D-22).
+
+    Despesas e receitas somadas no banco; transferências contam na
+    quantidade e ficam fora das somas (D-05).
+    """
+    return TransacaoService(session).dias(filtros)
 
 
 @router.get("/{id_}", response_model=TransacaoRead)

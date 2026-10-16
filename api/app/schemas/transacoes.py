@@ -181,6 +181,22 @@ class TotaisPeriodo(BaseModel):
     #: Receita menos despesa. Negativo quando se gastou mais do que entrou.
     resultado: Decimal
     por_balde: dict[str, Decimal]
+    #: Transferências do filtro, à parte: não entram em nenhuma soma (D-05).
+    total_transferencia: Decimal = Decimal("0")
+    quantidade_transferencias: int = 0
+    #: Despesas e receitas do filtro sem categoria — o atalho "N sem
+    #: categoria" (D-22). Conta sem o próprio filtro de sem categoria.
+    sem_categoria: int = 0
+
+
+class TotalDia(BaseModel):
+    """O total de um dia do filtro, para a listagem agrupada por dia (D-22)."""
+
+    data: date
+    despesas: Decimal
+    receitas: Decimal
+    #: Lançamentos do dia, transferências inclusive.
+    quantidade: int
 
 
 class TransacaoListagem(BaseModel):
@@ -229,8 +245,11 @@ class TransacaoFiltros(BaseModel):
     local: str | None = None
     valor_min: Decimal | None = None
     valor_max: Decimal | None = None
-    #: Busca em descrição, local e categoria.
+    #: Busca em descrição (a editável e a original), local, categoria e,
+    #: quando o texto é um número, no valor.
     texto: str | None = None
+    #: Só despesas e receitas sem categoria (D-22).
+    sem_categoria: bool = False
 
 
 def transacao_filtros(
@@ -246,6 +265,7 @@ def transacao_filtros(
     valor_min: Annotated[Decimal | None, Query(ge=0)] = None,
     valor_max: Annotated[Decimal | None, Query(ge=0)] = None,
     texto: Annotated[str | None, Query(max_length=200)] = None,
+    sem_categoria: Annotated[bool, Query()] = False,
 ) -> TransacaoFiltros:
     """Dependência de filtro, compartilhada por transações e analytics."""
     balde: BaldePessoa | None = None
@@ -265,4 +285,5 @@ def transacao_filtros(
         valor_min=valor_min,
         valor_max=valor_max,
         texto=texto,
+        sem_categoria=sem_categoria,
     )

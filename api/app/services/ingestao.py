@@ -440,13 +440,38 @@ class IngestaoService:
             "erros": erros,
         }
 
-    def _promover(self, item: ImportacaoItem) -> Transacao:
+    def confirmar_transferencia(
+        self, item_id: int, conta_origem_id: int, conta_destino_id: int
+    ) -> Transacao:
+        """Promove a transferência com as contas que a revisão escolheu (D-05, D-22).
+
+        É o `aprovar` da transferência: o staging não guarda as contas, então
+        elas vêm de quem decide. Quem chama trata a recusa do banco (conta
+        repetida, transação idêntica) dentro de um savepoint.
+        """
+        item = self._item_pendente(item_id)
+        if item.tipo_sugerido is not TipoTransacao.TRANSFERENCIA:
+            raise RegraViolada(f"Item {item_id} não é transferência.")
+        transacao = self._promover(item, conta_origem_id, conta_destino_id)
+        item.transacao_id = transacao.id
+        item.status = StatusItem.APROVADO
+        self.session.flush()
+        self._atualizar_contadores([item_id])
+        return transacao
+
+    def _promover(
+        self,
+        item: ImportacaoItem,
+        conta_origem_id: int | None = None,
+        conta_destino_id: int | None = None,
+    ) -> Transacao:
         if item.data is None or item.valor is None:
             raise RegraViolada("Item sem data ou valor não pode ser promovido.")
 
         tipo = item.tipo_sugerido or TipoTransacao.DESPESA
+        transferencia = tipo is TipoTransacao.TRANSFERENCIA
 
-        if tipo is TipoTransacao.TRANSFERENCIA:
+        if transferencia and (conta_origem_id is None or conta_destino_id is None):
             # `transacoes` exige origem e destino diferentes, e o parser não
             # sabe quais contas são. Sem isso o check do banco recusaria com
             # mensagem críptica; aqui a recusa explica o que fazer.
@@ -464,11 +489,14 @@ class IngestaoService:
             descricao=_descricao_curta(item),
             # Texto cru do extrato, imutável (regra 11).
             descricao_original=item.linha_bruta,
-            categoria_id=item.categoria_sugerida_id,
+            # Transferência não tem categoria (check `transferencia_coerente`).
+            categoria_id=None if transferencia else item.categoria_sugerida_id,
             pessoa_id=item.pessoa_sugerida_id,
             forma_pagamento_id=item.forma_pagamento_sugerida_id,
             local_id=item.local_sugerido_id,
             importacao_id=item.importacao_id,
+            conta_origem_id=conta_origem_id if transferencia else None,
+            conta_destino_id=conta_destino_id if transferencia else None,
         )
         self.session.add(transacao)
         self.session.flush()
@@ -588,7 +616,11 @@ _PREFIXO_GATEWAY = re.compile(r"^(?:[a-z]{2,4}\s?\*)\s*", re.I)
 
 def _descricao_curta(item: ImportacaoItem) -> str:
     """A descrição editável, derivada da linha crua."""
-    bruta = item.linha_bruta
+    return descricao_curta(item.linha_bruta)
+
+
+def descricao_curta(bruta: str) -> str:
+    """A descrição que a promoção grava, a partir da linha crua do item."""
     # Tira data, final do cartão e valor, sobrando o estabelecimento.
     limpo = re.sub(r"^\d{2}\s+[A-Z]{3}\s+(?:•+\s*\d{4}\s+)?", "", bruta)
     limpo = re.sub(r"\s+[−-]?R?\$?\s?[\d.]+,\d{2}$", "", limpo)

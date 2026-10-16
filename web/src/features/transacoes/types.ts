@@ -74,6 +74,20 @@ export interface TotaisPeriodo {
   resultado: Dinheiro;
   /** Chave é o id da pessoa em texto, ou `conjunto`. */
   por_balde: Record<string, Dinheiro>;
+  /** Transferências do filtro, à parte: fora de todas as somas (D-05). */
+  total_transferencia: Dinheiro;
+  quantidade_transferencias: number;
+  /** Despesas e receitas sem categoria — o atalho "N sem categoria" (D-22). */
+  sem_categoria: number;
+}
+
+/** O total de um dia do filtro, somado no banco (`/transacoes/dias`). */
+export interface TotalDia {
+  data: string;
+  despesas: Dinheiro;
+  receitas: Dinheiro;
+  /** Lançamentos do dia, transferências inclusive. */
+  quantidade: number;
 }
 
 export interface TransacaoListagem {

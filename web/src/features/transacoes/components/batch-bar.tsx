@@ -1,14 +1,16 @@
-import { useState } from "react";
-
-import { Button, Select } from "@/components/ui/controls";
-import { useCategoriaOpcoes, usePessoas } from "@/features/cadastros/queries";
+import { BotaoIcone, SelectSobreposto } from "@/components/ui/controls";
+import { Icone } from "@/components/ui/icone";
+import { useGruposDeCategoria, usePessoas } from "@/features/cadastros/queries";
+import { ROTULO_JUNTOS } from "@/features/filters/baldes";
 import type { BaldePessoa } from "@/features/filters/types";
 
 /**
- * Barra de ação em lote. Aparece quando há seleção.
+ * Barra de ação em lote (`LancamentosDesktop`): escura, flutuando no pé da
+ * tela enquanto há seleção. "Definir categoria" e "Definir pessoa" aplicam
+ * na hora em que se escolhe; a categoria em lote também vira regra (D-09).
  *
- * É o que torna a tela útil de verdade depois de uma importação: corrigir 40
- * categorias erradas de uma vez em vez de uma a uma.
+ * A exclusão em lote, que a tela anterior tinha, continua aqui, atrás de uma
+ * confirmação: é soft delete e volta pela auditoria (D-06).
  */
 export function BatchBar({
   quantidade,
@@ -23,71 +25,90 @@ export function BatchBar({
   onCancelar: () => void;
   ocupado: boolean;
 }) {
-  const [categoriaId, setCategoriaId] = useState<string>("");
-  const [pessoa, setPessoa] = useState<string>("");
-
-  const { data: categorias } = useCategoriaOpcoes();
+  const { data: grupos } = useGruposDeCategoria();
   const { data: pessoas = [] } = usePessoas();
-
-  const nadaEscolhido = categoriaId === "" && pessoa === "";
+  const escolha = "text-apoio rounded-botao bg-escuro-botao min-h-22 px-7 font-semibold text-white";
 
   return (
-    <div className="bg-surface border-border-faint flex flex-wrap items-center gap-4 border-b px-8 py-5">
-      <span className="text-body text-text-primary mr-2 font-semibold">
-        {quantidade} selecionada{quantidade > 1 ? "s" : ""}
+    <div
+      role="region"
+      aria-label="Ações em lote"
+      className="bg-escuro rounded-cartao shadow-flutuante fixed bottom-12 left-1/2 z-30 hidden -translate-x-1/2 items-center gap-5 py-5 pr-5 pl-9 text-white md:ml-19 md:flex lg:ml-62"
+    >
+      <span className="text-corpo pr-3 font-semibold whitespace-nowrap" aria-live="polite">
+        {quantidade} selecionado{quantidade > 1 ? "s" : ""}
       </span>
 
-      <Select
-        value={categoriaId}
-        onChange={(e) => setCategoriaId(e.target.value)}
-        aria-label="Categoria para aplicar em lote"
+      <SelectSobreposto
+        rotulo="Definir categoria dos selecionados"
+        mostrar="Definir categoria"
+        value=""
+        disabled={ocupado}
+        onChange={(e) => {
+          if (e.target.value) onAplicar({ categoriaId: Number(e.target.value), pessoa: null });
+        }}
+        className={escolha}
       >
-        <option value="">Categoria...</option>
-        {categorias.map((opcao) => (
-          <option key={opcao.id} value={opcao.id}>
-            {opcao.label}
-          </option>
+        <option value="" disabled>
+          Definir categoria
+        </option>
+        {grupos.map((grupo) => (
+          <optgroup key={grupo.raizId} label={grupo.raizNome}>
+            {grupo.opcoes.map((opcao) => (
+              <option key={opcao.id} value={opcao.id}>
+                {opcao.nome}
+              </option>
+            ))}
+          </optgroup>
         ))}
-      </Select>
+      </SelectSobreposto>
 
-      <Select
-        value={pessoa}
-        onChange={(e) => setPessoa(e.target.value)}
-        aria-label="Pessoa para aplicar em lote"
+      <SelectSobreposto
+        rotulo="Definir pessoa dos selecionados"
+        mostrar="Definir pessoa"
+        value=""
+        disabled={ocupado}
+        onChange={(e) => {
+          const valor = e.target.value;
+          if (!valor) return;
+          // "conjunto" limpa o dono: é NULL no banco, não uma pessoa (D-03).
+          onAplicar({
+            categoriaId: null,
+            pessoa: valor === "conjunto" ? "conjunto" : Number(valor),
+          });
+        }}
+        className={escolha}
       >
-        <option value="">Pessoa...</option>
+        <option value="" disabled>
+          Definir pessoa
+        </option>
         {pessoas.map((p) => (
           <option key={p.id} value={p.id}>
             {p.nome}
           </option>
         ))}
-        <option value="conjunto">Conjunto</option>
-      </Select>
+        <option value="conjunto">{ROTULO_JUNTOS}</option>
+      </SelectSobreposto>
 
-      <Button
-        disabled={nadaEscolhido || ocupado}
+      <BotaoIcone
+        rotulo="Excluir os selecionados"
+        disabled={ocupado}
         onClick={() => {
-          onAplicar({
-            categoriaId: categoriaId === "" ? null : Number(categoriaId),
-            // "conjunto" limpa o dono — é NULL no banco, não uma pessoa
-            // chamada "conjunto" (D-03).
-            pessoa: pessoa === "" ? null : pessoa === "conjunto" ? "conjunto" : Number(pessoa),
-          });
-          setCategoriaId("");
-          setPessoa("");
+          if (window.confirm(`Excluir ${quantidade} lançamento${quantidade > 1 ? "s" : ""}?`)) {
+            onExcluir();
+          }
         }}
-        className="px-6 py-3"
+        className="text-escuro-texto-2 bg-transparent hover:text-white"
       >
-        Aplicar
-      </Button>
-
-      <Button variant="danger" onClick={onExcluir} disabled={ocupado} className="px-6 py-3">
-        Excluir
-      </Button>
-
-      <Button variant="ghost" onClick={onCancelar} className="px-6 py-3">
-        Cancelar
-      </Button>
+        <Icone nome="lixeira" tamanho={16} />
+      </BotaoIcone>
+      <BotaoIcone
+        rotulo="Limpar seleção"
+        onClick={onCancelar}
+        className="text-escuro-texto-2 bg-transparent hover:text-white"
+      >
+        <Icone nome="fechar" tamanho={16} espessura={2.2} />
+      </BotaoIcone>
     </div>
   );
 }
