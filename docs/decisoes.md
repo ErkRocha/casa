@@ -564,4 +564,24 @@ Decisões de implementação, tomadas ao ligar o desenho:
   valores do dossiê como estão, com centavos, para a conferência do texto
   contra os números ser exata. O `#` do texto do modelo não aparece: repete
   o mês que o cabeçalho já mostra.
+- **Sincronização sem "Atualizar agora" e sem "próxima atualização".** A
+  sync roda pelo `make sync` no computador de casa e não há como dispará-la
+  pela API sem prender a requisição; o agendamento também não existe. A tela
+  diz que a atualização é manual e mostra o comando. Os dois ficam no
+  roadmap, na seção do redesenho.
+- **Contas por banco, sem schema novo.** O banco é a conexão da Pluggy
+  (`pluggy_item_id`) e o nome dele, as palavras comuns aos nomes das contas
+  ("Sicredi Conta Corrente" e "Sicredi Poupança" dão "Sicredi"). A situação
+  vem de `contas_pluggy` (mapeamento desativado é "pausado") e do último
+  lançamento (nada em 12 meses é "sem movimento"). Os cartões virtuais saem
+  do `cardNumber` das compras nos comprovantes recentes da sync.
+- **Categorias da Pluggy contadas no banco.** As transações consolidadas de
+  cada categoria são contadas pelo Postgres a partir do JSON guardado nos
+  comprovantes (`jsonb_path_query`), uma vez por transação. Categoria de
+  transferência aparece, mas não se traduz: nunca vira despesa (D-21).
+- **Regras: "confirmada N vezes".** O que existe é `acertos`, quantas vezes
+  uma correção reforçou a regra; não há contagem de uso nas importações sem
+  mudar o schema. A tela diz "confirmada", não "usada". A criação manual de
+  regra e o "aplicar as regras na revisão" ficam; o teste de padrão e a
+  edição em linha da tela anterior saem (apagar e criar de novo resolve).
 

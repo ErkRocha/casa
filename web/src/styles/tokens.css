@@ -58,6 +58,9 @@
   --radius-selo: 6px;
 
   --shadow-flutuante: 0 10px 30px rgba(23, 32, 51, 0.3);
+  /* Lista aberta de um filtro (Categoria, Pagamento): não está nas pranchetas,
+     que desenham só o botão; sombra leve e o contorno das linhas. */
+  --shadow-popover: 0 8px 24px rgba(23, 32, 51, 0.14), 0 0 0 1px var(--color-linha);
 
   /* --- Cor: superfícies -------------------------------------------------- */
   --color-fundo: #eef1f6; /* página */

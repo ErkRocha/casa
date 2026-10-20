@@ -53,8 +53,9 @@ function useInvalidar() {
   const client = useQueryClient();
   return () => {
     void client.invalidateQueries({ queryKey: regraKeys.todas });
-    // Reaplicar muda as sugestões do staging.
+    // Reaplicar muda as sugestões do staging, que a revisão mostra.
     void client.invalidateQueries({ queryKey: ["importacoes"] });
+    void client.invalidateQueries({ queryKey: ["revisar"] });
   };
 }
 
