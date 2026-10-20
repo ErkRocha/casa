@@ -10,58 +10,42 @@ import Markdown, { type Components } from "react-markdown";
  *   modelo escolheu (o sistema não vai à internet), e um link levaria para
  *   fora. Os dois saem; o texto do link fica.
  *
- * Os elementos permitidos ganham as classes do design (sem plugin de
- * tipografia): o resto do painel usa os mesmos tokens.
+ * Os elementos permitidos ganham o visual das pranchetas (`RelatoriosDesktop`):
+ * seções em 18px/650, texto em 16px com entrelinha 1,6. O título do mês já
+ * está no cabeçalho do artigo: o `#` do texto, que o repete, não aparece.
  */
 
 const PROIBIDOS = ["img", "a", "iframe", "script", "style"];
 
+const SECAO = "text-bloco-celular md:text-bloco font-forte m-0 mt-2 first:mt-0";
+
 const componentes: Components = {
-  h1: ({ children }) => (
-    <h3 className="text-title-lg text-text-primary mb-5 font-semibold">{children}</h3>
-  ),
-  h2: ({ children }) => (
-    <h4 className="text-caption text-text-tertiary tracking-caps-wide mt-9 mb-4 font-semibold uppercase">
-      {children}
-    </h4>
-  ),
-  h3: ({ children }) => (
-    <h5 className="text-body text-text-primary mt-7 mb-3 font-semibold">{children}</h5>
-  ),
-  p: ({ children }) => <p className="text-body text-text-secondary mb-5 leading-relaxed">{children}</p>,
-  ul: ({ children }) => <ul className="text-body text-text-secondary mb-5 list-disc pl-8">{children}</ul>,
-  ol: ({ children }) => (
-    <ol className="text-body text-text-secondary mb-5 list-decimal pl-8">{children}</ol>
-  ),
-  li: ({ children }) => <li className="mb-2 leading-relaxed">{children}</li>,
-  strong: ({ children }) => <strong className="text-text-primary font-semibold">{children}</strong>,
-  em: ({ children }) => <em className="text-text-tertiary">{children}</em>,
-  hr: () => <hr className="border-border-faint my-7" />,
+  h1: () => null,
+  h2: ({ children }) => <h3 className={SECAO}>{children}</h3>,
+  h3: ({ children }) => <h4 className="text-enfase font-forte m-0 mt-1">{children}</h4>,
+  p: ({ children }) => <p className="m-0 text-pretty">{children}</p>,
+  ul: ({ children }) => <ul className="m-0 flex list-disc flex-col gap-2 pl-9">{children}</ul>,
+  ol: ({ children }) => <ol className="m-0 flex list-decimal flex-col gap-2 pl-9">{children}</ol>,
+  li: ({ children }) => <li>{children}</li>,
+  strong: ({ children }) => <strong className="font-forte">{children}</strong>,
+  em: ({ children }) => <em className="text-texto-2">{children}</em>,
+  hr: () => <hr className="border-linha-suave my-2 w-full border-t" />,
   code: ({ children }) => (
-    <code className="bg-surface text-body-sm rounded-sm px-2 font-mono">{children}</code>
+    <code className="bg-superficie-2 text-apoio rounded-campo px-2 py-0.5">{children}</code>
   ),
   table: ({ children }) => (
-    <table className="text-body-sm text-text-secondary mb-5 w-full border-collapse">{children}</table>
+    <table className="text-apoio w-full border-collapse">{children}</table>
   ),
   th: ({ children }) => (
-    <th className="border-border-faint text-text-tertiary border-b py-2 pr-4 text-left">
-      {children}
-    </th>
+    <th className="linha-abaixo text-texto-2 py-3 pr-6 text-left font-semibold">{children}</th>
   ),
-  td: ({ children }) => (
-    <td className="border-border-faint tabular border-b py-2 pr-4">{children}</td>
-  ),
+  td: ({ children }) => <td className="linha-abaixo-suave py-3 pr-6">{children}</td>,
 };
 
 export function MarkdownSeguro({ texto }: { texto: string }) {
   return (
-    <div>
-      <Markdown
-        skipHtml
-        disallowedElements={PROIBIDOS}
-        unwrapDisallowed
-        components={componentes}
-      >
+    <div className="text-enfase flex max-w-[640px] flex-col gap-7 leading-[1.6]">
+      <Markdown skipHtml disallowedElements={PROIBIDOS} unwrapDisallowed components={componentes}>
         {texto}
       </Markdown>
     </div>

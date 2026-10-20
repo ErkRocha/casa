@@ -2,9 +2,7 @@ import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
-import { AnalyticsPage } from "@/features/analytics/analytics-page";
-import { ActiveChips } from "@/features/filters/active-chips";
-import { FilterBar } from "@/features/filters/filter-bar";
+import { AnalisesPage } from "@/features/analytics/analises-page";
 import { ImportacoesPage } from "@/features/ingestao/importacoes-page";
 import { InicioPage } from "@/features/inicio/inicio-page";
 import { MaisPage } from "@/features/navegacao/mais-page";
@@ -12,7 +10,7 @@ import { RegrasPage } from "@/features/regras/regras-page";
 import { RelatoriosPage } from "@/features/relatorios/relatorios-page";
 import { RevisarPage } from "@/features/revisar/revisar-page";
 import { LancamentosPage } from "@/features/transacoes/lancamentos-page";
-import { href, TITULO_DA_ROTA, useRota, type Rota } from "@/lib/rotas";
+import { TITULO_DA_ROTA, useRota, type Rota } from "@/lib/rotas";
 
 /**
  * As telas por endereço (D-22).
@@ -39,20 +37,9 @@ function Tela({ rota }: { rota: Rota }) {
     case "lancamentos":
       return <LancamentosPage />;
     case "analises":
-      return (
-        <TelaAnterior rota={rota} filtro>
-          <AnalyticsPage
-            onVerTransacoes={() => irPara("lancamentos")}
-            onRevisar={() => irPara("revisar")}
-          />
-        </TelaAnterior>
-      );
+      return <AnalisesPage />;
     case "relatorios":
-      return (
-        <TelaAnterior rota={rota}>
-          <RelatoriosPage />
-        </TelaAnterior>
-      );
+      return <RelatoriosPage />;
     case "categorias":
       return (
         <TelaAnterior rota={rota}>
@@ -80,20 +67,14 @@ function Tela({ rota }: { rota: Rota }) {
   }
 }
 
-function irPara(rota: Rota) {
-  window.location.hash = href(rota);
-}
-
 /** Tela do visual anterior, com o cabeçalho no estilo novo. Sai por fases. */
 function TelaAnterior({
   rota,
   acao,
-  filtro = false,
   children,
 }: {
   rota: Rota;
   acao?: ReactNode;
-  filtro?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -104,12 +85,6 @@ function TelaAnterior({
         </h1>
         {acao}
       </header>
-      {filtro ? (
-        <div className="bg-superficie rounded-bloco">
-          <FilterBar />
-          <ActiveChips />
-        </div>
-      ) : null}
       <div>{children}</div>
     </div>
   );
