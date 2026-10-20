@@ -96,7 +96,9 @@ export function UltimosLancamentos({
                     <td className="text-texto-2 py-6 pr-4">{diaEMes(t.data)}</td>
                     <td className="font-medio truncate py-6 pr-6">{t.descricao}</td>
                     <td className="text-texto-apoio truncate py-6 pr-6">
-                      {t.categoria_nome ?? "Sem categoria"}
+                      {t.tipo === "transferencia"
+                        ? "Transferência"
+                        : (t.categoria_nome ?? "Sem categoria")}
                     </td>
                     <td className="py-6 pr-6">
                       <FormaPagamentoTag

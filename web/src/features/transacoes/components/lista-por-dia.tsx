@@ -144,8 +144,8 @@ export function ListaPorDia({
             <colgroup>
               <col className="w-[46px]" />
               <col />
-              <col className="w-[24%]" />
-              <col className="w-[196px]" />
+              <col className="w-[22%]" />
+              <col className="w-[224px]" />
               <col className="w-[110px]" />
               <col className="w-[124px]" />
             </colgroup>

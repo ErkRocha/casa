@@ -10,6 +10,7 @@ import { InicioPage } from "@/features/inicio/inicio-page";
 import { MaisPage } from "@/features/navegacao/mais-page";
 import { RegrasPage } from "@/features/regras/regras-page";
 import { RelatoriosPage } from "@/features/relatorios/relatorios-page";
+import { RevisarPage } from "@/features/revisar/revisar-page";
 import { LancamentosPage } from "@/features/transacoes/lancamentos-page";
 import { href, TITULO_DA_ROTA, useRota, type Rota } from "@/lib/rotas";
 
@@ -59,6 +60,7 @@ function Tela({ rota }: { rota: Rota }) {
         </TelaAnterior>
       );
     case "revisar":
+      return <RevisarPage />;
     case "sincronizacao":
       return (
         <TelaAnterior rota={rota}>
