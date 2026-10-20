@@ -12,6 +12,7 @@ from app.db import engine
 from app.routers import (
     analytics,
     cadastros,
+    configuracoes,
     ingestao,
     pluggy,
     regras,
@@ -85,6 +86,7 @@ app.include_router(pluggy.categorias_router)
 app.include_router(relatorios.router)
 app.include_router(revisar.router)
 app.include_router(sincronizacao.router)
+app.include_router(configuracoes.router)
 
 
 @app.get("/health", tags=["infra"])

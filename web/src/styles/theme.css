@@ -48,11 +48,6 @@
     outline: 2px solid var(--color-destaque);
     outline-offset: 2px;
   }
-
-  /* Ainda usada pelas telas antigas; o número já é tabular na raiz. */
-  .tabular {
-    font-variant-numeric: tabular-nums;
-  }
 }
 
 @layer utilities {

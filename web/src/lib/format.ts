@@ -236,23 +236,11 @@ export function quandoRelativo(iso: string, agora: Date = new Date()): string {
 }
 
 // --------------------------------------------------------------------------
-// Geometria e as funções que a tela antiga de importações ainda usa
-// (sai na fase de configurações do redesenho).
+// Geometria
 // --------------------------------------------------------------------------
 
 /** Número para geometria de gráfico (altura de barra, posição de ponto). Nada é somado depois disso. */
 export function toNumero(value: Valor): number {
   if (value === null || value === undefined || value === "") return 0;
   return Number(value);
-}
-
-/** `R$ 1.234,56` a partir do texto da API, sem passar por float. */
-export function formatBRLTexto(value: Valor): string {
-  return reais(value);
-}
-
-/** `06/08/2026` a partir de uma data ISO (`2026-08-06`). */
-export function formatDate(isoDate: string): string {
-  const [year = "", month = "", day = ""] = isoDate.split("-");
-  return `${day}/${month}/${year}`;
 }
