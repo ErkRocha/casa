@@ -390,7 +390,7 @@ Na branch `redesign-front`, um commit por fase, sem schema novo.
 
 - [x] Base visual e Início
 - [x] Lançamentos e Revisar
-- [ ] Análises e Relatórios
+- [x] Análises e Relatórios
 - [ ] Configurações: contas e cartões, categorias, sincronização
 
 Pendências que o redesenho encontrou e não resolve sem mudar o schema:

@@ -1,25 +1,26 @@
 import { useMemo, useState } from "react";
 
-import { Card, CardTitle } from "@/components/ui/card";
-import { ApiError } from "@/lib/api";
-import { formatCompetencia, formatDate } from "@/lib/format";
+import { Card } from "@/components/ui/card";
+import { Pilula, Selo } from "@/components/ui/controls";
+import { Carregando, Falha } from "@/components/ui/estados";
+import { Icone } from "@/components/ui/icone";
+import { competenciaDe, diaDeMes, mesCurto, mesPorExtenso, nomeDoMes, reais, somarMeses } from "@/lib/format";
+import { href } from "@/lib/rotas";
 import { cn } from "@/lib/utils";
 import { DossiePainel } from "./components/dossie-painel";
 import { MarkdownSeguro } from "./components/markdown-seguro";
 import { useRelatorio, useRelatorios } from "./queries";
-import type { RelatorioResumo } from "./types";
+import type { RelatorioDetalhe, RelatorioResumo } from "./types";
 
 /**
- * Relatórios do mês — fase 6. Só leitura.
- *
- * Meses à esquerda, o relatório à direita, e ao lado do texto os números que
- * o produziram: o texto vem de um modelo e pode errar, os números vêm do
- * banco (regra 7). A geração continua pelo CLI no host (`make relatorio`);
- * não há botão de gerar aqui.
+ * Relatórios do mês (`RelatoriosDesktop`, `RelatoriosCelular`; D-22). Só
+ * leitura: os meses, o texto e, ao lado, os números que o produziram. O
+ * texto vem de um modelo e pode errar; os números vêm do banco (regra 7). A
+ * geração continua pelo CLI no computador de casa (`make relatorio`).
  */
 
-/** Quantos meses fechados aparecem na coluna, mesmo sem relatório. */
-const MESES_NA_COLUNA = 12;
+/** Quantos meses fechados aparecem na lista, mesmo sem relatório. */
+const MESES_NA_LISTA = 12;
 
 interface Entrada {
   chave: string;
@@ -29,184 +30,282 @@ interface Entrada {
 
 export function RelatoriosPage() {
   const lista = useRelatorios();
-  const entradas = useMemo(() => montarEntradas(lista.data?.items ?? []), [lista.data]);
+  const atualDoMes = competenciaDe(new Date());
+  const entradas = useMemo(
+    () => montarEntradas(lista.data?.items ?? [], atualDoMes),
+    [lista.data, atualDoMes],
+  );
   const [escolhida, setEscolhida] = useState<string | null>(null);
-
-  if (lista.isLoading) {
-    return <div className="bg-surface-sunken animate-shimmer h-120 rounded-md" />;
-  }
-  if (lista.error) {
-    return <Erro erro={lista.error} />;
-  }
 
   const atual =
     entradas.find((e) => e.chave === escolhida) ??
     entradas.find((e) => e.relatorio !== null) ??
     entradas[0];
+  const mesCorrenteSemRelatorio = !entradas.some(
+    (e) => e.competencia === atualDoMes && e.relatorio !== null,
+  );
 
   return (
-    <div className="flex items-start gap-8">
-      <Card className="w-80 shrink-0 py-3">
-        {entradas.map((e) => (
-          <button
-            key={e.chave}
-            type="button"
-            aria-current={e.chave === atual?.chave ? "true" : undefined}
-            onClick={() => setEscolhida(e.chave)}
-            className={cn(
-              "flex w-full cursor-pointer items-center gap-4 px-7 py-4 text-left",
-              e.chave === atual?.chave ? "bg-surface" : "hover:bg-surface",
-            )}
-          >
-            <span
-              className={cn(
-                "text-body flex-1",
-                e.relatorio ? "text-text-primary font-medium" : "text-text-tertiary",
-              )}
-            >
-              {formatCompetencia(e.competencia)}
-              {e.relatorio && e.relatorio.tipo !== "mensal" ? ` · ${e.relatorio.tipo}` : ""}
-            </span>
-            <span className="text-tag text-text-tertiary tracking-label-wide uppercase">
-              {e.relatorio ? (e.relatorio.com_ia ? "IA" : "seco") : "—"}
-            </span>
-          </button>
-        ))}
-      </Card>
+    <div className="flex max-w-[1100px] flex-col gap-7 md:gap-8">
+      <header className="flex items-center gap-4">
+        <a
+          href={href("mais")}
+          aria-label="Voltar"
+          className="bg-superficie text-texto rounded-interno flex size-22 shrink-0 items-center justify-center md:hidden"
+        >
+          <Icone nome="esquerda" />
+        </a>
+        <h1 className="md:text-pagina m-0 text-[22px] font-bold tracking-[-0.3px] md:tracking-[-0.4px]">
+          Relatórios do mês
+        </h1>
+      </header>
 
-      <div className="min-w-0 flex-1">
-        {atual?.relatorio ? (
-          <Detalhe id={atual.relatorio.id} />
-        ) : atual ? (
-          <SemRelatorio competencia={atual.competencia} />
-        ) : null}
-      </div>
+      {lista.isLoading ? (
+        <Carregando rotulo="Carregando os relatórios" alturas={["h-160"]} />
+      ) : lista.isError ? (
+        <Falha
+          titulo="Não foi possível carregar os relatórios"
+          erro={lista.error}
+          onTentar={() => void lista.refetch()}
+        />
+      ) : (
+        <>
+          {/* Celular: os meses em pílulas. */}
+          <nav aria-label="Meses" className="-mx-7 flex gap-4 overflow-x-auto px-7 md:hidden">
+            {entradas.map((e) => (
+              <Pilula
+                key={e.chave}
+                fundo="superficie"
+                ativa={e.chave === atual?.chave}
+                aria-current={e.chave === atual?.chave ? "page" : undefined}
+                onClick={() => setEscolhida(e.chave)}
+                className={cn(!e.relatorio && e.chave !== atual?.chave && "text-texto-inativo")}
+              >
+                {e.competencia.slice(0, 4) === atualDoMes.slice(0, 4)
+                  ? mesCurto(e.competencia).split(" ")[0]
+                  : mesCurto(e.competencia)}
+                <span className="sr-only">
+                  {`${e.competencia.slice(0, 4) === atualDoMes.slice(0, 4) ? ` de ${e.competencia.slice(0, 4)}` : ""}${e.relatorio ? "" : ", sem relatório"}`}
+                </span>
+              </Pilula>
+            ))}
+          </nav>
+
+          <div className="flex flex-col items-start gap-8 lg:flex-row">
+            {/* Computador: a lista de meses à esquerda. */}
+            <nav
+              aria-label="Meses"
+              className="bg-superficie rounded-bloco hidden w-full flex-col gap-1 p-4 md:flex lg:w-[230px] lg:shrink-0"
+            >
+              {entradas.map((e) => {
+                const ativa = e.chave === atual?.chave;
+                return (
+                  <button
+                    key={e.chave}
+                    type="button"
+                    aria-current={ativa ? "page" : undefined}
+                    onClick={() => setEscolhida(e.chave)}
+                    className={cn(
+                      "rounded-interno text-texto flex min-h-22 cursor-pointer items-center justify-between gap-4 border-none px-6 text-left",
+                      ativa ? "bg-destaque-fundo" : "hover:bg-superficie-2 bg-transparent",
+                    )}
+                  >
+                    <span className={cn("text-corpo", ativa ? "font-forte" : "font-normal")}>
+                      {e.competencia.slice(0, 4) === atualDoMes.slice(0, 4)
+                        ? nomeDoMesCapital(e.competencia)
+                        : mesCurto(e.competencia)}
+                      {e.relatorio && e.relatorio.tipo !== "mensal" ? `, ${e.relatorio.tipo}` : ""}
+                    </span>
+                    <SeloDoMes relatorio={e.relatorio} />
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="flex w-full min-w-0 flex-1 flex-col gap-7 md:gap-8 lg:flex-row lg:items-start">
+              {atual?.relatorio ? (
+                <Detalhe id={atual.relatorio.id} />
+              ) : atual ? (
+                <SemRelatorio competencia={atual.competencia} />
+              ) : null}
+            </div>
+          </div>
+
+          {mesCorrenteSemRelatorio && atual?.competencia !== atualDoMes ? (
+            <Card className="hidden flex-wrap items-center gap-6 px-11 py-9 md:flex">
+              <span className="flex flex-[1_1_320px] flex-col gap-1">
+                <span className="text-corpo font-forte">
+                  {nomeDoMesCapital(atualDoMes)} ainda não tem relatório
+                </span>
+                <span className="text-apoio text-texto-2">
+                  Ele é gerado depois que o mês fecha. Para gerar agora, rode no computador de casa:
+                </span>
+              </span>
+              <Comando competencia={atualDoMes} />
+            </Card>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
 
 function Detalhe({ id }: { id: number }) {
-  const { data: relatorio, isLoading, error } = useRelatorio(id);
+  const { data: relatorio, isLoading, error, refetch } = useRelatorio(id);
 
-  if (isLoading) return <div className="bg-surface-sunken animate-shimmer h-120 rounded-md" />;
-  if (error) return <Erro erro={error} />;
-  if (!relatorio) return null;
+  if (isLoading) return <Carregando rotulo="Carregando o relatório" alturas={["h-160"]} className="w-full" />;
+  if (error || !relatorio) {
+    return (
+      <div className="w-full">
+        <Falha titulo="Não foi possível abrir o relatório" erro={error} onTentar={() => void refetch()} />
+      </div>
+    );
+  }
 
   return (
     <>
-      <div className="mb-8 flex flex-wrap items-baseline gap-x-6 gap-y-2">
-        <h2 className="text-title-lg text-text-primary font-semibold">
-          {formatCompetencia(relatorio.competencia)}
-        </h2>
-        <span
-          className={cn(
-            "text-tag tracking-label-wide rounded-sm px-3 py-1 uppercase",
-            relatorio.com_ia ? "bg-accent-soft text-accent" : "bg-surface-sunken text-text-secondary",
-          )}
-        >
-          {relatorio.com_ia ? "Com IA" : "Seco · só números"}
-        </span>
-        <span className="text-body-sm text-text-tertiary">
-          prompt <span className="font-mono">{relatorio.prompt_versao}</span>
-          {" · "}gerado em {formatarMomento(relatorio.criado_em)}
-          {relatorio.periodo_inicio && relatorio.periodo_fim
-            ? ` · dados de ${formatCompetencia(relatorio.periodo_inicio)} a ${formatCompetencia(
-                mesAnterior(relatorio.periodo_fim),
-              )}`
-            : ""}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-[minmax(0,1fr)_22rem] items-start gap-8">
-        <Card className="p-10">
-          {relatorio.com_ia ? (
-            <p className="text-caption text-text-tertiary mb-7">
-              Texto escrito por modelo a partir dos números ao lado. Confira qualquer afirmação
-              contra eles: se um número do texto não está lá, o texto errou.
-            </p>
-          ) : null}
-          <MarkdownSeguro texto={relatorio.conteudo} />
+      {/* Celular: despesas, receitas e sobra antes do texto. */}
+      {relatorio.dossie?.resumo ? (
+        <Card className="grid w-full grid-cols-3 gap-4 p-8 md:hidden">
+          <Resumo rotulo="Despesas" valor={relatorio.dossie.resumo.despesas} />
+          <Resumo rotulo="Receitas" valor={relatorio.dossie.resumo.receitas} receita />
+          <Resumo rotulo="Sobra" valor={relatorio.dossie.resumo.saldo} />
         </Card>
+      ) : null}
 
-        <div>
-          <CardTitle className="mb-5">Números do dossiê</CardTitle>
-          {relatorio.dossie ? (
-            <DossiePainel dossie={relatorio.dossie} />
-          ) : (
-            <Card className="p-7">
-              <p className="text-body-sm text-text-tertiary">
-                Este relatório foi gravado sem o dossiê de números.
-              </p>
-            </Card>
-          )}
+      <Artigo relatorio={relatorio} />
+
+      {/* Computador: os números ao lado. */}
+      <aside aria-label="Números usados no relatório" className="hidden w-full md:block lg:w-[280px] lg:shrink-0">
+        {relatorio.dossie ? (
+          <DossiePainel dossie={relatorio.dossie} />
+        ) : (
+          <SemDossie />
+        )}
+      </aside>
+
+      {/* Celular: os números recolhidos. */}
+      <details className="bg-superficie rounded-bloco w-full px-9 py-8 md:hidden">
+        <summary className="text-corpo font-forte flex min-h-22 cursor-pointer items-center">
+          Ver os números que o relatório usou
+        </summary>
+        <div className="pt-4">
+          {relatorio.dossie ? <DossiePainel dossie={relatorio.dossie} solto={false} /> : <SemDossie />}
         </div>
-      </div>
+      </details>
     </>
   );
 }
 
-function SemRelatorio({ competencia }: { competencia: string }) {
-  const mes = competencia.slice(0, 7);
+function Artigo({ relatorio }: { relatorio: RelatorioDetalhe }) {
+  const quando = diaDeMes(dataLocal(new Date(relatorio.criado_em)));
   return (
-    <Card className="p-12">
-      <h2 className="text-title-lg text-text-primary mb-4 font-semibold">
-        {formatCompetencia(competencia)}
-      </h2>
-      <p className="text-body text-text-secondary mb-7">
-        Ainda não há relatório deste mês. A geração roda no computador de casa, pelo terminal:
-      </p>
-      <pre className="bg-surface text-body text-text-primary rounded-md px-7 py-5 font-mono select-all">
-        make relatorio m={mes}
-      </pre>
-      <p className="text-body-sm text-text-tertiary mt-7">
-        Depois de gerado, ele aparece aqui com os números que o produziram.
-      </p>
-    </Card>
+    <article className="bg-superficie rounded-bloco flex w-full min-w-0 flex-1 flex-col gap-7 px-9 py-10 md:px-15 md:py-13">
+      <header className="linha-abaixo-suave flex flex-col gap-3 pb-5">
+        <div className="flex flex-wrap items-center gap-5">
+          <h2 className="md:text-valor-medio m-0 text-[20px] font-bold">
+            {mesPorExtenso(relatorio.competencia)}
+          </h2>
+          <Selo tom={relatorio.com_ia ? "destaque" : "neutro"}>
+            {relatorio.com_ia ? "Escrito com IA" : "Só números"}
+          </Selo>
+        </div>
+        <p className="text-pequeno md:text-apoio text-texto-2 m-0">
+          Gerado em {quando}
+          <span className="hidden md:inline">
+            {relatorio.com_ia
+              ? ". Os números ao lado são exatamente os que o modelo recebeu; se um número do texto não está lá, o texto errou."
+              : ", só a partir dos números ao lado, sem modelo."}
+          </span>{" "}
+          <span className="text-texto-inativo">({relatorio.prompt_versao})</span>
+        </p>
+      </header>
+      <MarkdownSeguro texto={relatorio.conteudo} />
+    </article>
   );
 }
 
-function Erro({ erro }: { erro: unknown }) {
+function SemRelatorio({ competencia }: { competencia: string }) {
   return (
-    <p role="alert" className="text-body-sm text-expense">
-      {erro instanceof ApiError ? erro.detail : "Não foi possível carregar os relatórios."}
+    <article className="bg-superficie rounded-bloco flex w-full flex-col items-start gap-5 px-9 py-10 md:px-15 md:py-13">
+      <h2 className="md:text-valor-medio m-0 text-[20px] font-bold">{mesPorExtenso(competencia)}</h2>
+      <p className="text-corpo text-texto-2 m-0 leading-normal">
+        Este mês ainda não tem relatório. Ele é gerado no computador de casa, pelo terminal:
+      </p>
+      <Comando competencia={competencia} />
+      <p className="text-apoio text-texto-2 m-0">
+        Depois de gerado, aparece aqui com os números que o produziram.
+      </p>
+    </article>
+  );
+}
+
+function SemDossie() {
+  return (
+    <p className="text-apoio text-texto-2 bg-superficie rounded-bloco m-0 px-10 py-9">
+      Este relatório foi gravado sem o dossiê de números.
     </p>
   );
 }
 
-/**
- * Os últimos meses fechados, com ou sem relatório, mais qualquer mês que
- * tenha relatório fora dessa janela. Mais recente primeiro.
- */
-function montarEntradas(relatorios: RelatorioResumo[]): Entrada[] {
-  const porChave = new Map<string, Entrada>();
+function Comando({ competencia }: { competencia: string }) {
+  return (
+    <code className="bg-superficie-2 text-apoio rounded-campo px-6 py-4 select-all">
+      make relatorio m={competencia.slice(0, 7)}
+    </code>
+  );
+}
 
-  const hoje = new Date();
-  for (let i = 1; i <= MESES_NA_COLUNA; i++) {
-    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-    const competencia = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+function Resumo({ rotulo, valor, receita = false }: { rotulo: string; valor?: string; receita?: boolean }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-selo text-texto-2">{rotulo}</span>
+      <span className={cn("text-enfase font-bold", receita && "text-receita")}>
+        {reais(valor, { centavos: false })}
+      </span>
+    </div>
+  );
+}
+
+function SeloDoMes({ relatorio }: { relatorio: RelatorioResumo | null }) {
+  const classe = "text-selo font-semibold whitespace-nowrap";
+  if (!relatorio) return <Selo tom="inativo" className={classe}>Sem relatório</Selo>;
+  return relatorio.com_ia ? (
+    <Selo tom="destaque" className={classe}>Com IA</Selo>
+  ) : (
+    <Selo tom="neutro" className={classe}>Só números</Selo>
+  );
+}
+
+/** `2026-10-01` do dia local de um instante (o `criado_em` vem em UTC). */
+function dataLocal(momento: Date): string {
+  const mes = String(momento.getMonth() + 1).padStart(2, "0");
+  const dia = String(momento.getDate()).padStart(2, "0");
+  return `${momento.getFullYear()}-${mes}-${dia}`;
+}
+
+function nomeDoMesCapital(competencia: string): string {
+  const nome = nomeDoMes(Number(competencia.slice(5, 7)));
+  return nome.charAt(0).toUpperCase() + nome.slice(1);
+}
+
+/**
+ * O mês corrente, os últimos meses fechados e qualquer mês que tenha
+ * relatório fora dessa janela. Mais recente primeiro.
+ */
+function montarEntradas(relatorios: RelatorioResumo[], corrente: string): Entrada[] {
+  const porChave = new Map<string, Entrada>();
+  for (let i = 0; i <= MESES_NA_LISTA; i++) {
+    const competencia = somarMeses(corrente, -i);
     porChave.set(`${competencia}|mensal`, { chave: `${competencia}|mensal`, competencia, relatorio: null });
   }
   for (const r of relatorios) {
     const chave = `${r.competencia}|${r.tipo}`;
     porChave.set(chave, { chave, competencia: r.competencia, relatorio: r });
   }
-
   return [...porChave.values()].sort((a, b) =>
     a.competencia === b.competencia
       ? a.chave.localeCompare(b.chave)
       : b.competencia.localeCompare(a.competencia),
   );
-}
-
-/** O fim do período é exclusivo: `[jul/2025, ago/2026)` termina em julho. */
-function mesAnterior(competencia: string): string {
-  const [ano = 0, mes = 1] = competencia.split("-").map(Number);
-  const d = new Date(ano, mes - 2, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
-function formatarMomento(iso: string): string {
-  const d = new Date(iso);
-  const hora = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  return `${formatDate(iso.slice(0, 10))} ${hora}`;
 }

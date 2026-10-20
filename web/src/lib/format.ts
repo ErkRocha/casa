@@ -236,81 +236,19 @@ export function quandoRelativo(iso: string, agora: Date = new Date()): string {
 }
 
 // --------------------------------------------------------------------------
-// Funções das telas ainda não redesenhadas. Saem com elas.
+// Geometria e as funções que a tela antiga de importações ainda usa
+// (sai na fase de configurações do redesenho).
 // --------------------------------------------------------------------------
 
-const brlEixo = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
-const percentual = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
-
-/** `R$ 1.234,56` a partir de número — só rótulo de gráfico antigo. */
-export function formatBRL(value: number): string {
-  return reais(value.toFixed(2));
-}
-
-/** `R$ 1.234,56` a partir do texto da API, sem passar por float. */
-export function formatBRLTexto(value: Valor): string {
-  return reais(value);
-}
-
-/** Número para geometria de gráfico. Nada é somado depois disso. */
+/** Número para geometria de gráfico (altura de barra, posição de ponto). Nada é somado depois disso. */
 export function toNumero(value: Valor): number {
   if (value === null || value === undefined || value === "") return 0;
   return Number(value);
 }
 
-/** `R$ 1.235` — rótulo de eixo, sem centavos. */
-export function formatBRLAxis(value: number): string {
-  return `R$ ${brlEixo.format(Math.round(value))}`;
-}
-
-/** `1,2k` acima de mil, senão o inteiro. Rótulo em cima da barra. */
-export function formatBRLCompact(value: number): string {
-  if (Math.abs(value) >= 1000) {
-    return `${(value / 1000).toFixed(1).replace(".", ",")}k`;
-  }
-  return String(Math.round(value));
-}
-
-/** `42%`. */
-export function formatPercent(value: number): string {
-  return `${percentual.format(value)}%`;
-}
-
-/** Delta percentual com seta, para a tela antiga de analytics. */
-export function formatDelta(
-  current: number,
-  base: number,
-): { label: string; tone: "up" | "down" | "flat" } | null {
-  if (base === 0) return null;
-  const delta = ((current - base) / base) * 100;
-  if (Math.abs(delta) < 0.05) return { label: "0,0%", tone: "flat" };
-  const arrow = delta > 0 ? "↑" : "↓";
-  return {
-    label: `${arrow} ${Math.abs(delta).toFixed(1).replace(".", ",")}%`,
-    tone: delta > 0 ? "up" : "down",
-  };
-}
-
-const MES_CURTO = [
-  "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
-  "Jul", "Ago", "Set", "Out", "Nov", "Dez",
-] as const;
-
-/** `Ago` — mês 1..12. */
-export function monthShort(month: number): string {
-  return MES_CURTO[month - 1] ?? "";
-}
-
-/** `Ago/2026` a partir de uma competência ISO (`2026-08-01`). */
-export function formatCompetencia(competencia: string): string {
-  const [year = "", month = ""] = competencia.split("-");
-  return `${monthShort(Number(month))}/${year}`;
-}
-
-/** `Ago` — só o mês, para o eixo X da evolução mensal. */
-export function competenciaMonthLabel(competencia: string): string {
-  const [, month = ""] = competencia.split("-");
-  return monthShort(Number(month));
+/** `R$ 1.234,56` a partir do texto da API, sem passar por float. */
+export function formatBRLTexto(value: Valor): string {
+  return reais(value);
 }
 
 /** `06/08/2026` a partir de uma data ISO (`2026-08-06`). */

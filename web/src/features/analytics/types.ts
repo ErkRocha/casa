@@ -1,107 +1,71 @@
-/**
- * Espelho dos schemas de Analytics da API (snake_case, como vem no JSON).
- *
- * Tudo aqui já chega somado, ordenado e com percentual pronto: o front recebe
- * e desenha (D-14). Nenhum componente recalcula nada disto.
- *
- * Dinheiro é string pelo mesmo motivo de `transacoes/types.ts`: `numeric(12,2)`
- * virando number em JS perde centavo. Converter para número só na hora de
- * medir uma barra é seguro — somar não é.
- */
+/** Espelho de `app/schemas/analises.py` (D-22). */
 
+import type { FaixaOrcamento } from "@/features/inicio/types";
 import type { Dinheiro } from "@/features/transacoes/types";
 
-export type { Dinheiro };
+export type Periodo = "mes" | "3m" | "12m";
 
-/** Competência ISO — sempre o dia 1º do mês de referência (D-02). */
-export type Competencia = string;
-
-export interface PontoMensal {
-  competencia: Competencia;
-  pessoa_a: Dinheiro;
-  pessoa_b: Dinheiro;
-  conjunto: Dinheiro;
-  total: Dinheiro;
-  /** Mês corrente: total parcial, recebe realce na tela. */
+export interface MesAnalise {
+  competencia: string;
+  despesas: Dinheiro;
+  receitas: Dinheiro;
+  /** O mês corrente: valores até hoje. */
   em_curso: boolean;
 }
 
-export interface EvolucaoMensal {
-  pontos: PontoMensal[];
-  media_total: Dinheiro;
-  /** Nome cadastrado das duas pessoas, na ordem das séries. */
-  rotulo_a: string;
-  rotulo_b: string;
-}
-
-export interface LinhaComposicao {
+export interface SubcategoriaAnalise {
   categoria_id: number;
   nome: string;
-  /** Token de cor da categoria (`cat-3`). */
-  cor: string | null;
   valor: Dinheiro;
-  percentual: Dinheiro;
-  /** `false` numa folha: não há para onde descer. */
-  tem_filhos: boolean;
 }
 
-export interface ComposicaoCategoria {
-  categoria_pai: { categoria_id: number; nome: string } | null;
-  linhas: LinhaComposicao[];
-  total_nivel: Dinheiro;
-}
-
-export interface LinhaPessoa {
-  /** Id da pessoa em texto, ou `conjunto`. */
-  balde: string;
+export interface CategoriaAnalise {
+  /** Nulo = sem categoria. */
+  categoria_id: number | null;
   nome: string;
   valor: Dinheiro;
-  /** Os três somam 100, sem sobreposição (D-03). */
-  percentual: Dinheiro;
-  valor_anterior: Dinheiro;
+  subcategorias: SubcategoriaAnalise[];
 }
 
-export interface DivisaoPessoas {
-  competencia: Competencia;
-  linhas: LinhaPessoa[];
-  total: Dinheiro;
-}
-
-export type StatusOrcamento = "ok" | "atencao" | "estourado";
-
-export interface LinhaOrcamento {
+export interface MudancaCategoria {
   categoria_id: number;
   nome: string;
-  realizado: Dinheiro;
+  valor: Dinheiro;
+  media: Dinheiro;
+  /** Inteiro, com sinal: 42, −13. */
+  variacao: number;
+}
+
+export interface Mudancas {
+  referencia: string;
+  meses_base: number;
+  linhas: MudancaCategoria[];
+}
+
+export interface LinhaOrcamentoAnalise {
+  categoria_id: number;
+  nome: string;
+  gasto: Dinheiro;
   meta: Dinheiro;
-  percentual: Dinheiro;
-  status: StatusOrcamento;
+  percentual: number;
+  faixa: FaixaOrcamento;
+  /** Largura da barra, até 100. */
+  largura: number;
+  excesso: Dinheiro | null;
 }
 
-export interface ProgressoOrcamento {
-  competencia: Competencia;
-  linhas: LinhaOrcamento[];
-  /** Fração do mês decorrida (0–1), para o marcador de ritmo. */
-  fracao_decorrida: Dinheiro;
-}
-
-export interface LinhaComparativo {
-  chave: string;
-  label: string;
-  valor: Dinheiro;
-  valor_base: Dinheiro | null;
-  base_label: string | null;
-}
-
-export interface Comparativo {
-  linhas: LinhaComparativo[];
-}
-
-/** Retorno de `GET /analytics/resumo`. */
-export interface AnalyticsResumo {
-  evolucao_mensal: EvolucaoMensal;
-  composicao_categoria: ComposicaoCategoria;
-  divisao_pessoas: DivisaoPessoas;
-  orcamento: ProgressoOrcamento;
-  comparativo: Comparativo;
+export interface Analises {
+  periodo: Periodo;
+  inicio: string;
+  fim: string;
+  dia_referencia: number;
+  dias_no_mes: number;
+  meses: MesAnalise[];
+  meses_fechados: number;
+  base_categorias: "media_mensal" | "mes";
+  media_mensal: Dinheiro | null;
+  mes_mais_caro: MesAnalise | null;
+  categorias: CategoriaAnalise[];
+  mudancas: Mudancas | null;
+  orcamento: LinhaOrcamentoAnalise[];
 }

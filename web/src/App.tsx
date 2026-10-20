@@ -2,9 +2,7 @@ import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
-import { AnalyticsPage } from "@/features/analytics/analytics-page";
-import { ActiveChips } from "@/features/filters/active-chips";
-import { FilterBar } from "@/features/filters/filter-bar";
+import { AnalisesPage } from "@/features/analytics/analises-page";
 import { ImportacoesPage } from "@/features/ingestao/importacoes-page";
 import { InicioPage } from "@/features/inicio/inicio-page";
 import { MaisPage } from "@/features/navegacao/mais-page";
@@ -39,17 +37,9 @@ function Tela({ rota }: { rota: Rota }) {
     case "lancamentos":
       return <LancamentosPage />;
     case "analises":
-      return (
-        <TelaAnterior rota={rota} filtro>
-          <AnalyticsPage />
-        </TelaAnterior>
-      );
+      return <AnalisesPage />;
     case "relatorios":
-      return (
-        <TelaAnterior rota={rota}>
-          <RelatoriosPage />
-        </TelaAnterior>
-      );
+      return <RelatoriosPage />;
     case "categorias":
       return (
         <TelaAnterior rota={rota}>
@@ -81,12 +71,10 @@ function Tela({ rota }: { rota: Rota }) {
 function TelaAnterior({
   rota,
   acao,
-  filtro = false,
   children,
 }: {
   rota: Rota;
   acao?: ReactNode;
-  filtro?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -97,12 +85,6 @@ function TelaAnterior({
         </h1>
         {acao}
       </header>
-      {filtro ? (
-        <div className="bg-superficie rounded-bloco">
-          <FilterBar />
-          <ActiveChips />
-        </div>
-      ) : null}
       <div>{children}</div>
     </div>
   );

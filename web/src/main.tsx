@@ -3,7 +3,6 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import App from "./App";
-import { FilterProvider } from "@/features/filters/filter-context";
 import "./styles/index.css";
 
 const queryClient = new QueryClient({
@@ -19,10 +18,7 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      {/* Acima do roteamento: o filtro sobrevive à troca de tela. */}
-      <FilterProvider>
-        <App />
-      </FilterProvider>
+      <App />
     </QueryClientProvider>
   </StrictMode>,
 );

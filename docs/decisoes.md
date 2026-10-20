@@ -549,3 +549,19 @@ Decisões de implementação, tomadas ao ligar o desenho:
   gravado; o gasto já está nas compras do cartão (D-05). Quando outra conta
   paga a fatura e as duas pontas estão na revisão, confirmar grava a
   transferência entre as duas contas e descarta a outra ponta.
+- **Análises: média é dos meses fechados.** Em 3 e 12 meses, as categorias
+  aparecem pela média mensal dos meses fechados do período (mês sem gasto
+  conta como zero), e "o que mais mudou" compara o último mês fechado com a
+  média dos fechados antes dele. O mês corrente fica no gráfico, marcado
+  como parcial, e é o mês do orçamento. Em "este mês" não há mês fechado:
+  as categorias mostram o próprio mês e a comparação não aparece.
+- **Análises: a pessoa vale para a tela inteira, a meta é da casa.** Com
+  uma pessoa escolhida, o orçamento mostra o gasto dela contra a meta da
+  casa, e a tela diz isso. O gasto da meta soma a categoria raiz inteira, a
+  mesma regra de `vw_orcamento_mes`, para Início, Análises e relatório
+  dizerem o mesmo.
+- **Relatórios: números com centavos.** O painel ao lado do texto mostra os
+  valores do dossiê como estão, com centavos, para a conferência do texto
+  contra os números ser exata. O `#` do texto do modelo não aparece: repete
+  o mês que o cabeçalho já mostra.
+

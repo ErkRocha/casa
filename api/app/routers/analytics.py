@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_session
+from app.schemas.analises import Analises, Periodo
 from app.schemas.analytics import (
     AnalyticsResumo,
     Comparativo,
@@ -22,6 +23,7 @@ from app.schemas.analytics import (
 )
 from app.schemas.inicio import Inicio
 from app.schemas.transacoes import TransacaoFiltros, transacao_filtros
+from app.services.analises import AnalisesService
 from app.services.analytics import AnalyticsService
 from app.services.inicio import InicioService
 
@@ -103,3 +105,19 @@ def inicio(
     `situacao = "futuro"`.
     """
     return InicioService(session).resumo(competencia)
+
+
+@router.get("/analises", response_model=Analises)
+def analises(
+    session: SessionDep,
+    periodo: Annotated[Periodo, Query(description="mes, 3m ou 12m")] = "12m",
+    pessoa: Annotated[
+        str | None,
+        Query(pattern=r"^(\d+|conjunto)$", description="Id da pessoa ou `conjunto`"),
+    ] = None,
+) -> Any:
+    """A tela Análises (D-22): receitas e despesas por mês, categorias pela
+    média dos meses fechados, o que mais mudou contra a média e o orçamento
+    do mês. Período e pessoa valem para a tela inteira.
+    """
+    return AnalisesService(session).resumo(periodo, pessoa)

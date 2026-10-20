@@ -1,33 +1,27 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import type { BaldePessoa } from "@/features/filters/types";
 import { api, buildQuery } from "@/lib/api";
-import { filtrosParaQuery, type Filtros } from "@/features/filters/types";
-import type { AnalyticsResumo } from "./types";
+import type { Analises, Periodo } from "./types";
 
 export const analyticsKeys = {
   todas: ["analytics"] as const,
-  resumo: (filtros: Filtros, categoriaPaiId: number | null) =>
-    ["analytics", "resumo", filtros, categoriaPaiId] as const,
+  analises: (periodo: Periodo, pessoa: BaldePessoa | null) =>
+    ["analytics", "analises", periodo, pessoa] as const,
 };
 
 /**
- * Os cinco painéis numa chamada.
- *
- * Um endpoint em vez de cinco porque eles compartilham o mesmo recorte: cinco
- * requisições paralelas com o mesmo WHERE fariam o Postgres varrer o mesmo
- * índice cinco vezes por render.
+ * A tela Análises numa chamada: os quatro blocos dividem o mesmo período e a
+ * mesma pessoa, e tudo vem somado do banco (D-14).
  */
-export function useAnalyticsResumo(filtros: Filtros, categoriaPaiId: number | null) {
+export function useAnalises(periodo: Periodo, pessoa: BaldePessoa | null) {
   return useQuery({
-    queryKey: analyticsKeys.resumo(filtros, categoriaPaiId),
-    queryFn: () => {
-      const query = buildQuery({
-        ...filtrosParaQuery(filtros),
-        categoria_pai_id: categoriaPaiId,
-      });
-      return api.get<AnalyticsResumo>(`/analytics/resumo${query}`);
-    },
-    // Sem isto os gráficos somem a cada tecla digitada no filtro de texto.
-    placeholderData: (anterior) => anterior,
+    queryKey: analyticsKeys.analises(periodo, pessoa),
+    queryFn: () =>
+      api.get<Analises>(
+        `/analytics/analises${buildQuery({ periodo, pessoa: pessoa === null ? null : String(pessoa) })}`,
+      ),
+    // Trocar de período não esvazia a tela enquanto o novo carrega.
+    placeholderData: keepPreviousData,
   });
 }
