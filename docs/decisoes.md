@@ -536,3 +536,16 @@ Decisões de implementação, tomadas ao ligar o desenho:
   100%, estourado acima), calculadas pela API. Os avisos de orçamento seguem
   as detecções que já existiam (atenção a partir de 80%), as mesmas do
   relatório mensal, para a tela e o relatório não dizerem coisas diferentes.
+- **Revisão de duplicata: "são dois" só quando o banco aceita.** Dois itens
+  com a mesma data, valor, descrição original e forma de pagamento viram o
+  mesmo `hash_dedup`, e o índice único aceita só uma transação assim (D-07).
+  A tela oferece "são dois" apenas quando a forma difere; nos idênticos,
+  explica que só um entra e que o outro pode ser lançado à mão. Registrar os
+  dois exige mudar o schema: fica como pendência, não foi feito aqui.
+- **Pagamento de fatura de cartão da própria conta: confirmar descarta.** O
+  cartão é forma da conta que paga a fatura (Fase 5b), então a
+  transferência sairia e chegaria na mesma conta, o que o check
+  `transferencia_coerente` recusa. Confirmar rejeita o item com o motivo
+  gravado; o gasto já está nas compras do cartão (D-05). Quando outra conta
+  paga a fatura e as duas pontas estão na revisão, confirmar grava a
+  transferência entre as duas contas e descarta a outra ponta.

@@ -384,6 +384,24 @@ estiver instalado.
 
 ---
 
+## Redesenho do painel (D-22)
+
+Na branch `redesign-front`, um commit por fase, sem schema novo.
+
+- [x] Base visual e Início
+- [x] Lançamentos e Revisar
+- [ ] Análises e Relatórios
+- [ ] Configurações: contas e cartões, categorias, sincronização
+
+Pendências que o redesenho encontrou e não resolve sem mudar o schema:
+
+- **Duas compras idênticas no mesmo dia.** Mesma data, valor, descrição
+  original e forma de pagamento dão o mesmo `hash_dedup`, e só uma entra
+  (D-07). A revisão não oferece "são dois" nesse caso. Resolver pede um
+  desempate no hash (o id externo, por exemplo), decisão do subagent `db`.
+
+---
+
 ## Fase 7 — v2
 
 Tudo aditivo, sem quebrar o que existe:

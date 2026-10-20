@@ -28,7 +28,7 @@ export function CategoriaInline({
   const [escolhida, setEscolhida] = useState<number | null>(transacao.categoria_id);
 
   if (transacao.tipo === "transferencia") {
-    return <span className="text-apoio text-texto-2">Transferência</span>;
+    return <span className={cn("text-texto-2", compacta ? "text-selo" : "text-apoio")}>Transferência</span>;
   }
 
   const doTipo = grupos.filter((g) => g.tipo === transacao.tipo);
