@@ -17,7 +17,7 @@ function corDoValor(t: Transacao): string {
 }
 
 /**
- * "Últimos lançamentos" do mês, com a forma de pagamento legível (D-22).
+ * "Últimos lançamentos" do mês, com a forma de pagamento legível (D-24).
  * Tabela no computador, lista no celular — como nas pranchetas.
  */
 export function UltimosLancamentos({

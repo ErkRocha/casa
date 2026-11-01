@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { GRUPOS_COMPUTADOR } from "./navegacao";
 
 /**
- * Barra lateral do computador (`InicioDesktop` e afins, D-22).
+ * Barra lateral do computador (`InicioDesktop` e afins, D-24).
  *
  * A partir de 1024px fica sempre aberta. Entre 768 e 1023px é recolhível:
  * fechada mostra só os ícones, e o nome de cada tela continua lá para o

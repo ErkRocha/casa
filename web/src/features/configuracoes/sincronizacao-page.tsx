@@ -21,7 +21,7 @@ const DIAS_DO_HISTORICO = 30;
 const HORAS_EM_DIA = 36;
 
 /**
- * Sincronização (`SincronizacaoDesktop`; D-22): o estado da última
+ * Sincronização (`SincronizacaoDesktop`; D-24): o estado da última
  * atualização, as conexões com os bancos e o histórico com "Desfazer".
  *
  * Não há "Atualizar agora": a sync roda pelo `make sync` no computador de

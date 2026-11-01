@@ -1,4 +1,4 @@
-"""Telas de configuração (D-22): contas por banco, uso das categorias,
+"""Telas de configuração (D-24): contas por banco, uso das categorias,
 categorias da Pluggy e histórico de atualizações."""
 
 from __future__ import annotations
@@ -300,7 +300,21 @@ def test_historico_de_atualizacoes(client: TestClient, session: Session) -> None
     _comprovante(session, [], total_itens=5, criado_em=agora - timedelta(days=40))  # fora
 
     def item(imp: Importacao, status: StatusItem, **c: Any) -> None:
-        session.add(ImportacaoItem(importacao_id=imp.id, linha_bruta="L", status=status, **c))
+        if status is StatusItem.APROVADO:
+            # Aprovado sem transação o banco recusa (ck_..._aprovado_tem_transacao).
+            transacao = Transacao(
+                data=date(2026, 10, 1),
+                competencia=date(2026, 10, 1),
+                valor=Decimal(len(imp.itens) + 1 + imp.id * 100),
+                tipo=TipoTransacao.DESPESA,
+                descricao="L",
+            )
+            session.add(transacao)
+            session.flush()
+            c["transacao_id"] = transacao.id
+        novo = ImportacaoItem(importacao_id=imp.id, linha_bruta="L", status=status, **c)
+        session.add(novo)
+        imp.itens.append(novo)
 
     item(com_pendencia, StatusItem.APROVADO)
     item(com_pendencia, StatusItem.APROVADO)

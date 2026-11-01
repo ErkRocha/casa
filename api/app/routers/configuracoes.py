@@ -1,4 +1,4 @@
-"""Router das telas de configuração (D-22). Só leitura.
+"""Router das telas de configuração (D-24). Só leitura.
 
 As edições usam os CRUDs que já existem: `/contas`, `/formas-pagamento`,
 `/categorias`, `/regras` e `/categorias-pluggy`.

@@ -1,4 +1,4 @@
-"""A tela Início (D-22): o mês num relance.
+"""A tela Início (D-24): o mês num relance.
 
 Toda soma, diferença, percentual e a previsão saem do SQL abaixo; o Python
 só escolhe o mês e monta a resposta (regras 7 e 10, D-14). Transferência
@@ -38,7 +38,7 @@ from app.services.cadastros import primeiro_dia_do_mes
 
 #: Quantas categorias com nome a tela mostra; "Sem categoria" vem à parte.
 TOP_CATEGORIAS = 5
-#: Rótulo do balde conjunto na tela (D-22). Na API o balde é `conjunto`.
+#: Rótulo do balde conjunto na tela (D-24). Na API o balde é `conjunto`.
 ROTULO_JUNTOS = "Juntos"
 
 #: Dia da transação dentro do mês da competência: data antes do mês conta no

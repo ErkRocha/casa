@@ -1,6 +1,6 @@
 import { nomeDoMes, toNumero } from "@/lib/format";
 
-/** Textos e escala dos gráficos de Análises, fora dos componentes (D-22). */
+/** Textos e escala dos gráficos de Análises, fora dos componentes (D-24). */
 
 function mesDe(competencia: string): number {
   return Number(competencia.slice(5, 7));

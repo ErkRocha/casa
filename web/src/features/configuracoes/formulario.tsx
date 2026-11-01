@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { ApiError } from "@/lib/api";
 
-/** Campo e erro dos formulários das telas de configuração (D-22). */
+/** Campo e erro dos formulários das telas de configuração (D-24). */
 
 export function Campo({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   return (

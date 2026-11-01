@@ -3,7 +3,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Bloco do desenho (D-22): superfície branca, raio 20px. Tudo no painel é um
+ * Bloco do desenho (D-24): superfície branca, raio 20px. Tudo no painel é um
  * bloco destes sobre o fundo `#EEF1F6`.
  */
 

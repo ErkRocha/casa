@@ -25,7 +25,7 @@ const ID_PAINEL = "revisar-painel";
 const MOTIVOS_AVULSOS: Motivo[] = ["encargos", "observacao", "sem_categoria", "outros"];
 
 /**
- * Revisar (`RevisarDesktop`, `RevisarCelular`; D-22): só o que a sync não
+ * Revisar (`RevisarDesktop`, `RevisarCelular`; D-24): só o que a sync não
  * promoveu sozinha (D-21), por motivo. Duplicata e transferência têm decisão
  * própria; o resto se lança ou descarta como antes.
  */

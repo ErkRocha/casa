@@ -9,6 +9,7 @@ import type { BaldePessoa } from "@/features/filters/types";
 import { reais } from "@/lib/format";
 import { OQueMudou, OrcamentoDoMes, PorCategoria } from "./components/blocos";
 import { GraficoMeses } from "./components/grafico-meses";
+import { PorBanco } from "./components/por-banco";
 import { useAnalises } from "./queries";
 import { mesAbreviado, mesDoAno } from "./textos";
 import type { Analises, Periodo } from "./types";
@@ -23,7 +24,7 @@ const PERIODOS: Array<{ id: Periodo; rotulo: string }> = [
 type Quem = "todos" | "conjunto" | number;
 
 /**
- * Análises (`AnalisesDesktop`, `AnalisesCelular`; D-22): o período e a pessoa
+ * Análises (`AnalisesDesktop`, `AnalisesCelular`; D-24): o período e a pessoa
  * valem para a tela inteira. Tudo vem de `/analytics/analises`, somado no
  * banco; a tela escolhe, formata e desenha.
  */
@@ -74,13 +75,25 @@ export function AnalisesPage() {
           onTentar={() => void analises.refetch()}
         />
       ) : (
-        <Conteudo a={analises.data} nomePessoa={balde === null ? null : rotuloDoBalde(balde, pessoas)} />
+        <Conteudo
+          a={analises.data}
+          balde={balde}
+          nomePessoa={balde === null ? null : rotuloDoBalde(balde, pessoas)}
+        />
       )}
     </div>
   );
 }
 
-function Conteudo({ a, nomePessoa }: { a: Analises; nomePessoa: string | null }) {
+function Conteudo({
+  a,
+  balde,
+  nomePessoa,
+}: {
+  a: Analises;
+  balde: BaldePessoa | null;
+  nomePessoa: string | null;
+}) {
   const corrente = a.meses.find((m) => m.em_curso);
   const nota = corrente
     ? `${mesDoAno(corrente.competencia).replace(/^./, (l) => l.toUpperCase())} está em andamento: a barra mostra o gasto até o dia ${a.dia_referencia}.`
@@ -136,6 +149,8 @@ function Conteudo({ a, nomePessoa }: { a: Analises; nomePessoa: string | null })
         <PorCategoria key={`${a.periodo}`} a={a} />
         <OQueMudou a={a} />
       </div>
+
+      <PorBanco inicio={a.inicio} fim={a.fim} pessoa={balde} />
 
       <OrcamentoDoMes a={a} nomePessoa={nomePessoa} />
     </>

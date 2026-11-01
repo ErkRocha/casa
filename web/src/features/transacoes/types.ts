@@ -42,7 +42,7 @@ export interface Transacao {
   forma_pagamento_id: number | null;
   forma_pagamento_apelido: string | null;
   forma_pagamento_tipo: TipoPagamento | null;
-  /** Conta da forma: o banco do cartão, do Pix, do débito (D-22). */
+  /** Conta da forma: o banco do cartão, do Pix, do débito (D-24). */
   forma_pagamento_conta_nome?: string | null;
 
   local_id: number | null;
@@ -77,7 +77,7 @@ export interface TotaisPeriodo {
   /** Transferências do filtro, à parte: fora de todas as somas (D-05). */
   total_transferencia: Dinheiro;
   quantidade_transferencias: number;
-  /** Despesas e receitas sem categoria — o atalho "N sem categoria" (D-22). */
+  /** Despesas e receitas sem categoria — o atalho "N sem categoria" (D-24). */
   sem_categoria: number;
 }
 

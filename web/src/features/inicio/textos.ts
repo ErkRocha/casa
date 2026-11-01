@@ -2,7 +2,7 @@ import type { RevisarResumo } from "@/features/revisar/types";
 import { nomeDoMes, reaisAbs, sinal } from "@/lib/format";
 import type { FaixaOrcamento, Inicio } from "./types";
 
-/** Textos e cores do Início, fora dos componentes (hot reload, D-22). */
+/** Textos e cores do Início, fora dos componentes (hot reload, D-24). */
 
 /** Cor da barra de orçamento pela faixa que a API calculou (README). */
 export const COR_FAIXA: Record<FaixaOrcamento, string> = {

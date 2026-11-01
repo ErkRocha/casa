@@ -1,4 +1,4 @@
-# Redesign do painel (D-22)
+# Redesign do painel (D-24)
 
 Telas aprovadas pelo usuário, desenhadas no Claude Design. Cada `.dc.html` é o
 código-fonte de uma prancheta: leia como especificação. O layout e os estilos

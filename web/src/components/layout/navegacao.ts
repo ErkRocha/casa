@@ -2,7 +2,7 @@ import type { NomeIcone } from "@/components/ui/icone";
 import type { Rota } from "@/lib/rotas";
 
 /**
- * Os itens de navegação do README do desenho (D-22).
+ * Os itens de navegação do README do desenho (D-24).
  *
  * Computador: três grupos sem rótulo, separados por espaço. Celular: quatro
  * itens na barra inferior e "Mais" para as telas de configuração.

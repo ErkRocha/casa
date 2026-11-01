@@ -18,7 +18,7 @@ import { useCategoriasPluggy, useCriarCategoria, useTraduzirCategoriaPluggy, use
 import type { CategoriaPluggyUso } from "./types";
 
 /**
- * Categorias (`CategoriasDesktop`; D-22): a árvore com quantos lançamentos
+ * Categorias (`CategoriasDesktop`; D-24): a árvore com quantos lançamentos
  * cada uma tem no mês, as regras que o sistema aprendeu das correções (D-09)
  * e a tradução das categorias que o banco envia (D-21).
  */

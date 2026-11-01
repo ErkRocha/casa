@@ -10,7 +10,7 @@ import { RevisarPage } from "@/features/revisar/revisar-page";
 import { LancamentosPage } from "@/features/transacoes/lancamentos-page";
 import { useRota, type Rota } from "@/lib/rotas";
 
-/** As telas por endereço (D-22), cada uma no desenho de `docs/design/`. */
+/** As telas por endereço (D-24), cada uma no desenho de `docs/design/`. */
 export default function App() {
   const rota = useRota();
   return (

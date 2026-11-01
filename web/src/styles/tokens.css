@@ -1,12 +1,12 @@
 /* ---------------------------------------------------------------------------
- * Design tokens do painel — D-22.
+ * Design tokens do painel — D-24.
  *
  * Fonte da verdade: `docs/design/README.md` (tokens) e as pranchetas em
  * `docs/design/telas/`. Os valores aqui são cópia fiel; um componente que
  * precisar de uma cor ou raio que não está neste arquivo está fora do
  * desenho.
  *
- * Só tema claro: o desenho não tem modo escuro (D-22).
+ * Só tema claro: o desenho não tem modo escuro (D-24).
  *
  * `static` é obrigatório: várias cores são usadas só por `var()` dentro de
  * `style={{...}}` (barras, gráficos) e o Tailwind v4, sem `static`, só emite a
@@ -115,7 +115,7 @@
   --color-orcamento-estourado: #b4540a;
 
   /* --- Cor: pessoas -------------------------------------------------------
-   * Diferem por claridade, não só tom. A ordem de cadastro fixa a cor (D-22):
+   * Diferem por claridade, não só tom. A ordem de cadastro fixa a cor (D-24):
    * com o seed, 1 = Laura, 2 = Erik, como no desenho.
    */
   --color-pessoa-1: #6f93e6;

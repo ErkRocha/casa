@@ -1,7 +1,7 @@
 import { diaDeMes, diaEMes } from "@/lib/format";
 import type { ItemRevisar, Motivo, ResultadoRevisao, RevisarResumo } from "./types";
 
-/** Textos da revisão, fora dos componentes (hot reload, D-22). */
+/** Textos da revisão, fora dos componentes (hot reload, D-24). */
 
 export type Grupo =
   | "tudo"

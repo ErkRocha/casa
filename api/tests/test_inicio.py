@@ -1,4 +1,4 @@
-"""Tela Início (D-22): somas, previsão e avisos, todos do banco.
+"""Tela Início (D-24): somas, previsão e avisos, todos do banco.
 
 "Hoje" é 16/10/2026. Os números foram escolhidos para a conta fechar à mão:
 

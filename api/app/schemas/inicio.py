@@ -1,4 +1,4 @@
-"""Schemas da tela Início (D-22).
+"""Schemas da tela Início (D-24).
 
 Tudo pronto para desenhar: somas, diferenças, percentuais e a previsão vêm
 calculados do banco. Dinheiro sai como `Decimal` (texto no JSON).

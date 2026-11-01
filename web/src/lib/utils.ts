@@ -2,7 +2,7 @@ import { type ClassValue, clsx } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
 
 /**
- * O `tailwind-merge` com os nomes dos tokens do desenho (D-22).
+ * O `tailwind-merge` com os nomes dos tokens do desenho (D-24).
  *
  * Sem isto ele lê `text-corpo` como cor (só conhece os tamanhos `text-sm`,
  * `text-lg`...) e, ao juntar `text-white` com `text-corpo`, joga fora o

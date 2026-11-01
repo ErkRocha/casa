@@ -55,7 +55,7 @@ def competencias(session: SessionDep) -> Any:
 
 @router.get("/dias", response_model=list[TotalDia])
 def dias(session: SessionDep, filtros: FiltrosDep) -> Any:
-    """O total de cada dia do filtro, para a listagem agrupada por dia (D-22).
+    """O total de cada dia do filtro, para a listagem agrupada por dia (D-24).
 
     Despesas e receitas somadas no banco; transferências contam na
     quantidade e ficam fora das somas (D-05).

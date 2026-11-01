@@ -148,7 +148,7 @@ def _com_conta_da_forma() -> Select[Any]:
     """A linha da view com o nome da conta da forma de pagamento.
 
     É o que deixa a tela escrever "Cartão Nubank 7704" ou "Débito Sicredi"
-    (D-22): o cartão é forma da conta que paga a fatura, e o nome do banco
+    (D-24): o cartão é forma da conta que paga a fatura, e o nome do banco
     está na conta, não no apelido. Join na consulta, não na view: a view é
     schema, e o redesenho não muda schema.
     """
@@ -214,7 +214,7 @@ class TransacaoService:
             .group_by(balde)
         ).all()
 
-        # Transferências e o atalho "sem categoria" (D-22). O atalho conta sem
+        # Transferências e o atalho "sem categoria" (D-24). O atalho conta sem
         # o próprio filtro de sem categoria: é ele que diz quantas ligá-lo
         # mostraria.
         sem_filtro_proprio = montar_filtros(filtros.model_copy(update={"sem_categoria": False}))
@@ -246,7 +246,7 @@ class TransacaoService:
         }
 
     def dias(self, filtros: TransacaoFiltros) -> list[dict[str, Any]]:
-        """O total de cada dia do filtro, mais recente primeiro (D-22).
+        """O total de cada dia do filtro, mais recente primeiro (D-24).
 
         Para a listagem agrupada por dia: o total do dia vem daqui, somado no
         banco, e não da página que o navegador recebeu — com paginação, o dia

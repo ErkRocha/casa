@@ -1,4 +1,4 @@
-"""A tela Análises (D-22): o período, a pessoa e os quatro blocos.
+"""A tela Análises (D-24): o período, a pessoa e os quatro blocos.
 
 Toda soma, média, variação e faixa sai do SQL abaixo; o Python escolhe os
 meses e monta a resposta (regras 7 e 10, D-14). Transferência fica fora de

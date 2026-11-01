@@ -5,7 +5,7 @@
  * Nenhuma destas funções calcula: elas só apresentam número que já veio
  * pronto. Agregação é do banco (D-14).
  *
- * **Dinheiro é formatado como texto** (D-22): a API manda `numeric(12,2)`
+ * **Dinheiro é formatado como texto** (D-24): a API manda `numeric(12,2)`
  * como string (`"1234.56"`), e as funções `reais*` trabalham nos dígitos,
  * sem passar por `Number`. Um `float` no meio já seria o tipo de erro que a
  * regra 1 existe para impedir. `toNumero` continua existindo, só para a

@@ -384,7 +384,7 @@ estiver instalado.
 
 ---
 
-## Redesenho do painel (D-22)
+## Redesenho do painel (D-24)
 
 Na branch `redesign-front`, um commit por fase, sem schema novo.
 

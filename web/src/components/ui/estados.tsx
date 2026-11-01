@@ -6,7 +6,7 @@ import { Card } from "./card";
 import { Button } from "./controls";
 
 /**
- * Os três estados de uma tela que lê da API (D-22): carregando, falha e
+ * Os três estados de uma tela que lê da API (D-24): carregando, falha e
  * vazio. Cada tela escolhe o texto; o desenho é um só.
  */
 

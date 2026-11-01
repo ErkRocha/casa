@@ -1,7 +1,7 @@
 import type { TipoPagamento } from "./types";
 
 /**
- * A forma de pagamento como as pranchetas escrevem (D-22): "Cartão Nubank
+ * A forma de pagamento como as pranchetas escrevem (D-24): "Cartão Nubank
  * 7704", "Débito Sicredi", "Pix Nubank", "Boleto".
  *
  * O banco vem do nome da conta da forma — o cartão é forma da conta que paga

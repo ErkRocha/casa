@@ -1,4 +1,4 @@
-/** Espelho de `app/schemas/analises.py` (D-22). */
+/** Espelho de `app/schemas/analises.py` (D-24). */
 
 import type { TipoPagamento } from "@/features/cadastros/types";
 import type { FaixaOrcamento } from "@/features/inicio/types";

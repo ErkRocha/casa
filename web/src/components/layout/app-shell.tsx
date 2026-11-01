@@ -15,7 +15,7 @@ function lerRecolhida(): boolean {
 }
 
 /**
- * Casca do painel (D-22): barra lateral a partir de 768px, barra inferior
+ * Casca do painel (D-24): barra lateral a partir de 768px, barra inferior
  * abaixo disso. A página rola inteira; a barra lateral fica presa.
  */
 export function AppShell({ rota, children }: { rota: Rota; children: ReactNode }) {

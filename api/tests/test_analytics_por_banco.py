@@ -221,3 +221,13 @@ def test_vem_no_resumo(client: TestClient, bancos: dict[str, int]) -> None:
     )
     assert resposta.status_code == 200, resposta.text
     assert resposta.json()["por_banco"]["total"] == "760.00"
+
+
+def test_rota_propria(client: TestClient, bancos: dict[str, int]) -> None:
+    """A tela Análises pede só o painel, com o período dela."""
+    resposta = client.get(
+        "/analytics/por-banco?competencia_inicio=2026-10-01&competencia_fim=2026-10-01"
+    )
+    assert resposta.status_code == 200, resposta.text
+    dados = resposta.json()
+    assert (dados["total"], dados["cartao"], dados["conta"]) == ("760.00", "650.00", "110.00")

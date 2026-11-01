@@ -2,7 +2,7 @@ import type { TipoConta, TipoPagamento } from "@/features/cadastros/types";
 import { nomeDoCartao } from "@/features/revisar/textos";
 import type { GrupoContas, ItemContaCartao, LinhaHistorico, SituacaoConta } from "./types";
 
-/** Textos das telas de configuração, fora dos componentes (D-22). */
+/** Textos das telas de configuração, fora dos componentes (D-24). */
 
 export const ROTULO_TIPO_CONTA: Record<TipoConta, string> = {
   corrente: "Conta corrente",

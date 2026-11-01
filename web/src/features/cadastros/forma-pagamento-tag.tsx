@@ -3,7 +3,7 @@ import { rotuloDaForma } from "./forma-pagamento";
 import type { TipoPagamento } from "./types";
 
 /**
- * Etiqueta azul da forma de pagamento das pranchetas (D-22): "Cartão Nubank
+ * Etiqueta azul da forma de pagamento das pranchetas (D-24): "Cartão Nubank
  * 7704", "Débito Sicredi", "Pix Nubank", "Boleto". O apelido completo fica no
  * `title`, para quem quiser conferir qual forma exatamente.
  */

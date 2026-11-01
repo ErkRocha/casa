@@ -19,6 +19,7 @@ from app.schemas.analytics import (
     ComposicaoCategoria,
     DivisaoPessoas,
     EvolucaoMensal,
+    GastoPorBanco,
     ProgressoOrcamento,
 )
 from app.schemas.inicio import Inicio
@@ -97,7 +98,7 @@ def inicio(
         date | None, Query(description="Qualquer dia do mês; padrão: hoje")
     ] = None,
 ) -> Any:
-    """A tela Início (D-22): o mês num relance, tudo somado no banco.
+    """A tela Início (D-24): o mês num relance, tudo somado no banco.
 
     Gasto acumulado por dia, o mês anterior no mesmo dia, orçamento, previsão
     no ritmo atual (mês corrente), receitas, quem gastou, categorias e os
@@ -116,8 +117,16 @@ def analises(
         Query(pattern=r"^(\d+|conjunto)$", description="Id da pessoa ou `conjunto`"),
     ] = None,
 ) -> Any:
-    """A tela Análises (D-22): receitas e despesas por mês, categorias pela
+    """A tela Análises (D-24): receitas e despesas por mês, categorias pela
     média dos meses fechados, o que mais mudou contra a média e o orçamento
     do mês. Período e pessoa valem para a tela inteira.
     """
     return AnalisesService(session).resumo(periodo, pessoa)
+
+
+@router.get("/por-banco", response_model=GastoPorBanco)
+def por_banco(session: SessionDep, filtros: FiltrosDep) -> Any:
+    """Despesa por banco e forma, com o cartão separado do que saiu da conta
+    e o que ainda está na revisão das importações no mesmo período.
+    """
+    return AnalyticsService(session).por_banco(filtros)

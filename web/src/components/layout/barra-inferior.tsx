@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { ITENS_CELULAR, rotaAtivaNoCelular } from "./navegacao";
 
 /**
- * Barra inferior do celular (`InicioCelular` e afins, D-22): Início,
+ * Barra inferior do celular (`InicioCelular` e afins, D-24): Início,
  * Lançamentos, Revisar (com contador), Análises e "Mais", que leva às telas
  * de configuração. Some a partir de 768px.
  */

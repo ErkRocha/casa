@@ -1,5 +1,5 @@
 /**
- * O recorte da tela de Lançamentos (`LancamentosDesktop`, D-22): um mês, a
+ * O recorte da tela de Lançamentos (`LancamentosDesktop`, D-24): um mês, a
  * busca, quem, categoria, pagamento, tipo e o atalho "sem categoria".
  *
  * É da tela, não do contexto compartilhado: as pranchetas mostram Lançamentos

@@ -1,4 +1,4 @@
-"""Schemas das telas de configuração (D-22): contas, categorias, Pluggy."""
+"""Schemas das telas de configuração (D-24): contas, categorias, Pluggy."""
 
 from datetime import date
 from typing import Literal

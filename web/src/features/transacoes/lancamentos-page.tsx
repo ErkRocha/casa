@@ -28,7 +28,7 @@ import {
 import type { Transacao } from "./types";
 
 /**
- * Lançamentos (`LancamentosDesktop`, `LancamentosCelular`; D-22): o mês
+ * Lançamentos (`LancamentosDesktop`, `LancamentosCelular`; D-24): o mês
  * agrupado por dia, com filtros, a categoria editável na linha e ação em
  * lote. Toda soma vem do banco, com o mesmo filtro da listagem (D-14).
  */

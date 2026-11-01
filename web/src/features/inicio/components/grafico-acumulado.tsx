@@ -2,7 +2,7 @@ import { reais, toNumero } from "@/lib/format";
 import type { PontoAcumulado, SituacaoMes } from "../types";
 
 /**
- * "Gasto acumulado no mês" (`InicioDesktop` / `InicioCelular`, D-22).
+ * "Gasto acumulado no mês" (`InicioDesktop` / `InicioCelular`, D-24).
  *
  * A curva é a despesa somada dia a dia, como a API manda; a linha tracejada
  * é o orçamento do mês. Os valores viram número só aqui, para virar

@@ -94,7 +94,7 @@ OBS_MESMA_PESSOA = _OBS_MESMA_PESSOA = (
     "A Pluggy classifica como transferência para a mesma pessoa. Confira se "
     "é entre contas suas; se não for, troque para despesa ou receita."
 )
-#: Públicos: a revisão reconhece por eles o tipo da transferência (D-22).
+#: Públicos: a revisão reconhece por eles o tipo da transferência (D-24).
 OBS_PAGAMENTO_NA_CONTA = _OBS_PAGAMENTO_NA_CONTA
 OBS_MESMA_PESSOA = _OBS_MESMA_PESSOA
 #: Operação de conta corrente -> tipo da forma de pagamento (D-21). Só o que a

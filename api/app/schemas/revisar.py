@@ -1,4 +1,4 @@
-"""Schemas da revisão (D-21, D-22)."""
+"""Schemas da revisão (D-21, D-24)."""
 
 from datetime import date
 from decimal import Decimal

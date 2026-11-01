@@ -13,7 +13,7 @@
 import type { Pessoa } from "@/features/cadastros/types";
 import type { BaldePessoa } from "./types";
 
-/** D-22: a 1ª pessoa cadastrada é `pessoa-1`, a 2ª `pessoa-2`. */
+/** D-24: a 1ª pessoa cadastrada é `pessoa-1`, a 2ª `pessoa-2`. */
 const CORES = ["var(--color-pessoa-1)", "var(--color-pessoa-2)"] as const;
 
 const CORES_SUAVES = ["var(--color-destaque-fundo)", "var(--color-destaque-fundo)"] as const;
@@ -21,7 +21,7 @@ const CORES_SUAVES = ["var(--color-destaque-fundo)", "var(--color-destaque-fundo
 const COR_CONJUNTO = "var(--color-juntos)";
 const COR_CONJUNTO_SUAVE = "var(--color-superficie-2)";
 
-/** O balde conjunto na tela (D-22). Na API ele é `conjunto`. */
+/** O balde conjunto na tela (D-24). Na API ele é `conjunto`. */
 export const ROTULO_JUNTOS = "Juntos";
 
 function indiceDaPessoa(id: number, pessoas: Pessoa[]): number {

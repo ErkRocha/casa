@@ -1,4 +1,4 @@
-"""As telas de configuração (D-22): contas e cartões, uso das categorias e
+"""As telas de configuração (D-24): contas e cartões, uso das categorias e
 categorias que a Pluggy envia. Só leitura; as edições usam os CRUDs que já
 existem (`/contas`, `/formas-pagamento`, `/categorias`, `/regras`,
 `/categorias-pluggy`).

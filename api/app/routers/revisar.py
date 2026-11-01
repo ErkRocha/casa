@@ -1,4 +1,4 @@
-"""Router da revisão (D-21, D-22): o que espera decisão no staging.
+"""Router da revisão (D-21, D-24): o que espera decisão no staging.
 
 As ações genéricas (ajustar, aprovar, rejeitar) continuam em
 `/importacoes/itens`. Aqui ficam a leitura por motivo e as decisões que a

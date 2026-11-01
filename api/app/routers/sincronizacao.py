@@ -1,4 +1,4 @@
-"""Router da sincronização com a Pluggy (D-22). Só leitura."""
+"""Router da sincronização com a Pluggy (D-24). Só leitura."""
 
 from typing import Annotated, Any
 

@@ -13,7 +13,7 @@ import { useRelatorio, useRelatorios } from "./queries";
 import type { RelatorioDetalhe, RelatorioResumo } from "./types";
 
 /**
- * Relatórios do mês (`RelatoriosDesktop`, `RelatoriosCelular`; D-22). Só
+ * Relatórios do mês (`RelatoriosDesktop`, `RelatoriosCelular`; D-24). Só
  * leitura: os meses, o texto e, ao lado, os números que o produziram. O
  * texto vem de um modelo e pode errar; os números vêm do banco (regra 7). A
  * geração continua pelo CLI no computador de casa (`make relatorio`).

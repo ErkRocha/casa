@@ -21,7 +21,7 @@ import {
 import type { GrupoContas, ItemContaCartao } from "./types";
 
 /**
- * Contas e cartões (`ContasDesktop`; D-22): por banco, cada cartão dentro da
+ * Contas e cartões (`ContasDesktop`; D-24): por banco, cada cartão dentro da
  * conta que paga a fatura, com a situação da sincronização. Os cartões
  * virtuais aparecem no cartão principal: não têm forma própria (Fase 5b).
  */

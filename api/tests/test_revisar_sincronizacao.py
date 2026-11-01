@@ -1,4 +1,4 @@
-"""Resumo da revisão, estado da sincronização e conta da forma (D-22)."""
+"""Resumo da revisão, estado da sincronização e conta da forma (D-24)."""
 
 from __future__ import annotations
 
@@ -118,7 +118,9 @@ def test_estado_da_sincronizacao(client: TestClient, session: Session) -> None:
 
     corpo = client.get("/sincronizacao/estado").json()
     assert corpo["conexoes_ativas"] == 2
-    assert corpo["ultima_atualizacao"].startswith("2026-10-16T09:00:00")
+    # O mesmo instante, no fuso que a sessão do banco usar (São Paulo aqui).
+    ultima = datetime.fromisoformat(corpo["ultima_atualizacao"])
+    assert ultima == datetime(2026, 10, 16, 9, tzinfo=UTC)
     assert corpo["automatica"] is False
 
 

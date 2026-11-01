@@ -2,7 +2,7 @@
 
 @import "tailwindcss";
 
-/* Bricolage Grotesque auto-hospedada (D-22): o sistema não vai para a
+/* Bricolage Grotesque auto-hospedada (D-24): o sistema não vai para a
    internet e não depende de CDN em runtime (CLAUDE.md). A variante `opsz`
    traz os eixos de peso (200–800) e de tamanho óptico, como o desenho usa. */
 @import "@fontsource-variable/bricolage-grotesque/opsz.css";

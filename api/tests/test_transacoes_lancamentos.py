@@ -1,4 +1,4 @@
-"""O que a tela de Lançamentos usa (D-22): total por dia, atalho "sem
+"""O que a tela de Lançamentos usa (D-24): total por dia, atalho "sem
 categoria", transferências à parte e busca por valor."""
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Schemas da tela Análises (D-22).
+"""Schemas da tela Análises (D-24).
 
 Tudo somado, dividido e arredondado no banco; a tela só desenha (D-14).
 Transferência fica fora de todo número (D-05).

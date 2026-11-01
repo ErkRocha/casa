@@ -6,7 +6,7 @@ import { quandoRelativo } from "@/lib/format";
 import { href } from "@/lib/rotas";
 
 /**
- * "Mais", no celular (D-22): as telas que não cabem na barra inferior. O
+ * "Mais", no celular (D-24): as telas que não cabem na barra inferior. O
  * desenho deixou a forma em aberto "sem criar padrão visual novo" — então é
  * uma lista no mesmo bloco das outras telas, com as mesmas linhas.
  */

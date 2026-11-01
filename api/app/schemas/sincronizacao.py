@@ -1,4 +1,4 @@
-"""Schemas da sincronização (D-22)."""
+"""Schemas da sincronização (D-24)."""
 
 from datetime import datetime
 from typing import Literal

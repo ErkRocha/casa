@@ -546,7 +546,7 @@ class IngestaoService:
     def confirmar_transferencia(
         self, item_id: int, conta_origem_id: int, conta_destino_id: int
     ) -> Transacao:
-        """Promove a transferência com as contas que a revisão escolheu (D-05, D-22).
+        """Promove a transferência com as contas que a revisão escolheu (D-05, D-24).
 
         É o `aprovar` da transferência: o staging não guarda as contas, então
         elas vêm de quem decide. Quem chama trata a recusa do banco (conta

@@ -22,7 +22,7 @@ import { useInicio, useUltimosLancamentos } from "./queries";
 import type { Inicio } from "./types";
 
 /**
- * Início (`InicioDesktop`, `InicioCelular`; D-22): o mês num relance.
+ * Início (`InicioDesktop`, `InicioCelular`; D-24): o mês num relance.
  *
  * Todo número vem de `/analytics/inicio`, somado no banco. A tela escolhe o
  * mês, formata e desenha.

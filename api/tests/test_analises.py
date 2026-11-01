@@ -1,4 +1,4 @@
-"""Tela Análises (D-22): meses, categorias, mudanças e orçamento, do banco.
+"""Tela Análises (D-24): meses, categorias, mudanças e orçamento, do banco.
 
 "Hoje" é 16/10/2026. Os números fecham à mão:
 

@@ -1,4 +1,4 @@
-"""Estado da sincronização com a Pluggy, para o painel (D-22).
+"""Estado da sincronização com a Pluggy, para o painel (D-24).
 
 Só leitura. A sync roda pelo `make sync`; o agendamento (fase 5b, passo 10)
 ainda não existe, e a resposta diz isso em vez de inventar uma próxima

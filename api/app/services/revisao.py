@@ -1,4 +1,4 @@
-"""O que está esperando decisão na revisão, por motivo (D-21, D-22).
+"""O que está esperando decisão na revisão, por motivo (D-21, D-24).
 
 Desde a D-21 a sync promove sozinha o item limpo; o que fica no staging tem
 um motivo. Aqui ele é deduzido do próprio item, no banco, na mesma ordem de
@@ -7,7 +7,7 @@ crua da Pluggy (a confiança da conversão) não fica no staging, então o
 motivo "confiança" não tem como ser reconhecido aqui: item pendente sem
 nenhum dos outros motivos aparece como "outros" (PDF, por exemplo).
 
-As decisões da tela de revisão (D-22) moram aqui também: duplicata (manter
+As decisões da tela de revisão (D-24) moram aqui também: duplicata (manter
 só um, são dois) e transferência (confirmar, não é transferência). Elas
 gravam pelo `IngestaoService`, que continua sendo o único caminho do staging
 para `transacoes` (D-07).
@@ -286,7 +286,7 @@ class RevisaoService:
     def resolver_duplicata(
         self, manter_ids: Sequence[int], descartar_ids: Sequence[int]
     ) -> ResultadoRevisao:
-        """ "Manter só um" ou "são dois" (D-22).
+        """ "Manter só um" ou "são dois" (D-24).
 
         Os descartados viram `rejeitado`, com o item que ficou no motivo. Os
         mantidos perdem a nota de possível duplicata e, se não sobra outro

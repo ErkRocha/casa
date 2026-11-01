@@ -1,4 +1,4 @@
-"""Decisões da tela de revisão: duplicata e transferência (D-22)."""
+"""Decisões da tela de revisão: duplicata e transferência (D-24)."""
 
 from __future__ import annotations
 
@@ -90,7 +90,11 @@ class Cenario:
             "competencia_sugerida": date(2026, 10, 1),
             "status": StatusItem.PENDENTE,
         }
-        item = ImportacaoItem(importacao_id=imp.id, **{**padrao, **campos})
+        dados = {**padrao, **campos}
+        # Como na ingestão: a descrição original é o texto do extrato. O grupo
+        # de duplicata compara por ela, e sem ela todos os itens ficariam iguais.
+        dados.setdefault("descricao_original", dados["linha_bruta"])
+        item = ImportacaoItem(importacao_id=imp.id, **dados)
         self.session.add(item)
         self.session.flush()
         return item
@@ -289,12 +293,11 @@ def test_resolver_itens_de_fora_do_grupo(client: TestClient, session: Session) -
 
 
 def _transferencia(c: Cenario, imp: Importacao, **campos: Any) -> ImportacaoItem:
-    return c.item(
-        imp,
-        tipo_sugerido=TipoTransacao.TRANSFERENCIA,
-        valor=Decimal("500.00"),
-        **campos,
-    )
+    padrao: dict[str, Any] = {
+        "tipo_sugerido": TipoTransacao.TRANSFERENCIA,
+        "valor": Decimal("500.00"),
+    }
+    return c.item(imp, **{**padrao, **campos})
 
 
 def test_as_duas_pontas_viram_uma_transferencia(client: TestClient, session: Session) -> None:

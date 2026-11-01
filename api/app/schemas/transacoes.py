@@ -141,7 +141,7 @@ class TransacaoRead(BaseModel):
     forma_pagamento_apelido: str | None
     forma_pagamento_tipo: TipoPagamento | None
     #: Conta da forma de pagamento (o banco do cartão, do Pix, do débito). É o
-    #: que a tela usa para escrever "Cartão Nubank 7704" (D-22).
+    #: que a tela usa para escrever "Cartão Nubank 7704" (D-24).
     forma_pagamento_conta_nome: str | None = None
 
     local_id: int | None
@@ -185,12 +185,12 @@ class TotaisPeriodo(BaseModel):
     total_transferencia: Decimal = Decimal("0")
     quantidade_transferencias: int = 0
     #: Despesas e receitas do filtro sem categoria — o atalho "N sem
-    #: categoria" (D-22). Conta sem o próprio filtro de sem categoria.
+    #: categoria" (D-24). Conta sem o próprio filtro de sem categoria.
     sem_categoria: int = 0
 
 
 class TotalDia(BaseModel):
-    """O total de um dia do filtro, para a listagem agrupada por dia (D-22)."""
+    """O total de um dia do filtro, para a listagem agrupada por dia (D-24)."""
 
     data: date
     despesas: Decimal
@@ -248,7 +248,7 @@ class TransacaoFiltros(BaseModel):
     #: Busca em descrição (a editável e a original), local, categoria e,
     #: quando o texto é um número, no valor.
     texto: str | None = None
-    #: Só despesas e receitas sem categoria (D-22).
+    #: Só despesas e receitas sem categoria (D-24).
     sem_categoria: bool = False
 
 

@@ -5,7 +5,7 @@ import { Icone } from "./icone";
 
 /**
  * Controles de formulário no padrão shadcn/ui (forwardRef + `cn`), com os
- * tokens do desenho (D-22): alvo de toque de 44px, raio interno de 12px.
+ * tokens do desenho (D-24): alvo de toque de 44px, raio interno de 12px.
  *
  * Nada de Radix aqui: o protótipo usa `<select>` e `<input>` nativos e
  * popover posicionado na mão. Manter isso evita cinco dependências para
