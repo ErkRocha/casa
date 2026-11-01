@@ -660,3 +660,19 @@ Decisões de implementação, tomadas ao ligar o desenho:
   regra e o "aplicar as regras na revisão" ficam; o teste de padrão e a
   edição em linha da tela anterior saem (apagar e criar de novo resolve).
 
+**Implementado e mesclado na `main` em 01/11/2026** (merge `c1387cc`,
+`merge: redesign do painel`), depois de o usuário testar e aprovar. No
+rebase sobre a `main`:
+
+- O redesenho nasceu como D-22, mas a `main` já tinha D-22 (rejeição
+  automática da sync, citada no motivo gravado de itens no banco) e D-23. Ele
+  passou a ser D-24 no código e nos docs; os títulos dos commits da fase
+  continuam dizendo "D-22".
+- O painel "Por banco" (cartão separado de débito, Pix e boleto, com o que
+  está na revisão ao lado), que a `main` tinha posto na tela antiga de
+  Análises, entrou na tela nova, com o período e a pessoa dela
+  (`GET /analytics/por-banco`).
+- A tela antiga de importações saiu, e com ela o filtro por status, falta,
+  busca e data que a `main` tinha acabado de pôr lá. A Revisar nova separa
+  por motivo; busca e data na Revisar ficam como pendência. Os filtros
+  continuam na API (`GET /importacoes/{id}`).

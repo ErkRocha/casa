@@ -386,12 +386,15 @@ estiver instalado.
 
 ## Redesenho do painel (D-24)
 
-Na branch `redesign-front`, um commit por fase, sem schema novo.
+Feito na branch `redesign-front`, um commit por fase, sem schema novo, e
+mesclado na `main` em 01/11/2026.
 
 - [x] Base visual e Início
 - [x] Lançamentos e Revisar
 - [x] Análises e Relatórios
 - [x] Configurações: contas e cartões, categorias, sincronização
+- [x] Aprovado pelo usuário e mesclado na `main` (01/11/2026)
+- [ ] Busca e filtro por data na Revisar (a tela antiga de importações tinha)
 
 Pendências que o redesenho encontrou e não resolve sem mudar o schema:
 
