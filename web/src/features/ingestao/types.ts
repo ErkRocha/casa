@@ -76,11 +76,20 @@ export interface FiltroRevisao {
   /** Só com `status` pendente. */
   falta: FaltaItem | null;
   busca: string;
+  /** Data da transação, `AAAA-MM-DD`; vazio não limita. As duas pontas entram. */
+  dataDe: string;
+  dataAte: string;
 }
 
-export const FILTRO_INICIAL: FiltroRevisao = { status: "pendente", falta: null, busca: "" };
+export const FILTRO_INICIAL: FiltroRevisao = {
+  status: "pendente",
+  falta: null,
+  busca: "",
+  dataDe: "",
+  dataAte: "",
+};
 
-/** Quantos itens há em cada filtro, na importação inteira. */
+/** Quantos itens há em cada filtro, no período pedido (ou na importação inteira). */
 export interface ContagensRevisao {
   por_status: Partial<Record<StatusItem, number>>;
   pendentes_por_falta: Record<FaltaItem, number>;

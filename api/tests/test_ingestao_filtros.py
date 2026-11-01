@@ -128,3 +128,56 @@ def test_filtro_desconhecido_e_422(client: TestClient, importacao: Importacao) -
 def test_lista_traz_os_pendentes(client: TestClient, importacao: Importacao) -> None:
     lista = client.get("/importacoes").json()
     assert [(i["id"], i["itens_pendentes"]) for i in lista] == [(importacao.id, 5)]
+
+
+class TestPeriodo:
+    @pytest.fixture
+    def com_outubro(self, session: Session, importacao: Importacao) -> Importacao:
+        session.add(
+            ImportacaoItem(
+                importacao_id=importacao.id,
+                linha_bruta="FARMACIA OUTUBRO",
+                descricao_original="FARMACIA OUTUBRO",
+                data=date(2026, 10, 5),
+                valor=Decimal("8.00"),
+                tipo_sugerido=TipoTransacao.DESPESA,
+                status=StatusItem.PENDENTE,
+            )
+        )
+        session.commit()
+        return importacao
+
+    def test_pontas_incluidas(self, client: TestClient, com_outubro: Importacao) -> None:
+        base = f"/importacoes/{com_outubro.id}"
+        assert _textos(client.get(f"{base}?data_de=2026-10-05").json()) == {"FARMACIA OUTUBRO"}
+        setembro = client.get(f"{base}?data_ate=2026-09-01").json()
+        assert len(setembro["itens"]) == 7
+        assert "FARMACIA OUTUBRO" not in _textos(setembro)
+        um_dia = client.get(f"{base}?data_de=2026-09-01&data_ate=2026-09-01").json()
+        assert len(um_dia["itens"]) == 7
+
+    def test_combina_com_o_que_falta(self, client: TestClient, com_outubro: Importacao) -> None:
+        dados = client.get(
+            f"/importacoes/{com_outubro.id}?falta=sem_categoria&data_de=2026-10-01"
+        ).json()
+        assert _textos(dados) == {"FARMACIA OUTUBRO"}
+
+    def test_contagens_respeitam_o_periodo_e_somas_nao(
+        self, client: TestClient, com_outubro: Importacao
+    ) -> None:
+        dados = client.get(f"/importacoes/{com_outubro.id}?data_de=2026-10-01").json()
+        assert dados["contagens"]["por_status"] == {"pendente": 1}
+        assert dados["contagens"]["pendentes_por_falta"]["sem_categoria"] == 1
+        # A conferência com o documento é da importação inteira.
+        assert Decimal(dados["total_pendente"]) == Decimal("73.00")
+        assert Decimal(dados["soma_lida"]) == Decimal("123.00")
+
+    def test_de_depois_de_ate_e_recusado(self, client: TestClient, com_outubro: Importacao) -> None:
+        resposta = client.get(
+            f"/importacoes/{com_outubro.id}?data_de=2026-10-31&data_ate=2026-10-01"
+        )
+        assert resposta.status_code == 422
+        assert "depois da final" in resposta.json()["detail"]
+
+    def test_data_invalida_e_422(self, client: TestClient, com_outubro: Importacao) -> None:
+        assert client.get(f"/importacoes/{com_outubro.id}?data_de=31/10/2026").status_code == 422

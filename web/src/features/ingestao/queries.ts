@@ -34,6 +34,8 @@ export function useImportacao(id: number | null, filtro: FiltroRevisao) {
       if (filtro.status) params.set("apenas", filtro.status);
       if (filtro.falta) params.set("falta", filtro.falta);
       if (filtro.busca.trim()) params.set("busca", filtro.busca.trim());
+      if (filtro.dataDe) params.set("data_de", filtro.dataDe);
+      if (filtro.dataAte) params.set("data_ate", filtro.dataAte);
       const qs = params.toString();
       return api.get<ImportacaoDetalhe>(`/importacoes/${id}${qs ? `?${qs}` : ""}`);
     },

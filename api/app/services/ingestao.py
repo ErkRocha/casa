@@ -18,7 +18,17 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, cast
 
-from sqlalchemy import ColumnElement, CursorResult, and_, func, or_, select, text, update
+from sqlalchemy import (
+    ColumnElement,
+    CursorResult,
+    and_,
+    func,
+    or_,
+    select,
+    text,
+    true,
+    update,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -319,17 +329,21 @@ class IngestaoService:
         status: StatusItem | None = None,
         falta: str | None = None,
         busca: str | None = None,
+        data_de: date | None = None,
+        data_ate: date | None = None,
     ) -> list[ImportacaoItem]:
         """Itens da revisão, filtrados no banco (regra 10).
 
         `falta` (`FALTAS`) só faz sentido em item pendente e implica status
         pendente. `busca` procura no texto cru e na descrição, sem diferença
-        de maiúscula.
+        de maiúscula. `data_de` e `data_ate` são a data da transação, as duas
+        pontas incluídas.
         """
         self.get(importacao_id)
         query = select(ImportacaoItem).where(
             ImportacaoItem.importacao_id == importacao_id,
             ImportacaoItem.deleted_em.is_(None),
+            _condicao_periodo(data_de, data_ate),
         )
         if falta is not None:
             status = StatusItem.PENDENTE
@@ -349,27 +363,37 @@ class IngestaoService:
             self.session.scalars(query.order_by(ImportacaoItem.linha_num, ImportacaoItem.id))
         )
 
-    def contagens(self, importacao_id: int) -> dict[str, Any]:
-        """Quantos itens há em cada filtro da revisão, na importação inteira.
+    def contagens(
+        self,
+        importacao_id: int,
+        data_de: date | None = None,
+        data_ate: date | None = None,
+    ) -> dict[str, Any]:
+        """Quantos itens há em cada filtro da revisão.
 
-        Agregado no banco: os números dos filtros não dependem do filtro
-        aberto na tela. Traz também as somas que a tela mostra, sobre todos
-        os itens, para não precisar somar no navegador.
+        Agregado no banco. Os números dos filtros respeitam o período pedido,
+        e só ele: não dependem da situação nem da busca abertas na tela. As
+        somas são da importação inteira, sempre — é contra elas que se
+        confere o total declarado pelo documento.
         """
         vivo = and_(
             ImportacaoItem.importacao_id == importacao_id,
             ImportacaoItem.deleted_em.is_(None),
         )
+        periodo = _condicao_periodo(data_de, data_ate)
         por_status = {
             s.value: int(n)
             for s, n in self.session.execute(
                 select(ImportacaoItem.status, func.count())
-                .where(vivo)
+                .where(vivo, periodo)
                 .group_by(ImportacaoItem.status)
             )
         }
         pendente = ImportacaoItem.status == StatusItem.PENDENTE
-        colunas = [func.count().filter(and_(pendente, _condicao_falta(f))).label(f) for f in FALTAS]
+        colunas = [
+            func.count().filter(and_(pendente, periodo, _condicao_falta(f))).label(f)
+            for f in FALTAS
+        ]
         despesa = ImportacaoItem.tipo_sugerido == TipoTransacao.DESPESA
         lida = ImportacaoItem.status.in_([StatusItem.PENDENTE, StatusItem.APROVADO])
         linha = self.session.execute(
@@ -742,6 +766,18 @@ class _Sugestao:
 #: O que falta a um item pendente para ser aprovado — os filtros da revisão.
 #: "pronto" é o contrário: tem categoria, não tem nota e não é transferência.
 FALTAS: tuple[str, ...] = ("sem_categoria", "observacao", "transferencia", "pronto")
+
+
+def _condicao_periodo(data_de: date | None, data_ate: date | None) -> ColumnElement[bool]:
+    """Data da transação entre as duas pontas, incluídas; ponta nula não limita."""
+    if data_de is not None and data_ate is not None and data_de > data_ate:
+        raise RegraViolada("A data inicial do filtro é depois da final.")
+    condicao: ColumnElement[bool] = true()
+    if data_de is not None:
+        condicao = and_(condicao, ImportacaoItem.data >= data_de)
+    if data_ate is not None:
+        condicao = and_(condicao, ImportacaoItem.data <= data_ate)
+    return condicao
 
 
 def _condicao_falta(falta: str) -> ColumnElement[bool]:

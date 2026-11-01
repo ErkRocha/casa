@@ -4,6 +4,7 @@ Upload do PDF, revisão dos itens em staging e promoção para `transacoes`.
 Nenhum endpoint aqui escreve em `transacoes` sem aprovação explícita (D-07).
 """
 
+from datetime import date
 from typing import Annotated, Any, Literal
 from urllib.parse import quote
 
@@ -116,11 +117,15 @@ def detalhe(
     busca: Annotated[
         str | None, Query(max_length=100, description="Texto na linha original")
     ] = None,
+    data_de: Annotated[
+        date | None, Query(description="Data da transação a partir de (incluída)")
+    ] = None,
+    data_ate: Annotated[date | None, Query(description="Data da transação até (incluída)")] = None,
 ) -> Any:
     service = IngestaoService(session)
     importacao = service.get(importacao_id)
-    itens = service.itens(importacao_id, apenas, falta, busca)
-    contagens = service.contagens(importacao_id)
+    itens = service.itens(importacao_id, apenas, falta, busca, data_de, data_ate)
+    contagens = service.contagens(importacao_id, data_de, data_ate)
 
     return ImportacaoDetalhe(
         importacao=ImportacaoRead.model_validate(importacao),

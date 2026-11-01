@@ -14,11 +14,31 @@ import {
  *
  * Existe porque uma sync da Pluggy traz centenas de linhas, e quase todas já
  * foram resolvidas sozinhas (D-21, D-22). O que pede decisão — sem categoria,
- * com observação — tem que estar a um clique. Os números vêm da API e são da
- * importação inteira: não mudam com o filtro aberto.
+ * com observação — tem que estar a um clique. Os números vêm da API e
+ * respeitam o período escolhido, e só ele: não mudam com a situação aberta.
  */
 
 const STATUS: StatusItem[] = ["pendente", "aprovado", "rejeitado", "duplicado"];
+
+/** `AAAA-MM-DD` no fuso do navegador (não em UTC, que vira o dia às 21h). */
+function iso(d: Date): string {
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const dia = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mes}-${dia}`;
+}
+
+function mes(deslocamento: number): { inicio: string; fim: string } {
+  const hoje = new Date();
+  const inicio = new Date(hoje.getFullYear(), hoje.getMonth() + deslocamento, 1);
+  const fim = new Date(hoje.getFullYear(), hoje.getMonth() + deslocamento + 1, 0);
+  return { inicio: iso(inicio), fim: iso(fim) };
+}
+
+/** Atalhos: os dois períodos que mais se revisam. */
+const MESES_RAPIDOS = [
+  { rotulo: "Este mês", ...mes(0) },
+  { rotulo: "Mês passado", ...mes(-1) },
+];
 const FALTAS: FaltaItem[] = ["sem_categoria", "observacao", "transferencia", "pronto"];
 
 export function RevisaoFiltros({
@@ -71,6 +91,49 @@ export function RevisaoFiltros({
         />
       </div>
 
+      <div className="flex flex-wrap items-center gap-3" role="group" aria-label="Período">
+        <span className="text-caption text-text-tertiary tracking-caps-wide mr-1 font-semibold uppercase">
+          Data
+        </span>
+        <label className="text-body-sm text-text-secondary inline-flex items-center gap-2">
+          de
+          <Input
+            type="date"
+            value={filtro.dataDe}
+            max={filtro.dataAte || undefined}
+            onChange={(e) => onFiltro({ ...filtro, dataDe: e.target.value })}
+            className="text-body-sm py-2"
+          />
+        </label>
+        <label className="text-body-sm text-text-secondary inline-flex items-center gap-2">
+          até
+          <Input
+            type="date"
+            value={filtro.dataAte}
+            min={filtro.dataDe || undefined}
+            onChange={(e) => onFiltro({ ...filtro, dataAte: e.target.value })}
+            className="text-body-sm py-2"
+          />
+        </label>
+        {MESES_RAPIDOS.map(({ rotulo, inicio, fim }) => (
+          <Chip
+            key={rotulo}
+            ativo={filtro.dataDe === inicio && filtro.dataAte === fim}
+            onClick={() => onFiltro({ ...filtro, dataDe: inicio, dataAte: fim })}
+            rotulo={rotulo}
+          />
+        ))}
+        {filtro.dataDe || filtro.dataAte ? (
+          <button
+            type="button"
+            onClick={() => onFiltro({ ...filtro, dataDe: "", dataAte: "" })}
+            className="text-body-sm text-accent cursor-pointer underline underline-offset-2"
+          >
+            Limpar datas
+          </button>
+        ) : null}
+      </div>
+
       {filtro.status === "pendente" ? (
         <div className="flex flex-wrap items-center gap-3" role="group" aria-label="O que falta">
           <span className="text-caption text-text-tertiary tracking-caps-wide mr-1 font-semibold uppercase">
@@ -108,7 +171,8 @@ function Chip({
   ativo: boolean;
   onClick: () => void;
   rotulo: string;
-  n: number;
+  /** Sem número, o chip é só um atalho (como "Este mês"). */
+  n?: number;
   /** "Prontos para aprovar" com itens: a fila que se resolve em um clique. */
   destaque?: boolean;
 }) {
@@ -122,13 +186,15 @@ function Chip({
         "focus-visible:ring-accent outline-none focus-visible:ring-1",
         ativo
           ? "bg-text-primary text-surface"
-          : destaque && n > 0
+          : destaque && (n ?? 0) > 0
             ? "bg-income-soft text-income hover:bg-surface"
             : "bg-surface-sunken text-text-secondary hover:bg-surface",
       )}
     >
       {rotulo}
-      <span className={cn("tabular", ativo ? "opacity-80" : "text-text-tertiary")}>{n}</span>
+      {n !== undefined ? (
+        <span className={cn("tabular", ativo ? "opacity-80" : "text-text-tertiary")}>{n}</span>
+      ) : null}
     </button>
   );
 }
