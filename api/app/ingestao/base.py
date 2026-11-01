@@ -113,6 +113,10 @@ class ItemExtraido:
     operacao_externa: str | None = None
     categoria_externa_id: str | None = None
     categoria_externa: str | None = None
+    #: CPF ou CNPJ, só dígitos, de quem está do outro lado de um Pix ou TED
+    #: de conta corrente: o pagador numa entrada, o recebedor numa saída. É
+    #: por ele que a sync reconhece movimento entre contas da casa (D-22).
+    documento_contraparte: str | None = None
 
 
 @dataclass(slots=True)

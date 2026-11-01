@@ -81,6 +81,7 @@ def _tx(
     operacao: str | None = None,
     categoria: str | None = None,
     categoria_id: str | None = None,
+    pagamento: dict[str, Any] | None = None,
 ) -> Transacao:
     dados: dict[str, Any] = {
         "id": id_,
@@ -98,6 +99,8 @@ def _tx(
     }
     if conta == CARTAO:
         dados["creditCardMetadata"] = {"cardNumber": cartao, "billId": fatura}
+    if pagamento is not None:
+        dados["paymentData"] = pagamento
     return Transacao.model_validate(dados)
 
 
@@ -847,14 +850,71 @@ class TestPromocaoAutomatica:
         assert resultado.na_revisao == {
             "sem_categoria": 1,
             "possivel_duplicata": 2,
-            "pagamento_fatura_cartao": 1,
             "encargos": 1,  # 200 - (50 + 40 + 30 + 30)
             "observacao": 1,
         }
+        # D-22: o pagamento da fatura não espera revisão.
+        assert resultado.rejeitados == {"pagamento_fatura": 1}
         pendentes = {i.id_externo for i in _itens(session) if i.status is StatusItem.PENDENTE}
-        assert pendentes == {"sem-cat", "gemeo-a", "gemeo-b", "pag", "bill:f1:encargos", "outros"}
+        assert pendentes == {"sem-cat", "gemeo-a", "gemeo-b", "bill:f1:encargos", "outros"}
+        pag = next(i for i in _itens(session) if i.id_externo == "pag")
+        assert pag.status is StatusItem.REJEITADO and pag.transacao_id is None
+        assert pag.motivo_rejeicao is not None and "D-22" in pag.motivo_rejeicao
         imp = session.get(Importacao, resultado.importacao_id)
         assert imp is not None and imp.status is StatusImportacao.AGUARDANDO_REVISAO
+
+    def test_dinheiro_entre_contas_da_casa_e_rejeitado(
+        self,
+        session: Session,
+        cenario: dict[str, Any],
+        mercado: Categoria,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """D-22: o dono da conta (pela Pluggy) e o CPF do `.env` são da casa."""
+        from app.config import get_settings
+
+        monkeypatch.setenv("CASA_DOCUMENTOS", "555.666.777-88")
+        get_settings.cache_clear()
+        leitor = LeitorFalso()
+        leitor.contas[0] = ContaRemota.model_validate(
+            {
+                "id": CORRENTE,
+                "itemId": ITEM,
+                "type": "BANK",
+                "subtype": "CHECKING_ACCOUNT",
+                "taxNumber": "111.222.333-44",
+            }
+        )
+
+        def pix(id_: str, valor: str, tipo: str, outro: str) -> Transacao:
+            lado = "payer" if tipo == "CREDIT" else "receiver"
+            return _tx(
+                id_,
+                CORRENTE,
+                "2025-04-02T15:00:00Z",
+                valor,
+                tipo=tipo,
+                descricao=f"PIX {id_}",
+                operacao="PIX",
+                pagamento={lado: {"documentNumber": {"type": "CPF", "value": outro}}},
+            )
+
+        leitor.transacoes[CORRENTE] = [
+            pix("para-mim", "-100.00", "DEBIT", "11122233344"),
+            pix("da-laura", "200.00", "CREDIT", "55566677788"),
+            pix("loja", "-30.00", "DEBIT", "99988877766"),
+        ]
+        try:
+            resultado = _sync(session, leitor)
+        finally:
+            get_settings.cache_clear()
+
+        assert resultado.rejeitados == {"movimento_casa": 2}
+        status = {i.id_externo: i.status for i in _itens(session)}
+        assert status["para-mim"] is StatusItem.REJEITADO
+        assert status["da-laura"] is StatusItem.REJEITADO
+        assert status["loja"] is StatusItem.PENDENTE  # Pix para terceiro: revisão
+        assert all(i.transacao_id is None for i in _itens(session))
 
     def test_hash_dedup_continua_barrando(
         self, session: Session, cenario: dict[str, Any], mercado: Categoria

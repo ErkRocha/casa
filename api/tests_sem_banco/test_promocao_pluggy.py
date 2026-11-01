@@ -69,3 +69,56 @@ def test_duplicata_vence_os_outros_motivos() -> None:
     """A ordem é a do relatório: o primeiro motivo que se aplica é o do item."""
     item = replace(LIMPO, confianca=Decimal("0.50"), observacao="qualquer coisa")
     assert motivo_para_revisao(item, categoria_id=None, ja_existe=True) == "duplicata"
+
+
+# --- rejeição automática (D-22) ---------------------------------------------
+
+from app.config import Settings  # noqa: E402
+from app.conversao_pluggy import OBS_MESMA_PESSOA, OBS_PAGAMENTO_NA_CONTA  # noqa: E402
+from app.services.promocao_pluggy import REJEICOES, motivo_para_rejeitar  # noqa: E402
+
+CASA = frozenset({"11122233344"})
+TRANSF = replace(LIMPO, tipo=TipoTransacao.TRANSFERENCIA, confianca=Decimal("0.70"))
+
+
+@pytest.mark.parametrize(
+    ("item", "motivo"),
+    [
+        (replace(TRANSF, observacao=OBS_PAGAMENTO_NO_CARTAO), "pagamento_fatura"),
+        (replace(TRANSF, observacao=OBS_PAGAMENTO_NA_CONTA), "pagamento_fatura"),
+        (replace(TRANSF, observacao=OBS_MESMA_PESSOA), "movimento_casa"),
+        (replace(LIMPO, documento_contraparte="11122233344"), "movimento_casa"),
+        (
+            replace(LIMPO, tipo=TipoTransacao.RECEITA, documento_contraparte="11122233344"),
+            "movimento_casa",
+        ),
+    ],
+)
+def test_rejeita_o_que_nao_e_gasto_da_casa(item: ItemExtraido, motivo: str) -> None:
+    assert motivo_para_rejeitar(item, documentos_casa=CASA) == motivo
+    assert motivo in REJEICOES
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        LIMPO,
+        replace(LIMPO, documento_contraparte="99988877766"),
+        replace(TRANSF, observacao="Transferência que a Pluggy não explica."),
+        # Possível duplicata pede o olho do usuário, mesmo sendo da casa.
+        replace(
+            LIMPO,
+            documento_contraparte="11122233344",
+            observacao="Possível duplicata da Pluggy (no mesmo lote): ...",
+        ),
+        replace(LIMPO, id_externo="bill:f1:encargos", observacao=OBS_PAGAMENTO_NO_CARTAO),
+    ],
+)
+def test_nao_rejeita_o_resto(item: ItemExtraido) -> None:
+    assert motivo_para_rejeitar(item, documentos_casa=CASA) is None
+
+
+def test_documentos_da_casa_do_env() -> None:
+    s = Settings(casa_documentos=" 111.222.333-44, ,55566677788 ")
+    assert s.documentos_da_casa == frozenset({"11122233344", "55566677788"})
+    assert Settings(casa_documentos=None).documentos_da_casa == frozenset()

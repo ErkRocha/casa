@@ -43,6 +43,8 @@ services:
       PLUGGY_CLIENT_SECRET: ${PLUGGY_CLIENT_SECRET:-}
       # Só o `make pluggy-mapear` lê: as conexões a consultar.
       PLUGGY_ITEM_IDS: ${PLUGGY_ITEM_IDS:-}
+      # D-22: CPFs da casa além dos donos das contas (Pix entre vocês).
+      CASA_DOCUMENTOS: ${CASA_DOCUMENTOS:-}
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:

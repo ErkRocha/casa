@@ -82,6 +82,12 @@ class Settings(BaseSettings):
     #: o valor só sai por `.get_secret_value()`, e só o cliente HTTP chama.
     pluggy_client_secret: SecretStr | None = None
 
+    #: CPFs da casa além dos donos das contas conectadas, separados por
+    #: vírgula (D-22). Pix ou TED com um deles do outro lado é movimento entre
+    #: contas da casa: a sync rejeita sozinha. Fica só no `.env`, nunca no
+    #: repositório.
+    casa_documentos: str | None = None
+
     @field_validator("database_url", "insights_database_url_override", mode="after")
     @classmethod
     def _com_timeout(cls, valor: str | None) -> str | None:
@@ -101,6 +107,12 @@ class Settings(BaseSettings):
         if isinstance(valor, str) and not valor.strip():
             return None
         return valor
+
+    @property
+    def documentos_da_casa(self) -> frozenset[str]:
+        """`casa_documentos` só com dígitos, sem vazios."""
+        partes = (self.casa_documentos or "").split(",")
+        return frozenset(d for d in ("".join(c for c in p if c.isdigit()) for p in partes) if d)
 
     @property
     def pluggy_habilitada(self) -> bool:

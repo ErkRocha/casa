@@ -35,7 +35,7 @@ from app.config import Settings
 from app.conversao_pluggy import FUSO
 from app.models import Categoria, FormaPagamento, Pessoa
 from app.pluggy import PluggyCliente, RespostaBruta
-from app.services.promocao_pluggy import MOTIVOS
+from app.services.promocao_pluggy import MOTIVOS, ROTULOS_REJEICAO
 from app.services.sync_pluggy import ResultadoSync, SyncPluggyService
 
 RAIZ = Path(__file__).resolve().parents[2]
@@ -88,6 +88,11 @@ def imprimir(resultado: ResultadoSync, session: Session) -> None:
     print(f"\nitens novos no total: {resultado.itens_novos}")
     verbo = "seriam promovidos" if resultado.simulado else "promovidos"
     print(f"{verbo} automaticamente (D-21): {resultado.promovidos}")
+    if resultado.rejeitados:
+        verbo_r = "seriam rejeitados" if resultado.simulado else "rejeitados"
+        print(f"{verbo_r} automaticamente (D-22): {sum(resultado.rejeitados.values())}")
+        for chave, n in resultado.rejeitados.most_common():
+            print(f"   {ROTULOS_REJEICAO.get(chave, chave)}: {n}")
     print(f"na revisão: {sum(resultado.na_revisao.values())}")
     for motivo, texto in MOTIVOS.items():
         if resultado.na_revisao[motivo]:

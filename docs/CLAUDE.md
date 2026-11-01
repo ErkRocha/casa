@@ -44,6 +44,9 @@ Estas não são preferências. Violar qualquer uma delas é bug.
    1.00, sem observação, sem suspeita de duplicata, com categoria —, pelo
    mesmo `aprovar()` da revisão, com autor `sync_pluggy`. PDF e LLM nunca.
    Qualquer outra origem que queira promover sozinha precisa de decisão nova.
+   **Segunda exceção (D-22):** a mesma sync *rejeita* sozinha, pelo
+   `rejeitar()` da revisão e com o motivo gravado, o pagamento de fatura e o
+   dinheiro entre contas da casa. Rejeitar não escreve em `transacoes`.
 6. **O agente de insights usa role read-only do Postgres.** Sem exceção.
 7. **LLM não calcula.** Toda soma, média e comparação sai de SQL agregado. O
    modelo apenas interpreta números que já vieram prontos.

@@ -362,3 +362,37 @@ def test_conversao_e_pura() -> None:
             nomes = [a.name for a in no.names] if isinstance(no, ast.Import) else [no.module or ""]
             for nome in nomes:
                 assert not nome.startswith(("sqlalchemy", "httpx", "psycopg", "fastapi")), nome
+
+
+class TestD22:
+    """Rendimento sem nota e documento de quem está do outro lado (D-22)."""
+
+    @pytest.mark.parametrize("operacao", ["RESGATE_APLIC_FINANCEIRA", "OUTROS", None])
+    def test_entrada_sem_forma_nao_ganha_observacao(self, operacao: str | None) -> None:
+        item = _conta("credito", operationType=operacao)
+        assert item.tipo is TipoTransacao.RECEITA
+        assert item.forma_tipo is None
+        assert item.observacao is None
+        assert item.confianca == Decimal("1.00")
+
+    def test_saida_sem_forma_continua_com_observacao(self) -> None:
+        item = _conta("debito", operationType="OUTROS")
+        assert item.observacao is not None
+
+    @pytest.mark.parametrize(
+        ("documento", "esperado"),
+        [
+            ({"type": "CPF", "value": "111.222.333-44"}, "11122233344"),
+            ("11122233344", "11122233344"),
+            (None, None),
+        ],
+    )
+    def test_documento_da_contraparte(self, documento: object, esperado: str | None) -> None:
+        pagamento = {"payer": {"documentNumber": documento}, "receiver": {"documentNumber": "999"}}
+        entrada = _conta("credito", paymentData=pagamento)
+        assert entrada.documento_contraparte == esperado
+        saida = _conta("debito", paymentData=pagamento)
+        assert saida.documento_contraparte == "999"
+
+    def test_cartao_nao_tem_contraparte(self) -> None:
+        assert _cartao("compra_simples").documento_contraparte is None

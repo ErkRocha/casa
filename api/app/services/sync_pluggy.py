@@ -33,6 +33,7 @@ from typing import Any, Protocol
 from sqlalchemy import select, text, tuple_
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.conversao_pluggy import (
     FUSO,
     converter_lote,
@@ -44,7 +45,7 @@ from app.models import Categoria, ContaPluggy, FormaPagamento, ImportacaoItem
 from app.pluggy.modelos import Conta, Fatura, Transacao
 from app.services.cadastros import FormaPagamentoService, normalizar_nome, primeiro_dia_do_mes
 from app.services.ingestao import IngestaoService, ItemLote, _ContextoEnriquecimento
-from app.services.promocao_pluggy import motivo_para_revisao
+from app.services.promocao_pluggy import REJEICOES, motivo_para_rejeitar, motivo_para_revisao
 
 #: Quanto a janela volta antes do último sync. A Pluggy atualiza a cada 24h e
 #: pode consolidar uma transação dias depois da data dela.
@@ -148,6 +149,8 @@ class ResultadoSync:
     na_revisao: Counter[str] = field(default_factory=Counter)
     #: Promoção recusada por outro motivo que não duplicata.
     erros_promocao: list[dict[str, Any]] = field(default_factory=list)
+    #: Motivo (`promocao_pluggy.REJEICOES`) -> quantos a sync rejeitou (D-22).
+    rejeitados: Counter[str] = field(default_factory=Counter)
 
     @property
     def itens_novos(self) -> int:
@@ -313,10 +316,17 @@ class SyncPluggyService:
                         lote.forma_pagamento_id is not None
                         and ingestao._transacao_gemea(i, lote.forma_pagamento_id) is not None
                     )
-                    motivo = motivo_para_revisao(
+                    rejeicao = (
+                        None
+                        if ja_existe
+                        else motivo_para_rejeitar(i, documentos_casa=self._documentos_casa())
+                    )
+                    motivo = rejeicao or motivo_para_revisao(
                         i, categoria_id=sugestao.categoria_id, ja_existe=ja_existe
                     )
-                    if motivo is None:
+                    if rejeicao is not None:
+                        resultado.rejeitados[rejeicao] += 1
+                    elif motivo is None:
                         resultado.promovidos += 1
                     else:
                         resultado.na_revisao[motivo] += 1
@@ -612,9 +622,19 @@ class SyncPluggyService:
             )
         }
         limpos: list[int] = []
+        rejeitar: dict[str, list[int]] = defaultdict(list)
+        documentos_casa = self._documentos_casa()
         for lote in itens:
             item = staging.get(lote.extraido.id_externo)
             if item is None:
+                continue
+            rejeicao = (
+                motivo_para_rejeitar(lote.extraido, documentos_casa=documentos_casa)
+                if item.status is StatusItem.PENDENTE
+                else None
+            )
+            if rejeicao is not None:
+                rejeitar[rejeicao].append(item.id)
                 continue
             motivo = motivo_para_revisao(
                 lote.extraido,
@@ -625,14 +645,27 @@ class SyncPluggyService:
                 limpos.append(item.id)
             else:
                 resultado.na_revisao[motivo] += 1
+        ingestao = IngestaoService(self.session)
+        for chave, ids in rejeitar.items():
+            resultado.rejeitados[chave] += ingestao.rejeitar(ids, REJEICOES[chave])
         if not limpos:
             return
 
-        aprovacao = IngestaoService(self.session).aprovar(limpos)
+        aprovacao = ingestao.aprovar(limpos)
         resultado.promovidos = aprovacao["promovidos"]
         if aprovacao["duplicados"]:
             resultado.na_revisao["duplicata"] += aprovacao["duplicados"]
         resultado.erros_promocao = aprovacao["erros"]
+
+    def _documentos_casa(self) -> frozenset[str]:
+        """CPFs da casa: os donos das contas conectadas e os do `.env` (D-22)."""
+        donos = {
+            "".join(c for c in conta.tax_number if c.isdigit())
+            for contas in self._contas_por_item.values()
+            for conta in contas
+            if conta.tax_number
+        }
+        return get_settings().documentos_da_casa | {d for d in donos if d}
 
     def _criar_formas(self, itens: Sequence[ItemLote]) -> None:
         """Cria, pelo service e na conta certa, as formas planejadas (D-21)."""

@@ -28,6 +28,7 @@ from typing import Any
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.conversao_pluggy import converter
 from app.enums import StatusItem, TipoTransacao
 from app.ingestao.base import ItemExtraido
@@ -40,7 +41,12 @@ from app.services.categorias_pluggy import (
 )
 from app.services.comprovante_pluggy import Comprovante, ler_comprovante
 from app.services.ingestao import IngestaoService, _ContextoEnriquecimento
-from app.services.promocao_pluggy import MARCA_DUPLICATA, motivo_para_revisao
+from app.services.promocao_pluggy import (
+    MARCA_DUPLICATA,
+    REJEICOES,
+    motivo_para_rejeitar,
+    motivo_para_revisao,
+)
 from app.services.sync_pluggy import (
     AUTOR as AUTOR_SYNC,
 )
@@ -62,7 +68,7 @@ _NOTA_DUPLICATA = re.compile(rf"{MARCA_DUPLICATA}.*?aprovar os dois\.", re.S)
 class ItemReprocessado:
     item_id: int
     id_externo: str | None
-    #: "promover" ou a chave do motivo (`promocao_pluggy.MOTIVOS`).
+    #: "promover", "rejeitar" (D-22) ou a chave do motivo (`promocao_pluggy.MOTIVOS`).
     destino: str
     forma_id: int | None
     forma_nova: FormaNova | None
@@ -74,6 +80,8 @@ class ItemReprocessado:
     confianca_sugestao: Decimal = Decimal("0.50")
     local_id: int | None = None
     pessoa_id: int | None = None
+    #: Chave em `promocao_pluggy.REJEICOES`, quando o destino é "rejeitar".
+    rejeicao: str | None = None
 
 
 @dataclass(slots=True)
@@ -93,7 +101,12 @@ class PlanoReprocessamento:
 
     @property
     def na_revisao(self) -> Counter[str]:
-        return Counter(i.destino for i in self.itens if i.destino != "promover")
+        return Counter(i.destino for i in self.itens if i.destino not in ("promover", "rejeitar"))
+
+    @property
+    def rejeitaria(self) -> Counter[str]:
+        """Motivo (D-22) -> quantos a sync de hoje rejeitaria sozinha."""
+        return Counter(i.rejeicao for i in self.itens if i.rejeicao is not None)
 
     @property
     def sem_categoria(self) -> int:
@@ -154,6 +167,11 @@ class ReprocessamentoPluggyService:
         if com_proposta:
             plano.proposta_usada = self._somar_proposta(contexto, comprovante)
         mapas = self._mapeamentos()
+        documentos_casa = get_settings().documentos_da_casa | {
+            "".join(c for c in conta.tax_number if c.isdigit())
+            for conta in comprovante.contas.values()
+            if conta.tax_number
+        }
         formas = {
             f.id: f
             for f in self.session.scalars(
@@ -212,12 +230,16 @@ class ReprocessamentoPluggyService:
             ja_existe = (
                 forma_id is not None and ingestao._transacao_gemea(novo, forma_id) is not None
             )
+            rejeicao = (
+                None if ja_existe else motivo_para_rejeitar(novo, documentos_casa=documentos_casa)
+            )
             motivo = motivo_para_revisao(novo, categoria_id=categoria, ja_existe=ja_existe)
             plano.itens.append(
                 ItemReprocessado(
                     item_id=item.id,
                     id_externo=item.id_externo,
-                    destino=motivo or "promover",
+                    destino="rejeitar" if rejeicao else motivo or "promover",
+                    rejeicao=rejeicao,
                     forma_id=forma_id,
                     forma_nova=nova,
                     forma_rotulo=_rotulo_forma(formas.get(forma_id) if forma_id else None, nova),
@@ -326,13 +348,26 @@ class ReprocessamentoPluggyService:
             atualizados += 1
         self.session.flush()
 
+        ingestao = IngestaoService(self.session)
+        rejeitar: dict[str, list[int]] = {}
+        for r in plano.itens:
+            if r.rejeicao is not None and r.extraido is not None:
+                rejeitar.setdefault(r.rejeicao, []).append(r.item_id)
+        rejeitados = 0
+        for chave, ids in rejeitar.items():
+            pendentes = [
+                i
+                for i in ids
+                if (item := self.session.get(ImportacaoItem, i)) is not None
+                and item.status is StatusItem.PENDENTE
+            ]
+            rejeitados += ingestao.rejeitar(pendentes, REJEICOES[chave]) if pendentes else 0
+
         limpos = [r.item_id for r in plano.itens if r.destino == "promover"]
         aprovacao: dict[str, Any] = (
-            IngestaoService(self.session).aprovar(limpos)
-            if limpos
-            else {"promovidos": 0, "duplicados": 0, "erros": []}
+            ingestao.aprovar(limpos) if limpos else {"promovidos": 0, "duplicados": 0, "erros": []}
         )
-        return {"atualizados": atualizados, **aprovacao}
+        return {"atualizados": atualizados, "rejeitados": rejeitados, **aprovacao}
 
 
 def _manter_nota_de_duplicata(novo: ItemExtraido, observacao_antiga: str | None) -> None:

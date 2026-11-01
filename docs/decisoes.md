@@ -488,3 +488,42 @@ categoria, e forma pela operação (débito, boleto, transferência) nas de
 conta corrente. Nunca onde a auditoria mostra edição do usuário naquele
 campo — na tela de transações ou, antes de aprovar, na revisão. Simula por
 padrão; grava com `executar=1`, autor `retroativo_d21`.
+
+---
+
+## D-22 — Rejeição automática do que não é gasto nem receita da casa
+
+Decisão do usuário, 01/11/2026.
+
+Depois da D-21, a busca completa da Pluggy deixou 329 itens na revisão, e
+mais da metade não pedia decisão nenhuma: o sistema já sabia o que eram, só
+não tinha permissão para resolver. Revisar isso é o mesmo clique sem leitura
+que a D-21 quis evitar.
+
+**O que a sync rejeita sozinha.** Só item de origem `pluggy`, pendente, e só:
+
+1. **pagamento de fatura**, dos dois lados — o do cartão (operação
+   `PAGAMENTO_FATURA` ou categoria `Credit card payment`) e o da conta
+   (identificado pela descrição). É dinheiro mudando de conta; o gasto já vem
+   pelas compras (D-05);
+2. **dinheiro entre contas da casa**: transferência que a Pluggy classifica
+   como "mesma pessoa", ou Pix/TED cujo outro lado (o pagador numa entrada, o
+   recebedor numa saída) tem o CPF de alguém da casa. Os donos das contas
+   conectadas a sync conhece pela própria Pluggy; os demais (a outra pessoa
+   do casal) ficam em `CASA_DOCUMENTOS` no `.env`, nunca no repositório.
+
+Possível duplicata e encargos de fatura nunca são rejeitados sozinhos.
+
+**Como fica.** O item vai para `rejeitado` pelo `rejeitar()` da revisão, com
+o motivo em `motivo_rejeicao` e autor `sync_pluggy` (ou
+`reprocessamento_pluggy`) na auditoria. Nada entra em `transacoes`. A tela
+da importação continua mostrando o item, e o usuário pode revertê-lo.
+
+**Rendimento sem observação.** Em entrada de conta corrente, a operação que
+não diz a forma de pagamento (`RESGATE_APLIC_FINANCEIRA`, `OUTROS`) deixa de
+gerar observação: forma não diz nada sobre receita, e a nota só travava os
+rendimentos do Mercado Pago na revisão. Em saída, continua.
+
+**Consequência a conhecer.** Um Pix entre o casal que foi pagamento de
+alguma coisa (dividir uma conta) não vira gasto. A decisão aceita isso: para
+o orçamento da casa, dinheiro entre vocês é o mesmo dinheiro.

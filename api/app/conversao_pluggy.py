@@ -86,11 +86,11 @@ _OBS_PAGAMENTO_NO_CARTAO = (
 #: Público: a promoção automática (D-21) separa este caso no relatório.
 OBS_PAGAMENTO_NO_CARTAO = _OBS_PAGAMENTO_NO_CARTAO
 
-_OBS_PAGAMENTO_NA_CONTA = (
+OBS_PAGAMENTO_NA_CONTA = _OBS_PAGAMENTO_NA_CONTA = (
     "Pagamento de fatura de cartão, identificado pela descrição: dinheiro "
     "mudando de conta, fica fora do cálculo de gasto (D-05)."
 )
-_OBS_MESMA_PESSOA = (
+OBS_MESMA_PESSOA = _OBS_MESMA_PESSOA = (
     "A Pluggy classifica como transferência para a mesma pessoa. Confira se "
     "é entre contas suas; se não for, troque para despesa ou receita."
 )
@@ -204,7 +204,12 @@ def converter(
     forma_tipo = None
     if not conta.e_cartao:
         forma_tipo = forma_da_operacao(transacao.operation_type)
-        if forma_tipo is None:
+        if forma_tipo is None and tipo is TipoTransacao.RECEITA:
+            # Dinheiro entrando: a forma de pagamento não diz nada sobre a
+            # receita, e a nota só travava rendimento na revisão (D-22).
+            if confianca == CONFIANCA_CONTA:
+                confianca = CONFIANCA_ESTRUTURADA
+        elif forma_tipo is None:
             observacoes.append(_obs_forma(transacao.operation_type))
         elif confianca == CONFIANCA_CONTA:
             confianca = CONFIANCA_ESTRUTURADA
@@ -250,7 +255,25 @@ def converter(
         operacao_externa=transacao.operation_type,
         categoria_externa_id=transacao.category_id,
         categoria_externa=transacao.category,
+        documento_contraparte=(
+            None if conta.e_cartao else documento_contraparte(transacao, entrada)
+        ),
     )
+
+
+def documento_contraparte(transacao: Transacao, entrada: bool) -> str | None:
+    """CPF ou CNPJ do outro lado, só dígitos: o pagador na entrada, o
+    recebedor na saída. A Pluggy manda `documentNumber` como texto ou como
+    `{"type": "CPF", "value": "..."}`; os dois chegam aqui."""
+    dados = transacao.payment_data or {}
+    lado = dados.get("payer" if entrada else "receiver")
+    if not isinstance(lado, dict):
+        return None
+    documento = lado.get("documentNumber")
+    if isinstance(documento, dict):
+        documento = documento.get("value")
+    digitos = "".join(c for c in str(documento or "") if c.isdigit())
+    return digitos or None
 
 
 def forma_da_operacao(operacao: str | None) -> TipoPagamento | None:

@@ -376,3 +376,40 @@ def test_script_simula_por_padrao(
     assert "seriam promovidos: 3" in saida
     assert "nova: Débito Banco A (debito)" in saida
     assert session.scalar(select(func.count()).select_from(Transacao)) == 1
+
+
+class TestRejeicaoD22:
+    def test_pix_para_a_casa_e_rejeitado_no_reprocessamento(
+        self, session: Session, cenario: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.config import get_settings
+
+        transacoes = [dict(t) for t in TRANSACOES]
+        for t in transacoes:
+            if t["id"] == "b-pix":
+                t["paymentData"] = {"receiver": {"documentNumber": "555.666.777-88"}}
+        originais = list(TRANSACOES)
+        TRANSACOES[:] = transacoes
+        try:
+            cenario["importacao"].arquivo_conteudo = _comprovante()
+        finally:
+            TRANSACOES[:] = originais
+        session.commit()
+        monkeypatch.setenv("CASA_DOCUMENTOS", "55566677788")
+        get_settings.cache_clear()
+        try:
+            service = ReprocessamentoPluggyService(session)
+            plano = service.planejar(cenario["importacao"].id)
+            assert plano.rejeitaria == {"movimento_casa": 1}
+            assert "rejeitar" not in plano.na_revisao
+            resultado = service.executar(plano)
+            session.commit()
+        finally:
+            get_settings.cache_clear()
+
+        assert resultado["rejeitados"] == 1
+        item = cenario["itens"]["b-pix"]
+        session.refresh(item)
+        assert item.status is StatusItem.REJEITADO
+        assert item.transacao_id is None
+        assert item.motivo_rejeicao is not None and "entre contas da casa" in item.motivo_rejeicao

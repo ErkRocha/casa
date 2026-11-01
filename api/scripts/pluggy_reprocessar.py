@@ -27,7 +27,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.services.promocao_pluggy import MOTIVOS
+from app.services.promocao_pluggy import MOTIVOS, ROTULOS_REJEICAO
 from app.services.reprocessamento_pluggy import (
     PlanoReprocessamento,
     ReprocessamentoPluggyService,
@@ -50,6 +50,12 @@ def imprimir(plano: PlanoReprocessamento, *, executado: bool) -> None:
 
     verbo = "promovidos" if executado else "seriam promovidos"
     print(f"\n{verbo}: {plano.promoveria}")
+    rejeitaria = plano.rejeitaria
+    if rejeitaria:
+        verbo_r = "rejeitados" if executado else "seriam rejeitados"
+        print(f"{verbo_r} automaticamente (D-22): {sum(rejeitaria.values())}")
+        for chave, n in rejeitaria.most_common():
+            print(f"   {ROTULOS_REJEICAO.get(chave, chave)}: {n}")
     na_revisao = plano.na_revisao
     print(f"ficariam na revisão: {sum(na_revisao.values())}")
     for motivo, texto in MOTIVOS.items():
@@ -110,7 +116,8 @@ def main(argv: list[str] | None = None) -> int:
         session.commit()
         imprimir(plano, executado=True)
         print(
-            f"\nitens atualizados: {resultado['atualizados']}; promovidos: "
+            f"\nitens atualizados: {resultado['atualizados']}; rejeitados: "
+            f"{resultado['rejeitados']}; promovidos: "
             f"{resultado['promovidos']}; duplicados na promoção: {resultado['duplicados']}"
         )
         for erro in resultado["erros"]:
