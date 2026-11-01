@@ -59,7 +59,10 @@ export default function App() {
       }
     >
       {tela === "analytics" ? (
-        <AnalyticsPage />
+        <AnalyticsPage
+          onVerTransacoes={() => setTela("transacoes")}
+          onRevisar={() => setTela("importacoes")}
+        />
       ) : tela === "importacoes" ? (
         <ImportacoesPage />
       ) : tela === "regras" ? (

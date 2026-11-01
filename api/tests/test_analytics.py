@@ -347,7 +347,7 @@ class TestGuardaDoCasal:
 
 
 class TestEndpointResumo:
-    def test_resumo_traz_os_cinco_paineis(self, client: TestClient, cenario: dict) -> None:
+    def test_resumo_traz_todos_os_paineis(self, client: TestClient, cenario: dict) -> None:
         dados = client.get("/analytics/resumo").json()
         assert set(dados) == {
             "evolucao_mensal",
@@ -355,6 +355,7 @@ class TestEndpointResumo:
             "divisao_pessoas",
             "orcamento",
             "comparativo",
+            "por_banco",
         }
 
     def test_resumo_aceita_os_mesmos_filtros_da_listagem(

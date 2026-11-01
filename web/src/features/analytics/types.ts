@@ -9,6 +9,7 @@
  * medir uma barra é seguro — somar não é.
  */
 
+import type { TipoPagamento } from "@/features/cadastros/types";
 import type { Dinheiro } from "@/features/transacoes/types";
 
 export type { Dinheiro };
@@ -104,4 +105,41 @@ export interface AnalyticsResumo {
   divisao_pessoas: DivisaoPessoas;
   orcamento: ProgressoOrcamento;
   comparativo: Comparativo;
+  por_banco: GastoPorBanco;
+}
+
+export interface FormaNoBanco {
+  forma_pagamento_id: number;
+  apelido: string;
+  tipo: TipoPagamento;
+  /** Cartão de crédito; o resto sai direto da conta. */
+  cartao: boolean;
+  valor: Dinheiro;
+  quantidade: number;
+  /** Ainda na revisão das importações: fora de `valor` até aprovar. */
+  revisao_valor: Dinheiro;
+  revisao_quantidade: number;
+}
+
+export interface LinhaBanco {
+  /** Nulo = lançamento sem forma de pagamento. */
+  conta_id: number | null;
+  nome: string;
+  total: Dinheiro;
+  cartao: Dinheiro;
+  conta: Dinheiro;
+  percentual: Dinheiro;
+  formas: FormaNoBanco[];
+  revisao_valor: Dinheiro;
+  revisao_quantidade: number;
+}
+
+/** Despesa do período por banco e forma. Ignora o filtro de forma. */
+export interface GastoPorBanco {
+  total: Dinheiro;
+  cartao: Dinheiro;
+  conta: Dinheiro;
+  linhas: LinhaBanco[];
+  revisao_valor: Dinheiro;
+  revisao_quantidade: number;
 }

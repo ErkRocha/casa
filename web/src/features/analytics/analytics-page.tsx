@@ -7,6 +7,7 @@ import { baldesDoCasal } from "@/features/filters/baldes";
 import { useFiltros } from "@/features/filters/filter-context";
 import { ApiError } from "@/lib/api";
 import { formatCompetencia } from "@/lib/format";
+import { BankBreakdown } from "./components/bank-breakdown";
 import { BudgetProgressChart } from "./components/budget-progress-chart";
 import { CategoryCompositionChart } from "./components/category-composition-chart";
 import { MonthlyEvolutionChart } from "./components/monthly-evolution-chart";
@@ -22,7 +23,15 @@ import { useAnalyticsResumo } from "./queries";
  * recorte inteiro vira parâmetro de URL. Mudar um filtro dispara uma query
  * nova; nada é recalculado no navegador (D-14).
  */
-export function AnalyticsPage() {
+export function AnalyticsPage({
+  onVerTransacoes,
+  onRevisar,
+}: {
+  /** O painel por banco filtra e leva para a lista de lançamentos. */
+  onVerTransacoes: () => void;
+  /** E leva para a revisão das importações, quando há compra esperando. */
+  onRevisar: () => void;
+}) {
   const { filtros } = useFiltros();
   const [drillCategoriaId, setDrillCategoriaId] = useState<number | null>(null);
 
@@ -85,6 +94,14 @@ export function AnalyticsPage() {
           <MonthlyEvolutionChart data={data.evolucao_mensal} />
         </Panel>
 
+        <Panel wide title="Gasto por banco">
+          <BankBreakdown
+            data={data.por_banco}
+            onVerTransacoes={onVerTransacoes}
+            onRevisar={onRevisar}
+          />
+        </Panel>
+
         <Panel title="Composição por categoria">
           <CategoryCompositionChart
             data={data.composicao_categoria}
@@ -112,12 +129,12 @@ export function AnalyticsPage() {
 function EsqueletoAnalytics() {
   return (
     <div className="grid grid-cols-2 gap-12" aria-busy aria-label="Carregando gráficos">
-      {[0, 1, 2, 3, 4].map((i) => (
+      {[0, 1, 2, 3, 4, 5].map((i) => (
         <div
           key={i}
           className={
             "bg-surface-sunken animate-shimmer rounded-md p-9 " +
-            (i === 0 ? "col-span-full h-110" : "h-90")
+            (i < 2 ? "col-span-full h-110" : "h-90")
           }
         />
       ))}

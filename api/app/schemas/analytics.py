@@ -102,11 +102,57 @@ class Comparativo(BaseModel):
     linhas: list[LinhaComparativo]
 
 
+class FormaNoBanco(BaseModel):
+    forma_pagamento_id: int
+    apelido: str
+    #: `tipo_pagamento`: credito, debito, pix, boleto, dinheiro, transferencia.
+    tipo: str
+    #: Cartão de crédito. O resto sai direto da conta (débito, Pix, boleto).
+    cartao: bool
+    valor: Decimal
+    quantidade: int
+    #: Despesas desta forma ainda na revisão das importações: não estão no
+    #: `valor`, mas vão estar depois de aprovadas.
+    revisao_valor: Decimal
+    revisao_quantidade: int
+
+
+class LinhaBanco(BaseModel):
+    #: Conta da forma de pagamento. Nulo = lançamento sem forma.
+    conta_id: int | None
+    nome: str
+    total: Decimal
+    #: Parte do total no cartão de crédito.
+    cartao: Decimal
+    #: Parte do total que saiu direto da conta.
+    conta: Decimal
+    percentual: Decimal
+    formas: list[FormaNoBanco]
+    revisao_valor: Decimal
+    revisao_quantidade: int
+
+
+class GastoPorBanco(BaseModel):
+    """Despesa do período por banco e forma de pagamento.
+
+    Ignora o filtro de forma de pagamento: o painel é o lugar onde se escolhe
+    a forma, e sumir com as outras ao clicar numa impediria somar a segunda.
+    """
+
+    total: Decimal
+    cartao: Decimal
+    conta: Decimal
+    linhas: list[LinhaBanco]
+    revisao_valor: Decimal
+    revisao_quantidade: int
+
+
 class AnalyticsResumo(BaseModel):
-    """Os cinco painéis numa tacada — evita cinco round-trips na abertura."""
+    """Os painéis numa tacada — evita um round-trip por painel na abertura."""
 
     evolucao_mensal: EvolucaoMensal
     composicao_categoria: ComposicaoCategoria
     divisao_pessoas: DivisaoPessoas
     orcamento: ProgressoOrcamento
     comparativo: Comparativo
+    por_banco: GastoPorBanco

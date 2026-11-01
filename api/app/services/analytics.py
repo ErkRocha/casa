@@ -15,11 +15,11 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import ColumnElement, Text, and_, cast, func, select
+from sqlalchemy import ColumnElement, Date, Text, and_, cast, func, select
 from sqlalchemy.orm import Session
 
-from app.enums import TipoTransacao
-from app.models import Categoria, Pessoa
+from app.enums import StatusItem, TipoPagamento, TipoTransacao
+from app.models import Categoria, Conta, FormaPagamento, Importacao, ImportacaoItem, Pessoa
 from app.schemas.analytics import (
     AnalyticsResumo,
     CategoriaPai,
@@ -27,6 +27,9 @@ from app.schemas.analytics import (
     ComposicaoCategoria,
     DivisaoPessoas,
     EvolucaoMensal,
+    FormaNoBanco,
+    GastoPorBanco,
+    LinhaBanco,
     LinhaComparativo,
     LinhaComposicao,
     LinhaOrcamento,
@@ -465,19 +468,175 @@ class AnalyticsService:
         return Decimal(total or 0)
 
     # ------------------------------------------------------------------
+    # Gasto por banco
+    # ------------------------------------------------------------------
+
+    def por_banco(self, filtros: TransacaoFiltros) -> GastoPorBanco:
+        """Despesa por banco (a conta da forma de pagamento) e por forma.
+
+        Separa o cartão de crédito do que saiu direto da conta e mostra, ao
+        lado, o que ainda está na revisão das importações: é a diferença mais
+        comum entre o painel e o app do banco.
+        """
+        base = filtros.model_copy(update={"forma_pagamento_ids": []})
+        where = montar_filtros(base)
+        banco = func.coalesce(FormaPagamento.conta_id, V.c.conta_id)
+        no_cartao = FormaPagamento.tipo == TipoPagamento.CREDITO
+        soma = func.sum(V.c.valor)
+        soma_cartao = func.coalesce(func.sum(V.c.valor).filter(no_cartao), 0)
+
+        realizado = self.session.execute(
+            select(
+                banco.label("conta_id"),
+                Conta.nome.label("conta_nome"),
+                V.c.forma_pagamento_id,
+                FormaPagamento.apelido,
+                FormaPagamento.tipo,
+                soma.label("valor"),
+                func.count().label("quantidade"),
+                func.sum(soma).over(partition_by=banco).label("banco_total"),
+                func.sum(soma_cartao).over(partition_by=banco).label("banco_cartao"),
+                func.sum(soma).over().label("total"),
+                func.sum(soma_cartao).over().label("total_cartao"),
+            )
+            .select_from(V)
+            .outerjoin(FormaPagamento, FormaPagamento.id == V.c.forma_pagamento_id)
+            .outerjoin(Conta, Conta.id == banco)
+            .where(and_(True, *where, _so_despesa()))
+            .group_by(
+                banco,
+                Conta.nome,
+                V.c.forma_pagamento_id,
+                FormaPagamento.apelido,
+                FormaPagamento.tipo,
+            )
+        ).all()
+        revisao = self._revisao_por_forma(base)
+
+        # Daqui para baixo é só encaixar linhas já somadas no banco na
+        # estrutura banco -> formas; nenhum valor é somado em Python.
+        bancos: dict[int | None, dict[str, Any]] = {}
+        for linha in realizado:
+            b = _banco(bancos, linha)
+            b["total"] = Decimal(linha.banco_total)
+            b["cartao"] = Decimal(linha.banco_cartao)
+            forma = _forma(b, linha)
+            if forma is not None:
+                forma["valor"] = Decimal(linha.valor)
+                forma["quantidade"] = int(linha.quantidade)
+        for linha in revisao:
+            b = _banco(bancos, linha)
+            b["revisao_valor"] = Decimal(linha.banco_valor)
+            b["revisao_quantidade"] = int(linha.banco_quantidade)
+            forma = _forma(b, linha)
+            if forma is not None:
+                forma["revisao_valor"] = Decimal(linha.valor)
+                forma["revisao_quantidade"] = int(linha.quantidade)
+
+        total = Decimal(realizado[0].total) if realizado else ZERO
+        total_cartao = Decimal(realizado[0].total_cartao) if realizado else ZERO
+        linhas = [
+            LinhaBanco(
+                conta_id=conta_id,
+                nome=b["nome"],
+                total=b["total"],
+                cartao=b["cartao"],
+                conta=b["total"] - b["cartao"],
+                percentual=((b["total"] / total * 100).quantize(Decimal("0.1")) if total else ZERO),
+                formas=sorted(
+                    (FormaNoBanco(**f) for f in b["formas"].values()),
+                    key=lambda f: (f.valor, f.revisao_valor),
+                    reverse=True,
+                ),
+                revisao_valor=b["revisao_valor"],
+                revisao_quantidade=b["revisao_quantidade"],
+            )
+            for conta_id, b in bancos.items()
+        ]
+        linhas.sort(key=lambda b: (b.total, b.revisao_valor), reverse=True)
+
+        return GastoPorBanco(
+            total=total,
+            cartao=total_cartao,
+            conta=total - total_cartao,
+            linhas=linhas,
+            revisao_valor=Decimal(revisao[0].total) if revisao else ZERO,
+            revisao_quantidade=int(revisao[0].total_quantidade) if revisao else 0,
+        )
+
+    def _revisao_por_forma(self, filtros: TransacaoFiltros) -> Sequence[Any]:
+        """Despesas pendentes na revisão, por banco e forma, no mesmo período.
+
+        Só o recorte de período vale aqui: categoria e pessoa, o item na
+        revisão muitas vezes ainda nem tem.
+        """
+        competencia = func.coalesce(
+            ImportacaoItem.competencia_sugerida,
+            cast(func.date_trunc("month", ImportacaoItem.data), Date),
+        )
+        where: list[ColumnElement[bool]] = [
+            ImportacaoItem.deleted_em.is_(None),
+            Importacao.deleted_em.is_(None),
+            ImportacaoItem.status == StatusItem.PENDENTE,
+            ImportacaoItem.tipo_sugerido == TipoTransacao.DESPESA,
+            ImportacaoItem.valor.is_not(None),
+        ]
+        if filtros.competencia_inicio is not None:
+            where.append(competencia >= primeiro_dia_do_mes(filtros.competencia_inicio))
+        if filtros.competencia_fim is not None:
+            where.append(competencia <= primeiro_dia_do_mes(filtros.competencia_fim))
+        if filtros.data_inicio is not None:
+            where.append(ImportacaoItem.data >= filtros.data_inicio)
+        if filtros.data_fim is not None:
+            where.append(ImportacaoItem.data <= filtros.data_fim)
+
+        banco = FormaPagamento.conta_id
+        soma = func.sum(ImportacaoItem.valor)
+        return self.session.execute(
+            select(
+                banco.label("conta_id"),
+                Conta.nome.label("conta_nome"),
+                ImportacaoItem.forma_pagamento_sugerida_id.label("forma_pagamento_id"),
+                FormaPagamento.apelido,
+                FormaPagamento.tipo,
+                soma.label("valor"),
+                func.count().label("quantidade"),
+                func.sum(soma).over(partition_by=banco).label("banco_valor"),
+                func.sum(func.count()).over(partition_by=banco).label("banco_quantidade"),
+                func.sum(soma).over().label("total"),
+                func.sum(func.count()).over().label("total_quantidade"),
+            )
+            .select_from(ImportacaoItem)
+            .join(Importacao, Importacao.id == ImportacaoItem.importacao_id)
+            .outerjoin(
+                FormaPagamento, FormaPagamento.id == ImportacaoItem.forma_pagamento_sugerida_id
+            )
+            .outerjoin(Conta, Conta.id == banco)
+            .where(*where)
+            .group_by(
+                banco,
+                Conta.nome,
+                ImportacaoItem.forma_pagamento_sugerida_id,
+                FormaPagamento.apelido,
+                FormaPagamento.tipo,
+            )
+        ).all()
+
+    # ------------------------------------------------------------------
     # Resumo
     # ------------------------------------------------------------------
 
     def resumo(
         self, filtros: TransacaoFiltros, categoria_pai_id: int | None = None
     ) -> AnalyticsResumo:
-        """Os cinco painéis numa chamada só."""
+        """Todos os painéis numa chamada só."""
         return AnalyticsResumo(
             evolucao_mensal=self.evolucao_mensal(filtros),
             composicao_categoria=self.composicao_categoria(filtros, categoria_pai_id),
             divisao_pessoas=self.divisao_pessoas(filtros),
             orcamento=self.orcamento(),
             comparativo=self.comparativo(filtros),
+            por_banco=self.por_banco(filtros),
         )
 
 
@@ -500,3 +659,38 @@ _MESES = [
 
 def _rotulo_mes(competencia: date) -> str:
     return f"{_MESES[competencia.month]}/{competencia.year}"
+
+
+def _banco(bancos: dict[int | None, dict[str, Any]], linha: Any) -> dict[str, Any]:
+    """O banco da linha no painel por banco, criado zerado na primeira vez."""
+    return bancos.setdefault(
+        linha.conta_id,
+        {
+            "nome": linha.conta_nome or "Sem forma de pagamento",
+            "total": ZERO,
+            "cartao": ZERO,
+            "formas": {},
+            "revisao_valor": ZERO,
+            "revisao_quantidade": 0,
+        },
+    )
+
+
+def _forma(banco: dict[str, Any], linha: Any) -> dict[str, Any] | None:
+    """A forma da linha dentro do banco; nula para lançamento sem forma."""
+    if linha.forma_pagamento_id is None:
+        return None
+    formas: dict[int, dict[str, Any]] = banco["formas"]
+    return formas.setdefault(
+        linha.forma_pagamento_id,
+        {
+            "forma_pagamento_id": linha.forma_pagamento_id,
+            "apelido": linha.apelido,
+            "tipo": str(linha.tipo),
+            "cartao": linha.tipo == TipoPagamento.CREDITO,
+            "valor": ZERO,
+            "quantidade": 0,
+            "revisao_valor": ZERO,
+            "revisao_quantidade": 0,
+        },
+    )
