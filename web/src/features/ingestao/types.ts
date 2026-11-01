@@ -33,6 +33,8 @@ export interface Importacao {
   /** Preenchido quando a soma não fechou ou sobrou linha não reconhecida. */
   erro_mensagem: string | null;
   criado_em: string;
+  /** Itens ainda pendentes de revisão (só na listagem). */
+  itens_pendentes: number;
 }
 
 export interface ItemImportacao {
@@ -64,11 +66,35 @@ export interface ItemImportacao {
   id_externo: string | null;
 }
 
+/** Entre os pendentes, o que falta para aprovar — o filtro da revisão. */
+export type FaltaItem = "sem_categoria" | "observacao" | "transferencia" | "pronto";
+
+/** Filtro da revisão, aplicado pela API (regra 10). */
+export interface FiltroRevisao {
+  /** `null` = todos os status. */
+  status: StatusItem | null;
+  /** Só com `status` pendente. */
+  falta: FaltaItem | null;
+  busca: string;
+}
+
+export const FILTRO_INICIAL: FiltroRevisao = { status: "pendente", falta: null, busca: "" };
+
+/** Quantos itens há em cada filtro, na importação inteira. */
+export interface ContagensRevisao {
+  por_status: Partial<Record<StatusItem, number>>;
+  pendentes_por_falta: Record<FaltaItem, number>;
+}
+
 export interface ImportacaoDetalhe {
   importacao: Importacao;
+  /** Só os itens do filtro pedido. */
   itens: ItemImportacao[];
-  /** Quanto entra de despesa se aprovar tudo que está pendente. */
+  /** Quanto entra de despesa se aprovar tudo que está pendente (importação inteira). */
   total_pendente: Dinheiro;
+  /** Despesa pendente + aprovada, para conferir contra o documento (importação inteira). */
+  soma_lida: Dinheiro;
+  contagens: ContagensRevisao;
 }
 
 export interface ItemAjuste {
@@ -98,6 +124,13 @@ export const STATUS_ITEM_LABEL: Record<StatusItem, string> = {
   aprovado: "Aprovado",
   rejeitado: "Rejeitado",
   duplicado: "Duplicado",
+};
+
+export const FALTA_LABEL: Record<FaltaItem, string> = {
+  sem_categoria: "Sem categoria",
+  observacao: "Com observação",
+  transferencia: "Transferência",
+  pronto: "Prontos para aprovar",
 };
 
 export const STATUS_IMPORTACAO_LABEL: Record<StatusImportacao, string> = {

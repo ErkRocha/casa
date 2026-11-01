@@ -18,7 +18,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, func, select, text, update
+from sqlalchemy import ColumnElement, CursorResult, and_, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -313,15 +313,94 @@ class IngestaoService:
             )
         )
 
-    def itens(self, importacao_id: int, status: StatusItem | None = None) -> list[ImportacaoItem]:
+    def itens(
+        self,
+        importacao_id: int,
+        status: StatusItem | None = None,
+        falta: str | None = None,
+        busca: str | None = None,
+    ) -> list[ImportacaoItem]:
+        """Itens da revisão, filtrados no banco (regra 10).
+
+        `falta` (`FALTAS`) só faz sentido em item pendente e implica status
+        pendente. `busca` procura no texto cru e na descrição, sem diferença
+        de maiúscula.
+        """
         self.get(importacao_id)
         query = select(ImportacaoItem).where(
             ImportacaoItem.importacao_id == importacao_id,
             ImportacaoItem.deleted_em.is_(None),
         )
+        if falta is not None:
+            status = StatusItem.PENDENTE
+            query = query.where(_condicao_falta(falta))
         if status is not None:
             query = query.where(ImportacaoItem.status == status)
-        return list(self.session.scalars(query.order_by(ImportacaoItem.linha_num)))
+        termo = (busca or "").strip()
+        if termo:
+            padrao = "%" + re.sub(r"([\\%_])", r"\\\1", termo) + "%"
+            query = query.where(
+                or_(
+                    ImportacaoItem.linha_bruta.ilike(padrao, escape="\\"),
+                    ImportacaoItem.descricao_original.ilike(padrao, escape="\\"),
+                )
+            )
+        return list(
+            self.session.scalars(query.order_by(ImportacaoItem.linha_num, ImportacaoItem.id))
+        )
+
+    def contagens(self, importacao_id: int) -> dict[str, Any]:
+        """Quantos itens há em cada filtro da revisão, na importação inteira.
+
+        Agregado no banco: os números dos filtros não dependem do filtro
+        aberto na tela. Traz também as somas que a tela mostra, sobre todos
+        os itens, para não precisar somar no navegador.
+        """
+        vivo = and_(
+            ImportacaoItem.importacao_id == importacao_id,
+            ImportacaoItem.deleted_em.is_(None),
+        )
+        por_status = {
+            s.value: int(n)
+            for s, n in self.session.execute(
+                select(ImportacaoItem.status, func.count())
+                .where(vivo)
+                .group_by(ImportacaoItem.status)
+            )
+        }
+        pendente = ImportacaoItem.status == StatusItem.PENDENTE
+        colunas = [func.count().filter(and_(pendente, _condicao_falta(f))).label(f) for f in FALTAS]
+        despesa = ImportacaoItem.tipo_sugerido == TipoTransacao.DESPESA
+        lida = ImportacaoItem.status.in_([StatusItem.PENDENTE, StatusItem.APROVADO])
+        linha = self.session.execute(
+            select(
+                *colunas,
+                func.sum(ImportacaoItem.valor)
+                .filter(and_(pendente, despesa))
+                .label("total_pendente"),
+                func.sum(ImportacaoItem.valor).filter(and_(despesa, lida)).label("soma_lida"),
+            ).where(vivo)
+        ).one()
+        return {
+            "por_status": por_status,
+            "pendentes_por_falta": {f: int(getattr(linha, f)) for f in FALTAS},
+            "total_pendente": Decimal(linha.total_pendente or 0),
+            "soma_lida": Decimal(linha.soma_lida or 0),
+        }
+
+    def pendentes_por_importacao(self) -> dict[int, int]:
+        """Importação -> itens pendentes, para a lista de importações."""
+        return {
+            int(importacao_id): int(n)
+            for importacao_id, n in self.session.execute(
+                select(ImportacaoItem.importacao_id, func.count())
+                .where(
+                    ImportacaoItem.deleted_em.is_(None),
+                    ImportacaoItem.status == StatusItem.PENDENTE,
+                )
+                .group_by(ImportacaoItem.importacao_id)
+            )
+        }
 
     def ajustar(self, item_id: int, dados: dict[str, Any]) -> ImportacaoItem:
         """Correção do usuário antes de aprovar.
@@ -658,6 +737,33 @@ class _Sugestao:
         self.forma_pagamento_id: int | None = None
         self.origem: str = "parser"
         self.confianca: Decimal = Decimal("0.50")
+
+
+#: O que falta a um item pendente para ser aprovado — os filtros da revisão.
+#: "pronto" é o contrário: tem categoria, não tem nota e não é transferência.
+FALTAS: tuple[str, ...] = ("sem_categoria", "observacao", "transferencia", "pronto")
+
+
+def _condicao_falta(falta: str) -> ColumnElement[bool]:
+    com_nota = and_(ImportacaoItem.observacao.is_not(None), ImportacaoItem.observacao != "")
+    transferencia = ImportacaoItem.tipo_sugerido == TipoTransacao.TRANSFERENCIA
+    nao_transferencia = or_(
+        ImportacaoItem.tipo_sugerido.is_(None),
+        ImportacaoItem.tipo_sugerido != TipoTransacao.TRANSFERENCIA,
+    )
+    if falta == "sem_categoria":
+        return and_(ImportacaoItem.categoria_sugerida_id.is_(None), nao_transferencia)
+    if falta == "observacao":
+        return com_nota
+    if falta == "transferencia":
+        return transferencia
+    if falta == "pronto":
+        return and_(
+            ImportacaoItem.categoria_sugerida_id.is_not(None),
+            nao_transferencia,
+            ~com_nota,
+        )
+    raise RegraViolada(f"Filtro desconhecido: {falta!r}. Use um de {', '.join(FALTAS)}.")
 
 
 class _ContextoEnriquecimento:

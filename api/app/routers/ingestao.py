@@ -4,17 +4,17 @@ Upload do PDF, revisão dos itens em staging e promoção para `transacoes`.
 Nenhum endpoint aqui escreve em `transacoes` sem aprovação explícita (D-07).
 """
 
-from decimal import Decimal
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.db import get_session
-from app.enums import StatusItem, TipoTransacao
+from app.enums import StatusItem
 from app.schemas.common import LoteResponse
 from app.schemas.ingestao import (
+    ContagensRevisao,
     ImportacaoDetalhe,
     ImportacaoRead,
     ItemAjuste,
@@ -66,7 +66,14 @@ async def importar(
 
 @router.get("", response_model=list[ImportacaoRead])
 def listar(session: SessionDep) -> Any:
-    return IngestaoService(session).listar()
+    service = IngestaoService(session)
+    pendentes = service.pendentes_por_importacao()
+    return [
+        ImportacaoRead.model_validate(i).model_copy(
+            update={"itens_pendentes": pendentes.get(i.id, 0)}
+        )
+        for i in service.listar()
+    ]
 
 
 @router.get("/{importacao_id}/arquivo", response_class=Response)
@@ -102,25 +109,28 @@ def detalhe(
     importacao_id: int,
     session: SessionDep,
     apenas: Annotated[StatusItem | None, Query(description="Filtra por status")] = None,
+    falta: Annotated[
+        Literal["sem_categoria", "observacao", "transferencia", "pronto"] | None,
+        Query(description="Entre os pendentes, o que falta para aprovar"),
+    ] = None,
+    busca: Annotated[
+        str | None, Query(max_length=100, description="Texto na linha original")
+    ] = None,
 ) -> Any:
     service = IngestaoService(session)
     importacao = service.get(importacao_id)
-    itens = service.itens(importacao_id, apenas)
-
-    # Quanto entra em despesa se aprovar tudo que está pendente.
-    total_pendente = sum(
-        (
-            item.valor or Decimal("0")
-            for item in itens
-            if item.status is StatusItem.PENDENTE and item.tipo_sugerido is TipoTransacao.DESPESA
-        ),
-        Decimal("0"),
-    )
+    itens = service.itens(importacao_id, apenas, falta, busca)
+    contagens = service.contagens(importacao_id)
 
     return ImportacaoDetalhe(
         importacao=ImportacaoRead.model_validate(importacao),
         itens=[ItemRead.model_validate(item) for item in itens],
-        total_pendente=total_pendente,
+        total_pendente=contagens["total_pendente"],
+        soma_lida=contagens["soma_lida"],
+        contagens=ContagensRevisao(
+            por_status=contagens["por_status"],
+            pendentes_por_falta=contagens["pendentes_por_falta"],
+        ),
     )
 
 

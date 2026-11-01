@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/controls";
@@ -6,6 +6,7 @@ import { ApiError, urlDaApi } from "@/lib/api";
 import { formatBRLTexto, formatDate, toNumero } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useReaplicarRegras } from "@/features/regras/queries";
+import { RevisaoFiltros } from "./components/revisao-filtros";
 import { RevisaoTable } from "./components/revisao-table";
 import { UploadZone } from "./components/upload-zone";
 import {
@@ -16,9 +17,11 @@ import {
   useRejeitarItens,
 } from "./queries";
 import {
+  FILTRO_INICIAL,
   ORIGEM_LABEL,
   STATUS_IMPORTACAO_LABEL,
   ehPdf,
+  type FiltroRevisao,
   type ResultadoAprovacao,
   type ResultadoDesfazer,
 } from "./types";
@@ -40,8 +43,22 @@ export function ImportacoesPage() {
     (ResultadoDesfazer & { arquivo: string }) | null
   >(null);
 
+  // A tela abre nos pendentes: é o que pede decisão.
+  const [filtro, setFiltro] = useState<FiltroRevisao>(FILTRO_INICIAL);
+  const [busca, setBusca] = useState("");
+  const [soComPendencia, setSoComPendencia] = useState(false);
+
+  // A busca vai para a API só quando a digitação para, não a cada tecla.
+  useEffect(() => {
+    const espera = setTimeout(() => {
+      setFiltro((atual) => (atual.busca === busca ? atual : { ...atual, busca }));
+      setSelecionados(new Set());
+    }, 300);
+    return () => clearTimeout(espera);
+  }, [busca]);
+
   const lista = useImportacoes();
-  const detalhe = useImportacao(selecionadaId);
+  const detalhe = useImportacao(selecionadaId, filtro);
   const aprovar = useAprovarItens();
   const rejeitar = useRejeitarItens();
   const desfazer = useDesfazerImportacao();
@@ -52,6 +69,21 @@ export function ImportacoesPage() {
 
   function limparSelecao() {
     setSelecionados(new Set());
+  }
+
+  function trocarFiltro(novo: FiltroRevisao) {
+    setFiltro(novo);
+    limparSelecao();
+  }
+
+  function abrir(id: number) {
+    setSelecionadaId(id);
+    setFiltro(FILTRO_INICIAL);
+    setBusca("");
+    limparSelecao();
+    setResultado(null);
+    setConfirmandoDesfazer(false);
+    setDesfeita(null);
   }
 
   function alternar(id: number) {
@@ -83,9 +115,20 @@ export function ImportacoesPage() {
           </div>
         ) : null}
 
-        <h2 className="text-caption text-text-tertiary tracking-caps-wide mt-14 mb-5 font-semibold uppercase">
-          Importações
-        </h2>
+        <div className="mt-14 mb-5 flex items-center gap-5">
+          <h2 className="text-caption text-text-tertiary tracking-caps-wide font-semibold uppercase">
+            Importações
+          </h2>
+          <label className="text-body-sm text-text-secondary ml-auto inline-flex cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              checked={soComPendencia}
+              onChange={(e) => setSoComPendencia(e.target.checked)}
+              className="accent-accent size-4"
+            />
+            Só com itens a revisar
+          </label>
+        </div>
 
         {lista.isLoading ? (
           <div className="bg-surface-sunken animate-shimmer h-60 rounded-md" />
@@ -95,69 +138,74 @@ export function ImportacoesPage() {
           </p>
         ) : (
           <Card>
-            {(lista.data ?? []).map((importacao) => (
-              <button
-                key={importacao.id}
-                type="button"
-                onClick={() => {
-                  setSelecionadaId(importacao.id);
-                  limparSelecao();
-                  setResultado(null);
-                  setConfirmandoDesfazer(false);
-                  setDesfeita(null);
-                }}
-                className="border-border-faint hover:bg-surface flex w-full cursor-pointer items-center gap-6 border-b px-8 py-5 text-left last:border-b-0"
-              >
-                <span className="text-body text-text-primary flex-1 truncate font-medium">
-                  {importacao.arquivo_nome}
-                </span>
-                <span className="text-body-sm text-text-tertiary w-50">
-                  {ORIGEM_LABEL[importacao.origem ?? ""] ?? importacao.origem ?? "—"}
-                </span>
-                <span className="text-body-sm text-text-secondary tabular w-40 text-right">
-                  {importacao.itens_aprovados}/{importacao.total_itens}
-                </span>
-                <span
-                  className={cn(
-                    "text-body-sm w-50 text-right",
-                    importacao.status === "concluida"
-                      ? "text-income"
-                      : importacao.erro_mensagem
-                        ? "text-expense"
-                        : "text-text-secondary",
-                  )}
+            {/* Poucas importações: filtrar a lista aqui não fere a regra 10. */}
+            {(lista.data ?? [])
+              .filter((importacao) => !soComPendencia || importacao.itens_pendentes > 0)
+              .map((importacao) => (
+                <button
+                  key={importacao.id}
+                  type="button"
+                  onClick={() => abrir(importacao.id)}
+                  className="border-border-faint hover:bg-surface flex w-full cursor-pointer items-center gap-6 border-b px-8 py-5 text-left last:border-b-0"
                 >
-                  {STATUS_IMPORTACAO_LABEL[importacao.status]}
-                </span>
-              </button>
-            ))}
+                  <span className="text-body text-text-primary flex-1 truncate font-medium">
+                    {importacao.arquivo_nome}
+                  </span>
+                  <span className="text-body-sm text-text-tertiary w-50">
+                    {ORIGEM_LABEL[importacao.origem ?? ""] ?? importacao.origem ?? "—"}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-body-sm tabular w-50 text-right",
+                      importacao.itens_pendentes > 0
+                        ? "text-alert font-semibold"
+                        : "text-text-tertiary",
+                    )}
+                  >
+                    {importacao.itens_pendentes > 0
+                      ? `${importacao.itens_pendentes} a revisar`
+                      : "nada a revisar"}
+                  </span>
+                  <span className="text-body-sm text-text-secondary tabular w-40 text-right">
+                    {importacao.itens_aprovados}/{importacao.total_itens}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-body-sm w-50 text-right",
+                      importacao.status === "concluida"
+                        ? "text-income"
+                        : importacao.erro_mensagem
+                          ? "text-expense"
+                          : "text-text-secondary",
+                    )}
+                  >
+                    {STATUS_IMPORTACAO_LABEL[importacao.status]}
+                  </span>
+                </button>
+              ))}
           </Card>
         )}
       </>
     );
   }
 
-  if (detalhe.isLoading || !detalhe.data) {
+  // Com `placeholderData`, a importação anterior ficaria na tela ao trocar.
+  if (detalhe.isLoading || !detalhe.data || detalhe.data.importacao.id !== selecionadaId) {
     return <div className="bg-surface-sunken animate-shimmer h-120 rounded-md" />;
   }
 
-  const { importacao } = detalhe.data;
+  const { importacao, contagens } = detalhe.data;
 
   /* A conferência é sobre o que o parser LEU, não sobre o que sobrou para
      aprovar. Somar só os pendentes fazia o banner virar "não fecha" assim que
      tudo era aprovado — pendente ia a zero e o alarme disparava justamente
      quando estava tudo certo. Item rejeitado sai da conta porque o usuário
      decidiu que ele não conta. */
-  const soma = itens
-    .filter(
-      (i) =>
-        (i.status === "pendente" || i.status === "aprovado") &&
-        i.tipo_sugerido === "despesa",
-    )
-    .reduce((total, i) => total + toNumero(i.valor), 0);
+  // Somado pela API sobre a importação inteira: a tabela pode estar filtrada.
+  const soma = toNumero(detalhe.data.soma_lida);
   const declarado = toNumero(importacao.total_declarado);
   const confere = declarado > 0 && Math.abs(soma - declarado) < 0.005;
-  const temRejeitado = itens.some((i) => i.status === "rejeitado");
+  const temRejeitado = (contagens.por_status.rejeitado ?? 0) > 0;
 
   return (
     <>
@@ -347,11 +395,20 @@ export function ImportacoesPage() {
           </div>
         ) : null}
 
+        <RevisaoFiltros
+          filtro={filtro}
+          busca={busca}
+          contagens={contagens}
+          onFiltro={trocarFiltro}
+          onBusca={setBusca}
+        />
+
         <div className="border-border-faint text-caption-lg text-text-tertiary flex flex-wrap items-center gap-6 border-b px-8 py-4">
-          <span>
-            {itens.length} linha(s) · {pendentes.length} pendente(s)
+          <span aria-live="polite">
+            {itens.length} linha(s) mostrada(s)
+            {detalhe.isFetching ? " · atualizando..." : ""}
           </span>
-          {pendentes.length > 0 ? (
+          {(contagens.por_status.pendente ?? 0) > 0 ? (
             <>
               {/* Depois de corrigir uma linha, isto resolve as outras iguais
                   sem tocar em cada uma (D-09). */}
@@ -369,14 +426,24 @@ export function ImportacoesPage() {
                   {reaplicar.data.alterados} de {reaplicar.data.avaliados} atualizados
                 </span>
               ) : null}
-              <Button variant="ghost" onClick={alternarTodos} className="ml-auto px-0 py-0">
-                {selecionados.size === pendentes.length
-                  ? "Limpar seleção"
-                  : "Selecionar todos os pendentes"}
-              </Button>
+              {pendentes.length > 0 ? (
+                <Button variant="ghost" onClick={alternarTodos} className="ml-auto px-0 py-0">
+                  {selecionados.size === pendentes.length
+                    ? "Limpar seleção"
+                    : `Selecionar os ${pendentes.length} pendentes mostrados`}
+                </Button>
+              ) : null}
             </>
           ) : null}
         </div>
+
+        {itens.length === 0 ? (
+          <p className="text-body-sm text-text-tertiary px-8 py-10">
+            {filtro.falta === "pronto"
+              ? "Nenhum item pronto: dê categoria aos pendentes e eles aparecem aqui."
+              : "Nenhum item neste filtro."}
+          </p>
+        ) : null}
 
         <RevisaoTable
           itens={itens}

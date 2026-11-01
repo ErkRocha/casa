@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type {
   Importacao,
+  FiltroRevisao,
   ImportacaoDetalhe,
   ItemAjuste,
   ItemImportacao,
@@ -13,7 +14,8 @@ import type {
 export const ingestaoKeys = {
   todas: ["importacoes"] as const,
   lista: ["importacoes", "lista"] as const,
-  detalhe: (id: number) => ["importacoes", "detalhe", id] as const,
+  detalhe: (id: number, filtro?: FiltroRevisao) =>
+    filtro ? (["importacoes", "detalhe", id, filtro] as const) : (["importacoes", "detalhe", id] as const),
 };
 
 export function useImportacoes() {
@@ -23,11 +25,21 @@ export function useImportacoes() {
   });
 }
 
-export function useImportacao(id: number | null) {
+/** O detalhe já filtrado pela API: a tela não filtra a lista (regra 10). */
+export function useImportacao(id: number | null, filtro: FiltroRevisao) {
   return useQuery({
-    queryKey: ingestaoKeys.detalhe(id ?? 0),
-    queryFn: () => api.get<ImportacaoDetalhe>(`/importacoes/${id}`),
+    queryKey: ingestaoKeys.detalhe(id ?? 0, filtro),
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (filtro.status) params.set("apenas", filtro.status);
+      if (filtro.falta) params.set("falta", filtro.falta);
+      if (filtro.busca.trim()) params.set("busca", filtro.busca.trim());
+      const qs = params.toString();
+      return api.get<ImportacaoDetalhe>(`/importacoes/${id}${qs ? `?${qs}` : ""}`);
+    },
     enabled: id !== null,
+    // Trocar de filtro mantém a tabela anterior na tela até a nova chegar.
+    placeholderData: (anterior) => anterior,
   });
 }
 

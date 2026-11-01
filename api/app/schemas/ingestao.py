@@ -29,6 +29,8 @@ class ImportacaoRead(BaseModel):
     #: Preenchido quando a soma não fechou ou houve linha não reconhecida.
     erro_mensagem: str | None
     criado_em: datetime
+    #: Itens ainda pendentes de revisão. Só a listagem preenche.
+    itens_pendentes: int = 0
 
 
 class ItemRead(BaseModel):
@@ -58,11 +60,26 @@ class ItemRead(BaseModel):
     id_externo: str | None = None
 
 
+class ContagensRevisao(BaseModel):
+    """Quantos itens há em cada filtro, na importação inteira."""
+
+    #: Status -> itens (`pendente`, `aprovado`, `rejeitado`, `duplicado`).
+    por_status: dict[str, int]
+    #: Entre os pendentes: `sem_categoria`, `observacao`, `transferencia`, `pronto`.
+    pendentes_por_falta: dict[str, int]
+
+
 class ImportacaoDetalhe(BaseModel):
     importacao: ImportacaoRead
+    #: Só os itens do filtro pedido.
     itens: list[ItemRead]
     #: Soma dos itens pendentes de despesa — o que entra se aprovar tudo.
+    #: Da importação inteira, não do filtro.
     total_pendente: Decimal
+    #: Despesa pendente + aprovada: o que se confere contra o total declarado
+    #: do documento. Da importação inteira.
+    soma_lida: Decimal = Decimal("0")
+    contagens: ContagensRevisao | None = None
 
 
 class ItemAjuste(BaseModel):
