@@ -20,6 +20,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from app.conversao_pluggy import (
+    OBS_ABERTA,
     OBS_MESMA_PESSOA,
     OBS_PAGAMENTO_NA_CONTA,
     OBS_PAGAMENTO_NO_CARTAO,
@@ -97,7 +98,9 @@ def motivo_para_revisao(
         if OBS_PAGAMENTO_NO_CARTAO in observacao:
             return "pagamento_fatura_cartao"
         return "transferencia"
-    if observacao:
+    # A compra em aberto (D-23) é promovida como as outras: a marca diz só
+    # que a sync ainda vai atualizá-la. Qualquer outra nota segura o item.
+    if observacao.replace(OBS_ABERTA, "").strip():
         return "observacao"
     if extraido.confianca < LEITURA_LIMPA:
         return "confianca"

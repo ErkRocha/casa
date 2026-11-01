@@ -30,22 +30,31 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Protocol
 
-from sqlalchemy import select, text, tuple_
+from sqlalchemy import func, select, text, tuple_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.conversao_pluggy import (
     FUSO,
+    MARCA_ABERTA,
+    OBS_ABERTA,
     converter_lote,
     e_pagamento_de_fatura,
 )
 from app.enums import StatusItem, TipoPagamento, TipoTransacao
 from app.ingestao.base import ItemExtraido
-from app.models import Categoria, ContaPluggy, FormaPagamento, ImportacaoItem
+from app.models import Auditoria, Categoria, ContaPluggy, FormaPagamento, ImportacaoItem
+from app.models import Transacao as TransacaoDb
 from app.pluggy.modelos import Conta, Fatura, Transacao
 from app.services.cadastros import FormaPagamentoService, normalizar_nome, primeiro_dia_do_mes
 from app.services.ingestao import IngestaoService, ItemLote, _ContextoEnriquecimento
-from app.services.promocao_pluggy import REJEICOES, motivo_para_rejeitar, motivo_para_revisao
+from app.services.promocao_pluggy import (
+    LEITURA_LIMPA,
+    REJEICOES,
+    motivo_para_rejeitar,
+    motivo_para_revisao,
+)
 
 #: Quanto a janela volta antes do último sync. A Pluggy atualiza a cada 24h e
 #: pode consolidar uma transação dias depois da data dela.
@@ -54,6 +63,37 @@ CENTAVO = Decimal("0.01")
 CONFIANCA_DUPLICATA = Decimal("0.50")
 CONFIANCA_ENCARGOS = Decimal("0.70")
 AUTOR = "sync_pluggy"
+
+#: Motivo gravado quando a compra em aberto some da Pluggy (D-23).
+MOTIVO_ABERTA_CANCELADA = (
+    "Compra em aberto cancelada: sumiu da Pluggy antes de o banco confirmar (D-23)."
+)
+
+#: Quem muda transação sem ser o usuário. UPDATE de outro autor é edição dele.
+_AUTORES_AUTOMATICOS = frozenset(
+    {"sync_pluggy", "reprocessamento_pluggy", "retroativo_d21", "limpeza_pdf"}
+)
+
+
+def _campos_editados(session: Session, transacao_id: int) -> set[str]:
+    """Campos da transação que algum UPDATE de autor humano mudou (D-06)."""
+    editados: set[str] = set()
+    for antes, depois in session.execute(
+        select(Auditoria.dados_antes, Auditoria.dados_depois).where(
+            Auditoria.tabela == "transacoes",
+            Auditoria.acao == "UPDATE",
+            Auditoria.registro_id == transacao_id,
+            Auditoria.autor.not_in(_AUTORES_AUTOMATICOS),
+        )
+    ):
+        a, d = antes or {}, depois or {}
+        editados |= {
+            campo
+            for campo in set(a) | set(d)
+            if campo not in ("atualizado_em", "hash_dedup") and a.get(campo) != d.get(campo)
+        }
+    return editados
+
 
 #: Apelido da forma criada pela sync quando a conta não tem a da operação
 #: (D-21): "Débito Sicredi Conta Corrente".
@@ -134,6 +174,13 @@ class ResultadoConta:
     fallback_competencia: list[str] = field(default_factory=list)
     #: Só na simulação: cada item novo com a sugestão que receberia.
     amostra: list[dict[str, Any]] = field(default_factory=list)
+    #: Compras de cartão da fatura aberta lidas nesta execução (D-23).
+    abertas: int = 0
+    #: Compras em aberto já no staging, com o que a Pluggy diz delas hoje:
+    #: confirmadas ou ainda abertas, talvez com outra data ou valor.
+    atualizar: list[ItemExtraido] = field(default_factory=list)
+    #: Compras em aberto no staging que sumiram da Pluggy (`id_externo`).
+    canceladas: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -151,6 +198,11 @@ class ResultadoSync:
     erros_promocao: list[dict[str, Any]] = field(default_factory=list)
     #: Motivo (`promocao_pluggy.REJEICOES`) -> quantos a sync rejeitou (D-22).
     rejeitados: Counter[str] = field(default_factory=Counter)
+    #: Compras em aberto já no staging (D-23): confirmadas pelo banco nesta
+    #: execução, atualizadas (data, valor ou competência) e canceladas.
+    abertas_confirmadas: int = 0
+    abertas_atualizadas: int = 0
+    abertas_canceladas: int = 0
 
     @property
     def itens_novos(self) -> int:
@@ -377,18 +429,36 @@ class SyncPluggyService:
             faturas,
             dia_fechamento=forma.dia_fechamento,
             dia_vencimento=forma.dia_vencimento,
+            incluir_abertas=conta.e_cartao,
         )
         resultado.pendentes_ignoradas = lote.pendentes_ignoradas
+        resultado.abertas = lote.abertas
         resultado.avisos.extend(lote.avisos)
+
+        # D-23: compras em aberto que já estão no staging. A Pluggy mantém o
+        # id quando confirma; o que veio agora (aberta ou confirmada) vai
+        # atualizar o item, e o que sumiu da conta foi cancelado.
+        if conta.e_cartao:
+            abertas_no_staging = self._abertas_no_staging(mapa)
+            lidas = {t.id for t in transacoes}
+            resultado.atualizar = [
+                i for i in lote.itens if (i.id_externo or "") in abertas_no_staging
+            ]
+            resultado.canceladas = sorted(set(abertas_no_staging) - lidas)
 
         ids_faturas = {f.id for f in faturas}
         fatura_da = {
             t.id: (t.credit_card_metadata.bill_id if t.credit_card_metadata else None)
             for t in transacoes
         }
+        # No cartão o corte é `sincronizar_desde`, não a janela: a compra fica
+        # dias em aberto e é confirmada com a data da compra, que a essa
+        # altura já ficou para trás da janela — e nunca entraria. A barreira
+        # de repetição é o id da Pluggy no staging (D-16, D-23).
+        corte = mapa.sincronizar_desde if conta.e_cartao else inicio
         candidatos: list[ItemExtraido] = []
         for item in lote.itens:
-            if item.data < inicio:
+            if item.data < corte:
                 resultado.fora_da_janela += 1
                 continue
             candidatos.append(item)
@@ -448,6 +518,23 @@ class SyncPluggyService:
             f"A conta {mapa.pluggy_account_id} não aparece mais na conexão "
             f"{mapa.pluggy_item_id} da Pluggy."
         )
+
+    def _abertas_no_staging(self, mapa: ContaPluggy) -> dict[str, ImportacaoItem]:
+        """Compras em aberto vivas deste cartão, pendentes ou aprovadas (D-23).
+
+        Rejeitada ou duplicada fica de fora: o usuário (ou a barreira de
+        duplicata) já decidiu, e a confirmação não muda isso.
+        """
+        itens = self.session.scalars(
+            select(ImportacaoItem).where(
+                ImportacaoItem.deleted_em.is_(None),
+                ImportacaoItem.forma_pagamento_sugerida_id == mapa.forma_pagamento_id,
+                ImportacaoItem.observacao.contains(MARCA_ABERTA),
+                ImportacaoItem.status.in_([StatusItem.PENDENTE, StatusItem.APROVADO]),
+                ImportacaoItem.id_externo.is_not(None),
+            )
+        )
+        return {i.id_externo: i for i in itens if i.id_externo}
 
     def _ids_existentes(self, ids: Sequence[str]) -> set[str]:
         """Ids já no staging, em qualquer status, entre linhas vivas (D-16)."""
@@ -597,6 +684,8 @@ class SyncPluggyService:
             resultado.importacao_id = importacao.id
             self._promover(importacao.id, itens, resultado)
 
+        self._atualizar_abertas(resultado)
+
         agora = self._agora()
         for mapa in mapeamentos:
             if mapa.id in sem_erro:
@@ -656,6 +745,124 @@ class SyncPluggyService:
         if aprovacao["duplicados"]:
             resultado.na_revisao["duplicata"] += aprovacao["duplicados"]
         resultado.erros_promocao = aprovacao["erros"]
+
+    # -- compras em aberto (D-23) -----------------------------------------
+
+    def _atualizar_abertas(self, resultado: ResultadoSync) -> None:
+        """Leva para o staging (e para a transação, se já aprovada) o que a
+        Pluggy diz hoje das compras em aberto; cancela as que sumiram.
+
+        Na transação, campo que o usuário editou não é tocado: a auditoria
+        diz quem mudou o quê (D-06). A compra confirmada e limpa que ainda
+        estava na revisão passa pelo mesmo critério de promoção da sync.
+        """
+        ingestao = IngestaoService(self.session)
+        promover: list[int] = []
+        for conta in resultado.contas:
+            if conta.erro is not None:
+                continue
+            for novo in conta.atualizar:
+                item = self._item_vivo(novo.id_externo)
+                if item is None:
+                    continue
+                if OBS_ABERTA not in (novo.observacao or ""):
+                    resultado.abertas_confirmadas += 1
+                if self._aplicar_aberta(item, novo):
+                    resultado.abertas_atualizadas += 1
+                if (
+                    item.status is StatusItem.PENDENTE
+                    and motivo_para_revisao(
+                        novo, categoria_id=item.categoria_sugerida_id, ja_existe=False
+                    )
+                    is None
+                ):
+                    promover.append(item.id)
+            for id_externo in conta.canceladas:
+                item = self._item_vivo(id_externo)
+                if item is not None:
+                    self._cancelar_aberta(item, ingestao)
+                    resultado.abertas_canceladas += 1
+        if promover:
+            aprovacao = ingestao.aprovar(promover)
+            resultado.promovidos += aprovacao["promovidos"]
+            resultado.erros_promocao.extend(aprovacao["erros"])
+
+    def _item_vivo(self, id_externo: str | None) -> ImportacaoItem | None:
+        if not id_externo:
+            return None
+        return self.session.scalar(
+            select(ImportacaoItem)
+            .where(ImportacaoItem.id_externo == id_externo, ImportacaoItem.deleted_em.is_(None))
+            .order_by(ImportacaoItem.id.desc())
+            .limit(1)
+        )
+
+    def _aplicar_aberta(self, item: ImportacaoItem, novo: ItemExtraido) -> bool:
+        """Data, valor, competência e nota novos no item e na transação. Mudou algo?"""
+        antes = (item.data, item.valor, item.competencia_sugerida, item.observacao)
+        # A nota de duplicata e qualquer outra que não seja a marca ficam.
+        resto = (item.observacao or "").replace(OBS_ABERTA, "").strip()
+        observacao = novo.observacao or ""
+        if resto and resto not in observacao:
+            observacao = f"{observacao} {resto}".strip()
+        item.data = novo.data
+        item.valor = novo.valor
+        item.competencia_sugerida = novo.competencia or item.competencia_sugerida
+        item.observacao = observacao or None
+        item.confianca = min(item.confianca or LEITURA_LIMPA, novo.confianca)
+        mudou = antes != (item.data, item.valor, item.competencia_sugerida, item.observacao)
+
+        transacao = (
+            self.session.get(TransacaoDb, item.transacao_id)
+            if item.status is StatusItem.APROVADO and item.transacao_id
+            else None
+        )
+        if transacao is None or transacao.deleted_em is not None:
+            return mudou
+        editados = _campos_editados(self.session, transacao.id)
+        novos = {"data": item.data, "valor": item.valor}
+        if item.competencia_sugerida is not None:
+            novos["competencia"] = item.competencia_sugerida
+        try:
+            with self.session.begin_nested():
+                for campo, valor in novos.items():
+                    if campo not in editados and getattr(transacao, campo) != valor:
+                        setattr(transacao, campo, valor)
+                        mudou = True
+                self.session.flush()
+        except IntegrityError:
+            self.session.expire(transacao)
+            item.observacao = (
+                f"{item.observacao or ''} A confirmação deixaria a transação "
+                f"{transacao.id} idêntica a outra: ficou como estava. Confira."
+            ).strip()
+        return mudou
+
+    def _cancelar_aberta(self, item: ImportacaoItem, ingestao: IngestaoService) -> None:
+        """A compra em aberto sumiu da Pluggy: o banco a cancelou.
+
+        Pendente é rejeitada. Aprovada sem nenhuma edição do usuário sai por
+        soft delete, como entrou: pela sync. Com edição, fica, com nota.
+        """
+        if item.status is StatusItem.PENDENTE:
+            ingestao.rejeitar([item.id], MOTIVO_ABERTA_CANCELADA)
+            return
+        transacao = self.session.get(TransacaoDb, item.transacao_id) if item.transacao_id else None
+        if transacao is None or transacao.deleted_em is not None:
+            return
+        if _campos_editados(self.session, transacao.id):
+            item.observacao = (
+                f"{item.observacao or ''} Sumiu da Pluggy antes de o banco confirmar: "
+                "confira se foi cancelada."
+            ).strip()
+            return
+        transacao.deleted_em = func.now()
+        # Item que não está aprovado não aponta para transação (check do
+        # banco): o vínculo sai, e fica no motivo e na auditoria (D-06).
+        item.status = StatusItem.REJEITADO
+        item.transacao_id = None
+        item.motivo_rejeicao = f"{MOTIVO_ABERTA_CANCELADA} Transação #{transacao.id} apagada."
+        self.session.flush()
 
     def _documentos_casa(self) -> frozenset[str]:
         """CPFs da casa: os donos das contas conectadas e os do `.env` (D-22)."""

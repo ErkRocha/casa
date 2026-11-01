@@ -47,6 +47,7 @@ Estas não são preferências. Violar qualquer uma delas é bug.
    **Segunda exceção (D-22):** a mesma sync *rejeita* sozinha, pelo
    `rejeitar()` da revisão e com o motivo gravado, o pagamento de fatura e o
    dinheiro entre contas da casa. Rejeitar não escreve em `transacoes`.
+   A marca de compra em aberto da fatura (D-23) não conta como observação.
 6. **O agente de insights usa role read-only do Postgres.** Sem exceção.
 7. **LLM não calcula.** Toda soma, média e comparação sai de SQL agregado. O
    modelo apenas interpreta números que já vieram prontos.

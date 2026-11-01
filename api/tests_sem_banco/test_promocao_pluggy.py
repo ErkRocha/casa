@@ -122,3 +122,19 @@ def test_documentos_da_casa_do_env() -> None:
     s = Settings(casa_documentos=" 111.222.333-44, ,55566677788 ")
     assert s.documentos_da_casa == frozenset({"11122233344", "55566677788"})
     assert Settings(casa_documentos=None).documentos_da_casa == frozenset()
+
+
+# --- compra em aberto (D-23) ------------------------------------------------
+
+from app.conversao_pluggy import OBS_ABERTA  # noqa: E402
+
+
+def test_compra_em_aberto_limpa_e_promovida() -> None:
+    aberta = replace(LIMPO, observacao=OBS_ABERTA)
+    assert motivo_para_revisao(aberta, categoria_id=7, ja_existe=False) is None
+    assert motivo_para_revisao(aberta, categoria_id=None, ja_existe=False) == "sem_categoria"
+
+
+def test_compra_em_aberto_com_outra_nota_fica_na_revisao() -> None:
+    aberta = replace(LIMPO, observacao=f"{OBS_ABERTA} Valor arredondado.")
+    assert motivo_para_revisao(aberta, categoria_id=7, ja_existe=False) == "observacao"

@@ -60,6 +60,11 @@ def imprimir(resultado: ResultadoSync, session: Session) -> None:
             f"{c.pendentes_ignoradas} | fora da janela {c.fora_da_janela} | possíveis "
             f"duplicatas {c.possiveis_duplicatas}"
         )
+        if c.abertas or c.atualizar or c.canceladas:
+            print(
+                f"   compras da fatura aberta (D-23): {c.abertas} lidas | já no staging, "
+                f"a atualizar {len(c.atualizar)} | canceladas {len(c.canceladas)}"
+            )
         if c.com_fatura or c.fallback_competencia:
             print(
                 f"   compras de cartão com fatura achada: {c.com_fatura}; "
@@ -93,6 +98,16 @@ def imprimir(resultado: ResultadoSync, session: Session) -> None:
         print(f"{verbo_r} automaticamente (D-22): {sum(resultado.rejeitados.values())}")
         for chave, n in resultado.rejeitados.most_common():
             print(f"   {ROTULOS_REJEICAO.get(chave, chave)}: {n}")
+    if not resultado.simulado and (
+        resultado.abertas_confirmadas
+        or resultado.abertas_atualizadas
+        or resultado.abertas_canceladas
+    ):
+        print(
+            f"compras em aberto (D-23): {resultado.abertas_confirmadas} confirmadas pelo banco, "
+            f"{resultado.abertas_atualizadas} atualizadas, "
+            f"{resultado.abertas_canceladas} canceladas"
+        )
     print(f"na revisão: {sum(resultado.na_revisao.values())}")
     for motivo, texto in MOTIVOS.items():
         if resultado.na_revisao[motivo]:

@@ -396,3 +396,62 @@ class TestD22:
 
     def test_cartao_nao_tem_contraparte(self) -> None:
         assert _cartao("compra_simples").documento_contraparte is None
+
+
+class TestCompraEmAberto:
+    """D-23: compra de cartão `PENDING` entra como compra em aberto."""
+
+    def _aberta(self, **troca: Any) -> Transacao:
+        meta = dict(DADOS["transacoes_cartao"]["compra_simples"]["creditCardMetadata"])
+        meta["billId"] = None
+        return _tx(
+            "transacoes_cartao",
+            "compra_simples",
+            status="PENDING",
+            creditCardMetadata=meta,
+            **troca,
+        )
+
+    def test_entra_com_a_marca_e_competencia_estimada_sem_nota(self) -> None:
+        from app.conversao_pluggy import OBS_ABERTA
+
+        item = converter(
+            self._aberta(),
+            CARTAO,
+            FATURAS,
+            dia_fechamento=3,
+            dia_vencimento=10,
+            aceitar_aberta=True,
+        )
+        assert item.observacao == OBS_ABERTA
+        assert item.confianca == Decimal("1.00")
+        # Compra em 20/03, fecha dia 3: fatura que vence em 10/04.
+        assert item.competencia == date(2025, 4, 1)
+
+    def test_sem_os_dias_da_forma_a_competencia_vira_nota(self) -> None:
+        item = converter(self._aberta(), CARTAO, FATURAS, aceitar_aberta=True)
+        assert item.observacao is not None and "mês da compra" in item.observacao
+        assert item.confianca < Decimal("1.00")
+
+    def test_sem_pedir_continua_recusada(self) -> None:
+        with pytest.raises(ValueError):
+            converter(self._aberta(), CARTAO, FATURAS)
+
+    def test_lote_so_traz_compra_de_cartao(self) -> None:
+        from app.conversao_pluggy import converter_lote
+
+        credito = self._aberta(type="CREDIT", amount=-5, id="estorno-aberto")
+        conta = _tx("transacoes_conta", "debito", status="PENDING")
+        cartao = converter_lote(
+            [self._aberta(), credito],
+            CARTAO,
+            FATURAS.values(),
+            dia_fechamento=3,
+            dia_vencimento=10,
+            incluir_abertas=True,
+        )
+        assert (cartao.abertas, cartao.pendentes_ignoradas, len(cartao.itens)) == (1, 1, 1)
+        corrente = converter_lote([conta], CORRENTE, [], incluir_abertas=True)
+        assert (corrente.abertas, corrente.pendentes_ignoradas) == (0, 1)
+        padrao = converter_lote([self._aberta()], CARTAO, FATURAS.values())
+        assert (padrao.abertas, padrao.pendentes_ignoradas) == (0, 1)

@@ -527,3 +527,41 @@ rendimentos do Mercado Pago na revisão. Em saída, continua.
 **Consequência a conhecer.** Um Pix entre o casal que foi pagamento de
 alguma coisa (dividir uma conta) não vira gasto. A decisão aceita isso: para
 o orçamento da casa, dinheiro entre vocês é o mesmo dinheiro.
+
+---
+
+## D-23 — Compras da fatura aberta entram antes de o banco confirmar
+
+Decisão do usuário, 01/11/2026.
+
+Outubro no app do Nubank somava R$ 2.792,23, e o sistema não tinha quase
+nada dele: a Pluggy entrega as compras da fatura aberta como `PENDING` até
+a fatura fechar, e a sync só lia `POSTED` (D-16). Na busca de 01/11, 41
+compras do cartão (R$ 2.752,33) ficaram de fora. Elas só chegariam depois
+do fechamento — semanas de gasto invisível no painel.
+
+**O que foi verificado antes.** O receio da D-16 era a Pluggy trocar o id
+quando a compra é confirmada, o que duplicaria tudo. Nos dados reais, as 6
+compras do Mercado Pago pendentes em 06/10 voltaram confirmadas em 01/11
+**com o mesmo id**; a data mudou em 9 de 16 e o `billId` só aparece na
+confirmação.
+
+**O que muda.** A compra de cartão `PENDING` (débito no cartão) entra como
+**compra em aberto**, com a nota fixa `OBS_ABERTA`. A competência é
+estimada pelos dias de fechamento e vencimento da forma, sem nota a mais.
+Pendente de conta corrente e crédito pendente no cartão continuam de fora.
+
+- **Promoção:** a marca de compra em aberto não conta como observação
+  (D-21). Com categoria e sem outra nota, a compra é promovida como as
+  outras — é o que faz o mês aparecer no painel.
+- **Confirmação:** na sync seguinte, a compra com o mesmo id atualiza o
+  item (data, valor, competência; a marca sai) e, se já aprovada, a
+  transação. Campo que o usuário editou na transação não é tocado (D-06).
+- **Cancelamento:** compra em aberto que some da Pluggy é rejeitada, se
+  estava na revisão; se virou transação e o usuário nunca a editou, a
+  transação sai por soft delete, com o motivo no item. Editada, fica, com
+  nota para conferir.
+
+**Consequência a conhecer.** Até o fechamento, o valor e a data de uma
+compra em aberto podem mudar (posto de combustível, hotel). O painel mostra
+o que o banco mostra hoje, e acerta sozinho na confirmação.

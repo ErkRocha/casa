@@ -107,6 +107,15 @@ FORMA_DA_OPERACAO: dict[str, TipoPagamento] = {
     "TRANSFERENCIA_MESMA_INSTITUICAO": TipoPagamento.TRANSFERENCIA,
 }
 
+#: Marca da compra de cartão que a Pluggy ainda entrega `PENDING`: a fatura
+#: aberta (D-23). Público: a promoção não a conta como observação, e a sync
+#: acha por ela os itens a atualizar quando a compra for confirmada.
+MARCA_ABERTA = "Compra em aberto na fatura"
+OBS_ABERTA = (
+    f"{MARCA_ABERTA} (pendente na Pluggy): data, valor e fatura podem mudar até o "
+    "banco confirmar, e a sync atualiza sozinha (D-23)."
+)
+
 _OBS_ESTORNO = (
     "Crédito no cartão que a Pluggy não marca como pagamento de fatura: "
     "tratado como estorno. Confira."
@@ -119,8 +128,10 @@ class ResultadoConversao:
 
     itens: list[ItemExtraido] = field(default_factory=list)
     #: `PENDING` ainda pode mudar de valor ou sumir (D-16): fica para a sync
-    #: em que consolidar.
+    #: em que consolidar. Desde a D-23, menos a compra de cartão, quando pedida.
     pendentes_ignoradas: int = 0
+    #: Compras de cartão `PENDING` convertidas como compra em aberto (D-23).
+    abertas: int = 0
     #: Status desconhecido ou valor zero. Cada uma deixa um aviso.
     outras_ignoradas: int = 0
     avisos: list[str] = field(default_factory=list)
@@ -133,17 +144,41 @@ def converter_lote(
     *,
     dia_fechamento: int | None = None,
     dia_vencimento: int | None = None,
+    incluir_abertas: bool = False,
 ) -> ResultadoConversao:
     """Converte as transações de uma conta, ignorando e contando o que não entra.
 
     `dia_fechamento` e `dia_vencimento` são os da forma de pagamento mapeada;
     só servem ao cartão, quando a fatura apontada não está em `faturas`.
+
+    Com `incluir_abertas` (D-23), a compra de cartão `PENDING` entra, como
+    compra em aberto (`OBS_ABERTA`). Pendente de conta corrente e crédito
+    pendente no cartão continuam de fora.
     """
     por_id = {f.id: f for f in faturas}
     resultado = ResultadoConversao()
 
     for transacao in transacoes:
         if transacao.status == "PENDING":
+            if (
+                incluir_abertas
+                and conta.e_cartao
+                and (transacao.type or "").upper() == _DEBITO
+                and transacao.amount != 0
+            ):
+                resultado.abertas += 1
+                resultado.itens.append(
+                    converter(
+                        transacao,
+                        conta,
+                        por_id,
+                        linha_num=len(resultado.itens) + 1,
+                        dia_fechamento=dia_fechamento,
+                        dia_vencimento=dia_vencimento,
+                        aceitar_aberta=True,
+                    )
+                )
+                continue
             resultado.pendentes_ignoradas += 1
             continue
         if transacao.status != "POSTED":
@@ -180,13 +215,24 @@ def converter(
     linha_num: int = 1,
     dia_fechamento: int | None = None,
     dia_vencimento: int | None = None,
+    aceitar_aberta: bool = False,
 ) -> ItemExtraido:
     """Uma transação `POSTED` -> um `ItemExtraido`.
 
     Não atribui pessoa: isso é enriquecimento (passo 6). Entrega o final do
     cartão, que é por onde o enriquecimento resolve o cartão adicional.
+
+    `aceitar_aberta` aceita também a compra de cartão `PENDING` (D-23): sai
+    com `OBS_ABERTA`, e a competência estimada pelos dias da forma não vira
+    observação nem baixa a leitura — a confirmação traz a fatura de verdade.
     """
-    if transacao.status != "POSTED":
+    aberta = (
+        aceitar_aberta
+        and transacao.status == "PENDING"
+        and conta.e_cartao
+        and (transacao.type or "").upper() == _DEBITO
+    )
+    if transacao.status != "POSTED" and not aberta:
         raise ValueError(f"Só transação POSTED é convertida; {transacao.id} é {transacao.status}.")
     if transacao.account_id != conta.id:
         raise ValueError(f"Transação {transacao.id} não é da conta {conta.id}.")
@@ -217,8 +263,17 @@ def converter(
 
     if conta.e_cartao:
         competencia = _competencia_cartao(
-            transacao, data_local, faturas, dia_fechamento, dia_vencimento, observacoes, confiancas
+            transacao,
+            data_local,
+            faturas,
+            dia_fechamento,
+            dia_vencimento,
+            observacoes,
+            confiancas,
+            aberta=aberta,
         )
+        if aberta:
+            observacoes.insert(0, OBS_ABERTA)
     else:
         # Conta: o mês da própria data (D-02).
         competencia = data_local.replace(day=1)
@@ -429,12 +484,16 @@ def _competencia_cartao(
     dia_vencimento: int | None,
     observacoes: list[str],
     confiancas: list[Decimal],
+    *,
+    aberta: bool = False,
 ) -> date:
     """Mês do vencimento da fatura apontada pelo `billId` (D-02).
 
     É o dado que o próprio banco declara. Sem a fatura, estima pelos dias da
     forma de pagamento; sem os dias, cai no mês da compra. Os dois últimos
-    caminhos baixam a confiança e explicam o porquê.
+    caminhos baixam a confiança e explicam o porquê — menos a estimativa da
+    compra em aberto (D-23), que a Pluggy nunca liga a fatura antes de
+    confirmar e que a sync corrige na confirmação.
     """
     meta = transacao.credit_card_metadata
     bill_id = meta.bill_id if meta else None
@@ -449,6 +508,8 @@ def _competencia_cartao(
     )
     if dia_fechamento and dia_vencimento:
         competencia = estimar_competencia(data_local, dia_fechamento, dia_vencimento)
+        if aberta:
+            return competencia
         observacoes.append(
             f"Competência estimada pelo fechamento no dia {dia_fechamento} e vencimento "
             f"no dia {dia_vencimento}, porque {motivo}. Feriado ou mudança de data "
