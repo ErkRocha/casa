@@ -9,7 +9,18 @@ from sqlalchemy import text
 
 from app.config import get_settings
 from app.db import engine
-from app.routers import analytics, cadastros, ingestao, pluggy, regras, relatorios, transacoes
+from app.routers import (
+    analytics,
+    cadastros,
+    configuracoes,
+    ingestao,
+    pluggy,
+    regras,
+    relatorios,
+    revisar,
+    sincronizacao,
+    transacoes,
+)
 from app.services.base import Conflito, NaoEncontrado, RegraViolada
 
 settings = get_settings()
@@ -73,6 +84,9 @@ app.include_router(regras.router)
 app.include_router(pluggy.router)
 app.include_router(pluggy.categorias_router)
 app.include_router(relatorios.router)
+app.include_router(revisar.router)
+app.include_router(sincronizacao.router)
+app.include_router(configuracoes.router)
 
 
 @app.get("/health", tags=["infra"])

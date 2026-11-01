@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Relatórios do mês no celular</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1F4FBF}a:hover{color:#163A8F}
+</style>
+</helmet>
+<div style="width: 390px; height: 1500px; position: relative; box-sizing: border-box; background: #EEF1F6; font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; color: #172033; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow: hidden">
+
+<div style="display: flex; flex-direction: column; gap: 14px; padding: 18px 14px 120px 14px">
+
+<header style="display: flex; align-items: center; gap: 8px; padding: 0 2px">
+<a href="AnalisesCelular.dc.html" aria-label="Voltar" style="width: 44px; height: 44px; border-radius: 12px; background: #FFFFFF; color: #172033; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></a>
+<h1 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.3px">Relatórios do mês</h1>
+</header>
+
+<div style="display: flex; gap: 8px; overflow-x: auto">
+<button style="flex-shrink: 0; height: 40px; border: none; border-radius: 999px; background: #FFFFFF; color: #8A94A6; padding: 0 14px; font-family: inherit; font-size: 14px">Out</button>
+<button style="flex-shrink: 0; height: 40px; border: none; border-radius: 999px; background: #172033; color: #FFFFFF; padding: 0 14px; font-family: inherit; font-size: 14px; font-weight: 600">Set</button>
+<button style="flex-shrink: 0; height: 40px; border: none; border-radius: 999px; background: #FFFFFF; color: #172033; padding: 0 14px; font-family: inherit; font-size: 14px">Ago</button>
+<button style="flex-shrink: 0; height: 40px; border: none; border-radius: 999px; background: #FFFFFF; color: #172033; padding: 0 14px; font-family: inherit; font-size: 14px">Jul</button>
+<button style="flex-shrink: 0; height: 40px; border: none; border-radius: 999px; background: #FFFFFF; color: #172033; padding: 0 14px; font-family: inherit; font-size: 14px">Jun</button>
+<button style="flex-shrink: 0; height: 40px; border: none; border-radius: 999px; background: #FFFFFF; color: #172033; padding: 0 14px; font-family: inherit; font-size: 14px">Mai</button>
+</div>
+
+<section style="background: #FFFFFF; border-radius: 20px; padding: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #556070">Despesas</span><span style="font-size: 16px; font-weight: 700">R$ 6.530</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #556070">Receitas</span><span style="font-size: 16px; font-weight: 700; color: #1C7A55">R$ 7.840</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #556070">Sobra</span><span style="font-size: 16px; font-weight: 700">R$ 1.310</span></div>
+</section>
+
+<article style="background: #FFFFFF; border-radius: 20px; padding: 20px 18px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<h2 style="margin: 0; font-size: 20px; font-weight: 700">Setembro de 2026</h2>
+<span style="font-size: 12px; font-weight: 650; border-radius: 6px; padding: 2px 8px; background: #EAF0FD; color: #163A8F">Escrito com IA</span>
+</div>
+<p style="margin: 0; font-size: 13px; color: #556070">Gerado em 1 de outubro</p>
+<div style="display: flex; flex-direction: column; gap: 12px; font-size: 16px; line-height: 1.6">
+<h3 style="margin: 6px 0 0 0; font-size: 17px; font-weight: 650">Resumo</h3>
+<p style="margin: 0; text-wrap: pretty">Setembro fechou com R$ 6.530 em despesas, perto da média dos últimos meses, e uma sobra de R$ 1.310. O orçamento foi cumprido em quatro de cinco categorias.</p>
+<h3 style="margin: 4px 0 0 0; font-size: 17px; font-weight: 650">O que pesou</h3>
+<p style="margin: 0; text-wrap: pretty">Restaurante foi o maior desvio: R$ 880, 42% acima da média. A maior parte se concentrou nos fins de semana.</p>
+<h3 style="margin: 4px 0 0 0; font-size: 17px; font-weight: 650">O que melhorou</h3>
+<p style="margin: 0; text-wrap: pretty">Mercado caiu 13% em relação à média, e delivery praticamente parou.</p>
+<h3 style="margin: 4px 0 0 0; font-size: 17px; font-weight: 650">Fique de olho</h3>
+<p style="margin: 0; text-wrap: pretty">O streaming foi reajustado e passa a custar R$ 44,90 a partir de outubro.</p>
+</div>
+</article>
+
+<details style="background: #FFFFFF; border-radius: 20px; padding: 16px 18px">
+<summary style="font-size: 15px; font-weight: 650; min-height: 24px; cursor: pointer">Ver os números que o relatório usou</summary>
+<div style="display: flex; flex-direction: column; gap: 4px; padding-top: 10px">
+<div style="display: flex; justify-content: space-between; font-size: 14px; padding: 6px 0; box-shadow: inset 0 1px 0 #EEF1F6"><span style="color: #556070">Média de 6 meses</span><span style="font-weight: 650">R$ 6.270</span></div>
+<div style="display: flex; justify-content: space-between; font-size: 14px; padding: 6px 0; box-shadow: inset 0 1px 0 #EEF1F6"><span style="color: #556070">Restaurante</span><span style="font-weight: 650">R$ 880</span></div>
+<div style="display: flex; justify-content: space-between; font-size: 14px; padding: 6px 0; box-shadow: inset 0 1px 0 #EEF1F6"><span style="color: #556070">Mercado</span><span style="font-weight: 650">R$ 1.050</span></div>
+<div style="display: flex; justify-content: space-between; font-size: 14px; padding: 6px 0; box-shadow: inset 0 1px 0 #EEF1F6"><span style="color: #556070">Com categoria</span><span style="font-weight: 650">96%</span></div>
+</div>
+</details>
+
+</div>
+
+<nav aria-label="Navegação principal" style="position: absolute; left: 0; right: 0; bottom: 0; background: #FFFFFF; box-shadow: 0 -1px 0 #E2E6EE; padding: 6px 8px 20px 8px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px">
+<a href="InicioCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 12px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg>Início</a>
+<a href="LancamentosCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 12px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>Lançamentos</a>
+<a href="RevisarCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 12px; font-weight: 500"><span style="position: relative; display: flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg><span style="position: absolute; top: -5px; right: -12px; background: #8A5A00; color: #FFFFFF; font-size: 10px; font-weight: 700; border-radius: 999px; padding: 1px 6px">6</span></span>Revisar</a>
+<a href="AnalisesCelular.dc.html" aria-current="page" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #1F4FBF; font-size: 12px; font-weight: 650"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7"></path></svg>Análises</a>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

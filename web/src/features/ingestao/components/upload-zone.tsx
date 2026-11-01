@@ -6,11 +6,11 @@ import { cn } from "@/lib/utils";
 import { useImportarArquivo } from "../queries";
 
 /**
- * Área de upload do PDF.
+ * Área de upload do PDF (fatura ou extrato do Nubank).
  *
  * O arquivo é lido pelo `pdfplumber` dentro do container e **não sai da
  * máquina** (D-08) — vale dizer isso na tela, porque é extrato bancário e a
- * pergunta é legítima.
+ * pergunta é legítima. Os itens vão para a revisão.
  */
 export function UploadZone({ onImportado }: { onImportado: (id: number) => void }) {
   const [arrastando, setArrastando] = useState(false);
@@ -26,7 +26,7 @@ export function UploadZone({ onImportado }: { onImportado: (id: number) => void 
   const erro = importar.error instanceof ApiError ? importar.error : null;
 
   return (
-    <div>
+    <div className="flex flex-col gap-4">
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -38,34 +38,34 @@ export function UploadZone({ onImportado }: { onImportado: (id: number) => void 
           setArrastando(false);
           enviar(e.dataTransfer.files);
         }}
-        onClick={() => inputRef.current?.click()}
         className={cn(
-          "flex cursor-pointer flex-col items-center justify-center gap-4 rounded-md border border-dashed px-12 py-20 text-center",
-          arrastando ? "border-accent bg-accent-soft" : "border-border bg-surface-sunken",
+          "rounded-sub flex flex-col items-center justify-center gap-4 border-[1.5px] border-dashed px-9 py-12 text-center",
+          arrastando ? "border-destaque bg-destaque-fundo" : "border-contorno bg-superficie-2",
         )}
       >
         <input
           ref={inputRef}
           type="file"
           accept="application/pdf,.pdf"
-          className="hidden"
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden
           onChange={(e) => enviar(e.target.files)}
         />
-
-        <div className="text-title text-text-primary font-semibold">
+        <span className="text-enfase font-forte">
           {importar.isPending ? "Lendo o PDF..." : "Arraste a fatura ou o extrato aqui"}
-        </div>
-        <p className="text-body text-text-tertiary max-w-220">
-          PDF de fatura ou extrato do Nubank. O arquivo é lido localmente, dentro do
-          container — nada é enviado para fora da sua máquina.
+        </span>
+        <p className="text-apoio text-texto-2 m-0 max-w-[460px]">
+          PDF de fatura ou extrato do Nubank. O arquivo é lido aqui mesmo, dentro do container:
+          nada sai da sua máquina.
         </p>
-        <Button variant="secondary" disabled={importar.isPending}>
+        <Button variant="secondary" disabled={importar.isPending} onClick={() => inputRef.current?.click()}>
           Escolher arquivo
         </Button>
       </div>
 
       {erro ? (
-        <p role="alert" className="text-body-sm text-expense mt-5">
+        <p role="alert" className="text-apoio text-perigo m-0">
           {erro.detail}
         </p>
       ) : null}

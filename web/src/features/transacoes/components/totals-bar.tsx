@@ -1,64 +1,69 @@
-import { PersonDot } from "@/components/layout/person-legend";
-import { usePessoas } from "@/features/cadastros/queries";
-import { corDoBalde, rotuloDoBalde } from "@/features/filters/baldes";
-import { formatBRLTexto, toNumero } from "@/lib/format";
+import { reais, sinal } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { TotaisPeriodo } from "../types";
 
 /**
- * Rodapé da tabela: resultado do período filtrado, quebrado por balde.
- *
- * Os números vêm somados do banco com a mesma cláusula de filtro da listagem
- * — não são a soma da página que está na tela (D-14). Transferências ficam
- * fora: pagar fatura não é despesa nova.
+ * Os totais do filtro (`LancamentosDesktop`): despesas, receitas, quantos
+ * lançamentos e as transferências à parte, fora das somas (D-05). Tudo
+ * somado no banco com a mesma cláusula da listagem (D-14). O celular mostra
+ * só despesas e receitas, como a prancheta.
  */
-export function TotalsBar({ totais }: { totais: TotaisPeriodo }) {
-  const { data: pessoas = [] } = usePessoas();
-  const resultado = toNumero(totais.resultado);
-
-  const baldes = [
-    ...pessoas.slice(0, 2).map((p) => ({ chave: String(p.id), balde: p.id as number | "conjunto" })),
-    { chave: "conjunto", balde: "conjunto" as const },
-  ];
-
+export function TotaisDoFiltro({
+  totais,
+  quantidade,
+}: {
+  totais: TotaisPeriodo;
+  quantidade: number;
+}) {
+  const transferencias = totais.quantidade_transferencias;
   return (
-    <div className="border-border-faint flex flex-wrap items-center justify-between gap-5 border-t px-8 py-9">
-      <div className="flex items-baseline gap-5">
-        <span className="text-caption text-text-tertiary tracking-label-wide uppercase">
-          Resultado do período filtrado
-        </span>
-        <span
-          className={cn(
-            "tabular text-title-lg font-bold",
-            resultado < 0 ? "text-expense" : "text-income",
-          )}
-        >
-          {formatBRLTexto(totais.resultado)}
+    <section
+      aria-label="Totais do filtro"
+      className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6"
+    >
+      <Total rotulo="Despesas" valor={reais(totais.total_despesa)} />
+      <Total rotulo="Receitas" valor={reais(totais.total_receita)} receita />
+      <Total
+        rotulo="Lançamentos"
+        valor={quantidade.toLocaleString("pt-BR")}
+        className="hidden md:flex"
+      />
+      <div className="bg-superficie rounded-cartao hidden flex-col gap-2 px-8 py-7 md:flex">
+        <span className="text-pequeno text-texto-2">Transferências</span>
+        <span className="text-corpo font-medio leading-snug">
+          {transferencias === 0 || sinal(totais.total_transferencia) === 0
+            ? "Nenhuma neste filtro"
+            : `${reais(totais.total_transferencia)}, fora das somas`}
         </span>
       </div>
+    </section>
+  );
+}
 
-      <div className="flex flex-wrap gap-9">
-        <span className="text-body text-text-secondary flex items-center gap-3">
-          Despesas
-          <span className="tabular text-text-primary font-semibold">
-            {formatBRLTexto(totais.total_despesa)}
-          </span>
-        </span>
-        <span className="text-body text-text-secondary flex items-center gap-3">
-          Receitas
-          <span className="tabular text-text-primary font-semibold">
-            {formatBRLTexto(totais.total_receita)}
-          </span>
-        </span>
-
-        {baldes.map(({ chave, balde }) => (
-          <span key={chave} className="text-body text-text-secondary flex items-center gap-3">
-            <PersonDot color={corDoBalde(balde, pessoas)} />
-            {rotuloDoBalde(balde, pessoas)}:
-            <span className="tabular">{formatBRLTexto(totais.por_balde[chave] ?? "0")}</span>
-          </span>
-        ))}
-      </div>
+function Total({
+  rotulo,
+  valor,
+  receita = false,
+  className,
+}: {
+  rotulo: string;
+  valor: string;
+  receita?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "bg-superficie rounded-sub md:rounded-cartao flex flex-col gap-1 px-7 py-6 md:gap-2 md:px-8 md:py-7",
+        className,
+      )}
+    >
+      <span className="text-pequeno text-texto-2">{rotulo}</span>
+      <span
+        className={cn("md:text-valor-medio text-[19px] font-bold", receita && "text-receita")}
+      >
+        {valor}
+      </span>
     </div>
   );
 }

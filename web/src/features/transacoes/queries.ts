@@ -1,10 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { api, buildQuery } from "@/lib/api";
-import { filtrosParaQuery, type Filtros } from "@/features/filters/types";
+import { paraQuery, type FiltrosLancamentos } from "./filtros";
 import type {
   LoteAtribuir,
   LoteResponse,
+  TotalDia,
   Transacao,
   TransacaoCreate,
   TransacaoListagem,
@@ -13,20 +20,41 @@ import type {
 
 export const transacaoKeys = {
   todas: ["transacoes"] as const,
-  lista: (filtros: Filtros, offset: number, limit: number) =>
-    ["transacoes", "lista", filtros, offset, limit] as const,
+  lancamentos: (filtros: FiltrosLancamentos) => ["transacoes", "lancamentos", filtros] as const,
+  dias: (filtros: FiltrosLancamentos) => ["transacoes", "dias", filtros] as const,
 };
 
-export function useTransacoes(filtros: Filtros, offset: number, limit: number) {
-  return useQuery({
-    queryKey: transacaoKeys.lista(filtros, offset, limit),
-    queryFn: () => {
-      const query = buildQuery({ ...filtrosParaQuery(filtros), offset, limit });
+/** Página da listagem: o máximo que a API aceita (`limit` <= 200). */
+const POR_PAGINA = 100;
+
+/**
+ * Os lançamentos do recorte, página a página ("Carregar mais"). Os totais
+ * vêm na primeira página, somados no banco com o mesmo filtro (D-14).
+ */
+export function useLancamentos(filtros: FiltrosLancamentos) {
+  return useInfiniteQuery({
+    queryKey: transacaoKeys.lancamentos(filtros),
+    queryFn: ({ pageParam }) => {
+      const query = buildQuery({ ...paraQuery(filtros), offset: pageParam, limit: POR_PAGINA });
       return api.get<TransacaoListagem>(`/transacoes${query}`);
     },
-    // Mantém a página anterior visível enquanto a nova carrega — sem isso, a
-    // tabela pisca em branco a cada tecla digitada no filtro.
-    placeholderData: (anterior) => anterior,
+    initialPageParam: 0,
+    getNextPageParam: (ultima) => {
+      const proxima = ultima.offset + ultima.items.length;
+      return proxima < ultima.total ? proxima : undefined;
+    },
+    // A lista anterior fica na tela enquanto a nova carrega: sem isso ela
+    // pisca em branco a cada filtro.
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** O total de cada dia do recorte, para o cabeçalho de cada dia. */
+export function useDiasLancamentos(filtros: FiltrosLancamentos) {
+  return useQuery({
+    queryKey: transacaoKeys.dias(filtros),
+    queryFn: () => api.get<TotalDia[]>(`/transacoes/dias${buildQuery(paraQuery(filtros))}`),
+    placeholderData: keepPreviousData,
   });
 }
 

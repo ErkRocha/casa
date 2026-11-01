@@ -42,6 +42,8 @@ export interface Transacao {
   forma_pagamento_id: number | null;
   forma_pagamento_apelido: string | null;
   forma_pagamento_tipo: TipoPagamento | null;
+  /** Conta da forma: o banco do cartão, do Pix, do débito (D-24). */
+  forma_pagamento_conta_nome?: string | null;
 
   local_id: number | null;
   local_nome: string | null;
@@ -72,6 +74,20 @@ export interface TotaisPeriodo {
   resultado: Dinheiro;
   /** Chave é o id da pessoa em texto, ou `conjunto`. */
   por_balde: Record<string, Dinheiro>;
+  /** Transferências do filtro, à parte: fora de todas as somas (D-05). */
+  total_transferencia: Dinheiro;
+  quantidade_transferencias: number;
+  /** Despesas e receitas sem categoria — o atalho "N sem categoria" (D-24). */
+  sem_categoria: number;
+}
+
+/** O total de um dia do filtro, somado no banco (`/transacoes/dias`). */
+export interface TotalDia {
+  data: string;
+  despesas: Dinheiro;
+  receitas: Dinheiro;
+  /** Lançamentos do dia, transferências inclusive. */
+  quantidade: number;
 }
 
 export interface TransacaoListagem {

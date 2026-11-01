@@ -19,7 +19,6 @@ ativo. Encargos de fatura não dependem da conversão e ficam como estão.
 
 from __future__ import annotations
 
-import re
 from collections import Counter
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -42,7 +41,7 @@ from app.services.categorias_pluggy import (
 from app.services.comprovante_pluggy import Comprovante, ler_comprovante
 from app.services.ingestao import IngestaoService, _ContextoEnriquecimento
 from app.services.promocao_pluggy import (
-    MARCA_DUPLICATA,
+    NOTA_DUPLICATA,
     REJEICOES,
     motivo_para_rejeitar,
     motivo_para_revisao,
@@ -61,7 +60,7 @@ AUTOR = "reprocessamento_pluggy"
 #: A nota que a sync põe no gêmeo da própria Pluggy. A conversão não a
 #: reproduz (ela nasce da comparação entre itens), então o reprocessamento a
 #: carrega da observação antiga.
-_NOTA_DUPLICATA = re.compile(rf"{MARCA_DUPLICATA}.*?aprovar os dois\.", re.S)
+_NOTA_DUPLICATA = NOTA_DUPLICATA
 
 
 @dataclass(slots=True)

@@ -12,16 +12,21 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_session
+from app.schemas.analises import Analises, Periodo
 from app.schemas.analytics import (
     AnalyticsResumo,
     Comparativo,
     ComposicaoCategoria,
     DivisaoPessoas,
     EvolucaoMensal,
+    GastoPorBanco,
     ProgressoOrcamento,
 )
+from app.schemas.inicio import Inicio
 from app.schemas.transacoes import TransacaoFiltros, transacao_filtros
+from app.services.analises import AnalisesService
 from app.services.analytics import AnalyticsService
+from app.services.inicio import InicioService
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -84,3 +89,44 @@ def orcamento(
 def comparativo(session: SessionDep, filtros: FiltrosDep) -> Any:
     """Este mês, o anterior e a média da janela."""
     return AnalyticsService(session).comparativo(filtros)
+
+
+@router.get("/inicio", response_model=Inicio)
+def inicio(
+    session: SessionDep,
+    competencia: Annotated[
+        date | None, Query(description="Qualquer dia do mês; padrão: hoje")
+    ] = None,
+) -> Any:
+    """A tela Início (D-24): o mês num relance, tudo somado no banco.
+
+    Gasto acumulado por dia, o mês anterior no mesmo dia, orçamento, previsão
+    no ritmo atual (mês corrente), receitas, quem gastou, categorias e os
+    avisos das detecções do relatório. Mês futuro volta zerado, com
+    `situacao = "futuro"`.
+    """
+    return InicioService(session).resumo(competencia)
+
+
+@router.get("/analises", response_model=Analises)
+def analises(
+    session: SessionDep,
+    periodo: Annotated[Periodo, Query(description="mes, 3m ou 12m")] = "12m",
+    pessoa: Annotated[
+        str | None,
+        Query(pattern=r"^(\d+|conjunto)$", description="Id da pessoa ou `conjunto`"),
+    ] = None,
+) -> Any:
+    """A tela Análises (D-24): receitas e despesas por mês, categorias pela
+    média dos meses fechados, o que mais mudou contra a média e o orçamento
+    do mês. Período e pessoa valem para a tela inteira.
+    """
+    return AnalisesService(session).resumo(periodo, pessoa)
+
+
+@router.get("/por-banco", response_model=GastoPorBanco)
+def por_banco(session: SessionDep, filtros: FiltrosDep) -> Any:
+    """Despesa por banco e forma, com o cartão separado do que saiu da conta
+    e o que ainda está na revisão das importações no mesmo período.
+    """
+    return AnalyticsService(session).por_banco(filtros)

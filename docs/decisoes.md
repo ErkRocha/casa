@@ -565,3 +565,98 @@ Pendente de conta corrente e crédito pendente no cartão continuam de fora.
 **Consequência a conhecer.** Até o fechamento, o valor e a data de uma
 compra em aberto podem mudar (posto de combustível, hotel). O painel mostra
 o que o banco mostra hoje, e acerta sozinho na confirmação.
+
+## D-24 — Painel no desenho aprovado em `docs/design/`
+
+Decisão do usuário, 16/10/2026.
+
+O painel adota o redesenho que saiu do Claude Design e está em
+`docs/design/` (README com os tokens e as pranchetas `.dc.html`, uma por tela
+e tamanho). Ele substitui o visual anterior. É a D-15 cumprida: as telas
+foram desenhadas e aprovadas antes da implementação, e o código só liga o
+desenho na API.
+
+- **As pranchetas são especificação, os valores nelas não.** Todo número,
+  nome e lista vem da API. A agregação continua no banco (regras 7 e 10,
+  D-14): o front formata e desenha. Dinheiro chega como texto decimal e é
+  formatado como texto, sem passar por `float`; só a geometria de um gráfico
+  (altura de barra, posição de ponto) converte para número, e só para
+  desenhar.
+- **Tokens do README viram variáveis CSS** em `web/src/styles/`, expostas
+  como classes do Tailwind, e substituem as anteriores.
+- **Bricolage Grotesque vem de pacote npm** (`@fontsource-variable`), servida
+  pelo próprio painel. Nenhuma requisição a fonte externa: o sistema não vai
+  para a internet (CLAUDE.md).
+- **Navegação:** a partir de 1024px, barra lateral com os três grupos do
+  README (Início, Lançamentos, Revisar; Análises, Relatórios do mês; Contas e
+  cartões, Categorias, Sincronização). Abaixo de 768px, barra inferior com
+  Início, Lançamentos, Revisar, Análises e um item "Mais" para as telas de
+  configuração. Entre os dois, o layout de computador com a barra lateral
+  recolhível. As telas são endereços reais (`#inicio`, `#lancamentos`...),
+  para link, voltar do navegador e leitor de tela.
+- **Sem mudança de schema** neste redesenho. O que uma tela precisar e o
+  banco não tiver vira pendência registrada, não coluna nova.
+
+Decisões de implementação, tomadas ao ligar o desenho:
+
+- **Só tema claro.** O desenho não tem modo escuro, e inventar a paleta
+  escura seria desenhar no lugar do Claude Design. O tema escuro anterior
+  sai; volta se for desenhado.
+- **Cor de pessoa pela ordem de cadastro, não pelo nome.** A 1ª pessoa
+  cadastrada recebe `#6F93E6` e a 2ª `#1E3A8A`; o gasto conjunto, `#B9C2D0`.
+  Com o seed (Laura, depois Erik) isso reproduz o desenho, e a cor continua
+  presa à entidade (filtrar não repinta ninguém). O balde conjunto se chama
+  "Juntos" na tela, como no desenho; na API continua `conjunto`.
+- **Faixas de orçamento do README nas cores** (azul até 90%, âmbar de 90% a
+  100%, estourado acima), calculadas pela API. Os avisos de orçamento seguem
+  as detecções que já existiam (atenção a partir de 80%), as mesmas do
+  relatório mensal, para a tela e o relatório não dizerem coisas diferentes.
+- **Revisão de duplicata: "são dois" só quando o banco aceita.** Dois itens
+  com a mesma data, valor, descrição original e forma de pagamento viram o
+  mesmo `hash_dedup`, e o índice único aceita só uma transação assim (D-07).
+  A tela oferece "são dois" apenas quando a forma difere; nos idênticos,
+  explica que só um entra e que o outro pode ser lançado à mão. Registrar os
+  dois exige mudar o schema: fica como pendência, não foi feito aqui.
+- **Pagamento de fatura de cartão da própria conta: confirmar descarta.** O
+  cartão é forma da conta que paga a fatura (Fase 5b), então a
+  transferência sairia e chegaria na mesma conta, o que o check
+  `transferencia_coerente` recusa. Confirmar rejeita o item com o motivo
+  gravado; o gasto já está nas compras do cartão (D-05). Quando outra conta
+  paga a fatura e as duas pontas estão na revisão, confirmar grava a
+  transferência entre as duas contas e descarta a outra ponta.
+- **Análises: média é dos meses fechados.** Em 3 e 12 meses, as categorias
+  aparecem pela média mensal dos meses fechados do período (mês sem gasto
+  conta como zero), e "o que mais mudou" compara o último mês fechado com a
+  média dos fechados antes dele. O mês corrente fica no gráfico, marcado
+  como parcial, e é o mês do orçamento. Em "este mês" não há mês fechado:
+  as categorias mostram o próprio mês e a comparação não aparece.
+- **Análises: a pessoa vale para a tela inteira, a meta é da casa.** Com
+  uma pessoa escolhida, o orçamento mostra o gasto dela contra a meta da
+  casa, e a tela diz isso. O gasto da meta soma a categoria raiz inteira, a
+  mesma regra de `vw_orcamento_mes`, para Início, Análises e relatório
+  dizerem o mesmo.
+- **Relatórios: números com centavos.** O painel ao lado do texto mostra os
+  valores do dossiê como estão, com centavos, para a conferência do texto
+  contra os números ser exata. O `#` do texto do modelo não aparece: repete
+  o mês que o cabeçalho já mostra.
+- **Sincronização sem "Atualizar agora" e sem "próxima atualização".** A
+  sync roda pelo `make sync` no computador de casa e não há como dispará-la
+  pela API sem prender a requisição; o agendamento também não existe. A tela
+  diz que a atualização é manual e mostra o comando. Os dois ficam no
+  roadmap, na seção do redesenho.
+- **Contas por banco, sem schema novo.** O banco é a conexão da Pluggy
+  (`pluggy_item_id`) e o nome dele, as palavras comuns aos nomes das contas
+  ("Sicredi Conta Corrente" e "Sicredi Poupança" dão "Sicredi"). A situação
+  vem de `contas_pluggy` (mapeamento desativado é "pausado") e do último
+  lançamento (nada em 12 meses é "sem movimento"). Os cartões virtuais saem
+  do `cardNumber` das compras nos comprovantes recentes da sync.
+- **Categorias da Pluggy contadas no banco.** As transações consolidadas de
+  cada categoria são contadas pelo Postgres a partir do JSON guardado nos
+  comprovantes (`jsonb_path_query`), uma vez por transação. Categoria de
+  transferência aparece, mas não se traduz: nunca vira despesa (D-21).
+- **Regras: "confirmada N vezes".** O que existe é `acertos`, quantas vezes
+  uma correção reforçou a regra; não há contagem de uso nas importações sem
+  mudar o schema. A tela diz "confirmada", não "usada". A criação manual de
+  regra e o "aplicar as regras na revisão" ficam; o teste de padrão e a
+  edição em linha da tela anterior saem (apagar e criar de novo resolve).
+

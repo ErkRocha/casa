@@ -37,7 +37,7 @@ export class ApiError extends Error {
 }
 
 /** Valor aceito num query string. `undefined` e `null` somem da URL. */
-type QueryValue = string | number | boolean | null | undefined | Array<string | number>;
+export type QueryValue = string | number | boolean | null | undefined | Array<string | number>;
 
 export function buildQuery(params: Record<string, QueryValue>): string {
   const search = new URLSearchParams();
