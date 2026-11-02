@@ -10,6 +10,11 @@ as do serviço e o que muda em relação a `docs/modelo-dados.md`.
   schema `compras`, criadas pela role `casa_compras`, dona do schema. Ela
   não tem privilégio em `public`. As migrations são do próprio serviço
   (Alembic, `version_table_schema = 'compras'`).
+- **Só `casa_compras` escreve.** Um trigger por comando em cada tabela do
+  schema recusa INSERT, UPDATE, DELETE e TRUNCATE de qualquer outra role,
+  com 42501. Existe por causa da role de finanças, que é superusuária e
+  passa por cima de qualquer GRANT. É barreira contra engano: um
+  superusuário ainda pode desligar o trigger, de propósito.
 - **Ids.** `id bigint generated always as identity primary key`, como em
   finanças.
 - **Id do cliente.** As tabelas que o celular cria (`itens_lista`,
@@ -89,8 +94,10 @@ muda o preço.
 | id_cliente | uuid | único; produto criado pelo celular |
 | deleted_em | timestamptz | |
 
-Unique parcial em `nome_normalizado` para linha viva. Índice trigram
-(`pg_trgm`) em `nome_normalizado` para a busca enquanto se digita.
+Unique parcial em `nome_normalizado` para linha viva. A busca enquanto se
+digita é `LIKE` no `nome_normalizado` (contém o texto; quem começa com ele
+vem antes). Sem `pg_trgm` por enquanto: instalar a extensão exige
+superusuário, e com dezenas de produtos ela não faz diferença.
 
 ## `itens_lista`
 Uma lista só, a da casa. Sem tabela `listas`: lista de farmácia ou de festa

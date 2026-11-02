@@ -66,7 +66,7 @@ declarada antes da de `/api`.
 
 | Método | Caminho | O que faz |
 |---|---|---|
-| GET | `/lista?comprados_desde=` | Pendentes e os comprados depois de `comprados_desde` (padrão: 6 horas atrás), ordenados pela seção e pelo nome, já com o nome do produto e da seção. Traz o `cursor` para `/mudancas` |
+| GET | `/lista?comprados_desde=` | Pendentes e os comprados depois de `comprados_desde` (padrão: 6 horas atrás), ordenados pela seção e pelo nome, já com o nome do produto e da seção. Traz o `cursor` para `/mudancas` e as `sugestoes`: produtos "acabando" na despensa que ainda não estão na lista |
 | POST | `/lista/itens` | `{id_cliente, produto_id ou produto_nome, quantidade?, unidade?, observacao?}`. Com `produto_nome` sem produto, cria o produto em "Sem seção" na mesma transação |
 | PATCH | `/lista/itens/{id}` | Quantidade, unidade, observação |
 | POST | `/lista/itens/{id}/comprar` | Marca comprado (quem e quando); despensa vai para `tem` |

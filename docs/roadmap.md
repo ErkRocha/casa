@@ -465,6 +465,17 @@ Nesta ordem, sem pular:
    escreve em nenhuma tabela de finanças; outro prova que duas sessões
    escrevendo veem as mudanças uma da outra por `/mudancas`, sem perder
    nenhuma e sem duplicar item.
+
+   **Feito (02/11/2026)**, validado no modo local: 51 testes com banco, sem
+   nenhum pulado, ruff e mypy. O compose e o nginx estão escritos mas não
+   rodaram (a máquina não tem Docker). Diferenças em relação ao plano:
+   - a role de finanças é superusuária e passa por cima de GRANT; quem a
+     impede de escrever em `compras` é um trigger por comando nas tabelas
+     do schema, que recusa qualquer role que não seja `casa_compras` (42501);
+   - a busca de produto é `LIKE` no nome normalizado, sem `pg_trgm`: a
+     extensão exige superusuário para instalar e não faz falta com dezenas
+     de produtos;
+   - o `GET /lista` traz também as sugestões ("acabando" sem item na lista).
 2. **Telas.** Desenhadas no Claude Design antes de qualquer código (D-15),
    pensadas para o celular em pé, com uma mão, dentro do mercado: lista por
    seção, marcar comprado com um toque, adicionar com busca, despensa.

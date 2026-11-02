@@ -177,6 +177,11 @@ api/                 FastAPI + SQLAlchemy 2.x + Alembic
     seed.py          dados iniciais, idempotente
   scripts/           aplicar_roles, relatorio, demo_data
   tests/             pytest + testcontainers (Postgres de verdade)
+compras/             serviço da lista de compras (D-25): API, schema e role próprios
+  alembic/versions/  migrations do schema `compras`
+  compras/           models, schemas, services e routers, como em api/app
+  scripts/           aplicar_role: role casa_compras e schema compras
+  tests/             pytest com Postgres de verdade
 web/                 React + Vite + TS + Tailwind v4 + shadcn/ui + Recharts
   src/styles/        design tokens vindos do Claude Design
   src/features/      transacoes, analytics, filters, cadastros, ingestao, regras
@@ -197,7 +202,9 @@ faturas/             seus PDFs (fora do git)
 | 4 | Analytics: cinco painéis, filtros compartilhados | feito |
 | 5 | Ingestão de PDF: staging, parsers Nubank, regras que aprendem | feito |
 | 6 | Insights: tools SQL read-only, detecções, relatório mensal | feito |
-| 7 | v2: itens, produtos, tags, recorrências, anexos | **não iniciado** |
+| 7 | v2: tags, recorrências, anexos (produtos foram para o `compras`) | **não iniciado** |
+| Compras 1 | Serviço `compras`: lista, despensa, produtos e seções | feito |
+| Compras 2-5 | Telas, uso compartilhado, nota fiscal, voz | **não iniciado** |
 
 A fase 5 usa **parser determinístico**, não LLM: os PDFs do Nubank foram lidos
 uma vez e viraram código em `api/app/ingestao/`, e os três extratos reconciliam
@@ -362,6 +369,66 @@ tailscale serve reset     # remove toda publicação do serve neste PC
 
 Ou, para tirar só esta: `tailscale serve --https=443 off`.
 
+## Lista de compras (serviço `compras`)
+
+Serviço próprio, separado da API de finanças (D-25): API em `compras/`,
+schema `compras` no mesmo Postgres e role `casa_compras`, que só enxerga o
+schema dela. Pelo painel ele fica em `/api/compras/`. Nesta fase não há tela:
+lista, despensa, produtos e seções se usam pelo `/api/compras/docs`.
+
+**Primeira vez.** Defina `COMPRAS_DB_PASSWORD` no `.env` (só letras, dígitos,
+`-` e `_`) e prepare role, schema, migrations e seed:
+
+```bash
+make compras-role && make compras-migrate && make compras-seed   # Docker
+bash scripts/local/compras-preparar.sh                          # sem Docker
+```
+
+Os dois são idempotentes. Depois, `make up` (ou `scripts/local/subir.sh`)
+sobe o serviço junto com o resto.
+
+**Testando pelo `/docs`.** Abra `http://127.0.0.1:5173/api/compras/docs`. Em
+toda escrita, o campo `X-Quem` é obrigatório (é quem está com o celular; vai
+para a auditoria). Um roteiro que passa por tudo:
+
+1. `GET /lista`: a lista vazia e um `cursor`. Guarde o cursor.
+2. `GET /produtos` com `busca=leite`: os produtos do seed, sem acento nem
+   caixa ("acucar" acha "Açúcar 1kg").
+3. `POST /lista/itens`, com `X-Quem: Laura`:
+   `{"id_cliente": "3f1c2d4e-0000-4000-8000-000000000001", "produto_nome": "Leite integral 1L", "quantidade": "2"}`.
+   Volta 201.
+4. O mesmo `POST` de novo, igual: 200, o mesmo item (reenvio do mesmo
+   `id_cliente`). Troque o `id_cliente` e o `X-Quem` para `Erik`: 200 com
+   `"ja_estava": true` e a quantidade de antes. Um produto só fica uma vez na
+   lista.
+5. `PUT /despensa/{produto_id}` do café com `{"estado": "acabou"}`: o café
+   entra na lista sozinho (`item_criado`, origem `despensa`). Com
+   `"acabando"`, não entra; aparece em `sugestoes` no `GET /lista`.
+6. `POST /lista/itens/{id}/comprar` no café: o item fica comprado e a
+   despensa do café vira `tem`.
+7. `GET /mudancas` com `desde` = o cursor do passo 1: tudo o que mudou, com
+   as linhas inteiras (as apagadas com `deleted_em`). É o que o celular
+   consulta a cada 3 s com a tela aberta.
+
+Pelo terminal, o mesmo com `curl`:
+
+```bash
+curl -s http://127.0.0.1:5173/api/compras/lista
+curl -s -X POST http://127.0.0.1:5173/api/compras/lista/itens \
+  -H 'Content-Type: application/json' -H 'X-Quem: Laura' \
+  -d '{"id_cliente":"3f1c2d4e-0000-4000-8000-000000000002","produto_nome":"Banana"}'
+```
+
+O que você criar fica no banco de verdade; para tirar, `DELETE
+/lista/itens/{id}` (é soft delete, como em finanças).
+
+**Testes e lint do serviço:** `make compras-test` e `make compras-lint`. Sem
+Docker: `source scripts/local/ambiente.sh`, depois, em `compras/`,
+`pytest`, `ruff check .` e `mypy compras scripts tests`. Os testes usam o
+banco `_test`, como os de finanças.
+
+---
+
 ## Rodando sem Docker (Windows)
 
 **Modo reserva (D-17).** Para máquina sem Docker ou sem privilégio de
@@ -389,7 +456,7 @@ elas vêm do `.env`.
 **No dia a dia:**
 
 ```bash
-bash scripts/local/subir.sh      # Postgres :55432, API :8000, painel :5173
+bash scripts/local/subir.sh      # Postgres :55432, API :8000, compras :8001, painel :5173
 bash scripts/local/parar.sh      # encerra só os processos dessas portas
 source scripts/local/ambiente.sh # exporta DATABASE_URL, TEST_DATABASE_URL e INSIGHTS_PASSWORD
 ```
@@ -407,7 +474,7 @@ produção (D-19): é reserva, e o Vite já faz o mesmo `/api` pelo proxy dele.
 Os testes usam o banco `_test` do `TEST_DATABASE_URL`, que **é truncado entre
 testes** — nunca aponte para dados que importam.
 
-Logs em `~/.controle-casa-dev/{pg,api,web}.log`. O `subir.sh` avisa quando o
+Logs em `~/.controle-casa-dev/{pg,api,compras,web}.log`. O `subir.sh` avisa quando o
 Postgres tinha caído sem desligar (suspensão ou desligamento do Windows) e se
 recuperou sozinho.
 

@@ -80,6 +80,13 @@ echo "6/6 Migrations, role read-only e seed"
     && "$PY" -m app.seed
 ) || falhar "migrations, roles ou seed falharam"
 
+# Serviço de compras (D-25): role e schema próprios, migrations e seed.
+if [[ -n "${COMPRAS_DATABASE_URL:-}" ]]; then
+  bash "$CASA_REPO/scripts/local/compras-preparar.sh" || falhar "preparo do compras falhou"
+else
+  echo "    compras: pulado (defina COMPRAS_DB_PASSWORD no .env e rode compras-preparar.sh)"
+fi
+
 echo
 echo "Pronto. Para subir: bash scripts/local/subir.sh"
 echo "Para usar pytest e os scripts no terminal: source scripts/local/ambiente.sh"
