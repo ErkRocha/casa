@@ -351,46 +351,14 @@ cópia, conferir uma afirmação do texto seria impossível.
 
 ---
 
-# v2 — itens e produtos
+# v2
 
-## `itens_transacao`
-| coluna | tipo | notas |
-|---|---|---|
-| transacao_id | fk transacoes not null | |
-| produto_id | fk produtos | null enquanto não reconhecido |
-| descricao | text not null | como veio na nota |
-| quantidade | numeric(12,3) not null default 1 | |
-| unidade | text | un / kg / L |
-| valor_unitario | numeric(12,4) | 4 casas: combustível |
-| valor_bruto | numeric(12,2) not null | |
-| desconto | numeric(12,2) default 0 | |
-| valor_liquido | numeric(12,2) not null | |
-| categoria_id | fk categorias | opcional, mais fino que a transação |
-
-A soma dos `valor_liquido` não é forçada a bater com o valor da transação —
-notas parciais são comuns. Mostre a diferença na UI, não bloqueie.
-
-## `produtos`
-| coluna | tipo | notas |
-|---|---|---|
-| nome | text not null | nome canônico |
-| marca | text | |
-| unidade_padrao | text | |
-| categoria_id | fk categorias | |
-
-## `produto_aliases`
-| coluna | tipo | notas |
-|---|---|---|
-| produto_id | fk produtos not null | |
-| texto | text not null | como aparece na nota |
-| local_id | fk locais | opcional |
-
-Unique em `(texto, local_id)`. É o que faz "COCA COLA 2L" e
-"REFRIG COCA 2000ML" convergirem para o mesmo produto.
-
-## `mv_historico_preco` (view materializada)
-Agrupada por `produto_id, local_id`: preço médio, mínimo, máximo, último
-preço, data do último, contagem. `REFRESH` após cada importação aprovada.
+**Itens e produtos saíram daqui (D-25).** `itens_transacao`, `produtos`,
+`produto_aliases` e `mv_historico_preco` moram só no serviço `compras`,
+no schema dele (`docs/compras/modelo-dados.md`: `produtos`, `apelidos`,
+`nota_itens`, `vw_preco_produto`). A nota guarda o `transacao_id` como id
+simples; finanças consulta a API do `compras` quando precisar dos itens de
+uma transação.
 
 ## `tags` / `transacao_tags`
 Corte transversal à categoria: "Viagem Gramado", "Reforma", nome de cada pet.

@@ -420,8 +420,6 @@ Pendências fora do schema:
 
 Tudo aditivo, sem quebrar o que existe:
 
-- `itens_transacao`, `produtos`, `produto_aliases`
-- `mv_historico_preco` e a tela de histórico de preço por produto
 - `tags` e `transacao_tags`
 - `recorrencias`
 - `anexos`
@@ -432,10 +430,10 @@ Tudo aditivo, sem quebrar o que existe:
   D-16. Responde "quanto já gastei nesta fatura" sem esperar o fechamento. O
   dado oficial continua entrando pela sync, depois do fechamento (Fase 5b).
 
-**Sobreposição com a Lista de compras (D-25), a decidir antes desta fase:**
-`produtos`, `produto_aliases` e o histórico de preço passam a ter dono no
-serviço `compras`, que lê a nota fiscal. Manter os dois daria dois cadastros
-de produto.
+**Produtos, itens da nota e histórico de preço saíram desta fase (D-25).**
+`itens_transacao`, `produtos`, `produto_aliases` e `mv_historico_preco`
+moram só no serviço `compras` (Lista de compras, fase 4). Finanças consulta
+a API dele quando precisar do detalhe de uma compra.
 
 ---
 
@@ -478,10 +476,11 @@ Nesta ordem, sem pular:
 3. **Uso compartilhado: identidade pelo Tailscale.** O "quem" deixa de ser
    texto digitado. O `tailscale serve` (D-18) informa o usuário da tailnet
    em cada requisição; o nginx passa esse valor no `X-Quem` e descarta o
-   que o celular mandar. Pré-requisito a conferir: os dois celulares
-   precisam entrar na tailnet com **usuários diferentes**. Com a mesma conta
-   nos dois, a identidade é a mesma e não distingue ninguém. Em casa, fora
-   do Tailscale (localhost), o comportamento precisa ser decidido.
+   que o celular mandar. Cada pessoa entra na tailnet com a **própria
+   conta** do Tailscale (decidido, D-25: o usuário convida a esposa); com a
+   mesma conta nos dois, a identidade não distinguiria ninguém. Sem
+   identidade do Tailscale (em casa, pelo localhost), o aparelho pergunta
+   uma vez "quem é você?" e envia a resposta no `X-Quem`.
 
    **Pronto quando:** "adicionado por" e "comprado por" aparecem com o nome
    certo sem ninguém digitar, e um `X-Quem` forjado pelo celular é ignorado

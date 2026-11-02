@@ -732,9 +732,19 @@ serviço por enquanto (o MCP seria cliente da API, não parte dela).
 Modelo em `docs/compras/modelo-dados.md`, endpoints em `docs/compras/api.md`,
 fases e riscos em aberto no roadmap, seção "Lista de compras".
 
-**Sobreposição com a Fase 7, a decidir.** A Fase 7 previa `produtos`,
-`produto_aliases`, `itens_transacao` e `mv_historico_preco` dentro de
-finanças. Com a nota fiscal no `compras`, produto, apelido e preço passam a
-ter dono aqui; manter os dois criaria dois cadastros de produto. O que a
-Fase 7 ainda precisa de finanças (o detalhe de itens de uma transação) fica
-para quando ela for planejada.
+**Decisões do usuário sobre os pontos em aberto (02/11/2026):**
+
+- **Produto, apelido e preço moram só no `compras`.** `produtos`,
+  `produto_aliases`, `itens_transacao` e `mv_historico_preco` saem da Fase
+  7 de finanças. Quando finanças precisar do detalhe de uma compra (os
+  itens da nota de uma transação, o preço de um produto), consulta a API do
+  `compras`, que guarda o `transacao_id` na nota. Um cadastro de produto
+  só, com um dono só.
+- **Identidade.** Na fase de uso compartilhado, cada pessoa entra na tailnet
+  com a própria conta do Tailscale (o usuário convida a esposa), e é essa
+  identidade que vai no `X-Quem`. Sem identidade do Tailscale (em casa, pelo
+  localhost), o aparelho pergunta uma vez "quem é você?", guarda a
+  resposta e a envia no `X-Quem`.
+- **Aprovadas as três simplificações do modelo:** uma lista só, uma ordem de
+  seções para todos os mercados, e "acabando" só como sugestão (não põe o
+  produto na lista sozinho; "acabou" põe).
