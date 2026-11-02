@@ -125,3 +125,35 @@ export interface Page<T> {
   limit: number;
   offset: number;
 }
+
+/**
+ * Cliente do serviço de compras (D-25), em `/api/compras`. Serviço separado,
+ * mesma origem. Toda escrita leva `X-Quem`: quem está com o aparelho.
+ */
+function comQuem(quem: string): Record<string, string> {
+  return { "X-Quem": quem };
+}
+
+export const apiCompras = {
+  get: <T>(path: string) => request<T>(`/compras${path}`),
+  post: <T>(path: string, body: unknown, quem: string) =>
+    request<T>(`/compras${path}`, {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+      headers: comQuem(quem),
+    }),
+  patch: <T>(path: string, body: unknown, quem: string) =>
+    request<T>(`/compras${path}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+      headers: comQuem(quem),
+    }),
+  put: <T>(path: string, body: unknown, quem: string) =>
+    request<T>(`/compras${path}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+      headers: comQuem(quem),
+    }),
+  delete: <T>(path: string, quem: string) =>
+    request<T>(`/compras${path}`, { method: "DELETE", headers: comQuem(quem) }),
+};

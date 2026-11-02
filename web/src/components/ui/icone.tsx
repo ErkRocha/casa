@@ -58,6 +58,20 @@ const TRACOS = {
   fechar: <path d="M6 6l12 12M18 6L6 18" />,
   lixeira: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
   filtros: <path d="M4 6h16M7 12h10M10 18h4" />,
+  compras: (
+    <>
+      <path d="M3 4h2l2.4 11h11.2L21 8H6.2" />
+      <circle cx="9" cy="19" r="1.5" />
+      <circle cx="17" cy="19" r="1.5" />
+    </>
+  ),
+  despensa: (
+    <>
+      <path d="M4 7h16v13H4z" />
+      <path d="M4 7l2-3h12l2 3" />
+      <path d="M10 11h4" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type NomeIcone = keyof typeof TRACOS;

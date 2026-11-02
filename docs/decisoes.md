@@ -749,6 +749,25 @@ fases e riscos em aberto no roadmap, seção "Lista de compras".
   seções para todos os mercados, e "acabando" só como sugestão (não põe o
   produto na lista sozinho; "acabou" põe).
 
+**Telas aprovadas (D-15), 02/11/2026.** O usuário aprovou as pranchetas do
+Claude Design em `docs/design/COMPRAS.md` e `docs/design/telas/Compras*`:
+Lista, Adicionar (painel que sobe de baixo) e Despensa. Implementadas na
+seção Compras do painel, com estas escolhas de implementação:
+
+- **Navegação.** Celular: a barra inferior tem os 5 itens do desenho, com
+  Compras no meio; o "Mais" (relatórios e configurações) saiu da barra e
+  abre por um botão no topo do Início. Computador: Compras no primeiro grupo,
+  depois de Lançamentos; a partir de 1280px a despensa fica ao lado da lista.
+- **Sincronização.** Polling em `/mudancas?desde=` a cada 3 s com a tela
+  aberta e visível; aba oculta para e, ao voltar, pergunta na hora o que
+  mudou. Toda escrita leva `X-Quem` e, quando cria, `id_cliente`.
+- **Quem.** "Quem é você?" uma vez por aparelho, com as pessoas individuais
+  de finanças (ou um nome digitado), guardado no aparelho.
+- **Comprado** é otimista: a caixa marca no toque e volta sozinha, com
+  aviso, se a API recusar.
+- **Despensa em "Tudo"** mostra todos os produtos; o que ainda não é
+  acompanhado aparece sem estado, e tocar num estado passa a acompanhá-lo.
+
 ---
 
 ## D-26 — API de finanças sem superusuário

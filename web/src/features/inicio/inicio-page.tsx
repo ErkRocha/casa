@@ -55,6 +55,16 @@ export function InicioPage() {
         >
           <Icone nome="direita" />
         </BotaoIcone>
+        {/* Celular: a barra inferior tem Compras no lugar de "Mais" (D-25);
+            relatórios e configurações ficam a um toque daqui. */}
+        <a
+          href={href("mais")}
+          aria-label="Mais: relatórios e configurações"
+          title="Mais"
+          className="bg-superficie text-texto hover:text-texto rounded-interno flex size-22 shrink-0 items-center justify-center md:hidden"
+        >
+          <Icone nome="mais" />
+        </a>
       </header>
 
       {inicio.isLoading ? (

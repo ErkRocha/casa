@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Despensa no celular</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1F4FBF}a:hover{color:#163A8F}
+</style>
+</helmet>
+<div style="width: 390px; height: 1300px; position: relative; box-sizing: border-box; background: #EEF1F6; font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; color: #172033; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow: hidden">
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px 14px 120px 14px">
+
+<header style="display: flex; align-items: center; gap: 8px; padding: 0 2px">
+<a href="ComprasListaCelular.dc.html" aria-label="Voltar para a lista" style="width: 44px; height: 44px; border-radius: 12px; background: #FFFFFF; color: #172033; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></a>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.3px">Despensa</h1>
+<span style="font-size: 14px; color: #556070">O que tem em casa</span>
+</div>
+</header>
+
+<p style="margin: 0; padding: 0 2px; font-size: 14px; line-height: 1.5; color: #556070; text-wrap: pretty">Toque no estado de cada produto. "Acabou" coloca na lista na hora; "Acabando" só sugere.</p>
+
+<div role="tablist" aria-label="Filtrar" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: #FFFFFF; border-radius: 12px; padding: 4px; gap: 2px">
+<button role="tab" aria-selected="true" style="height: 40px; border: none; border-radius: 9px; background: #172033; color: #FFFFFF; font-family: inherit; font-size: 14px; font-weight: 600">Tudo (24)</button>
+<button role="tab" aria-selected="false" style="height: 40px; border: none; border-radius: 9px; background: transparent; color: #2C364A; font-family: inherit; font-size: 14px">Acabando (2)</button>
+<button role="tab" aria-selected="false" style="height: 40px; border: none; border-radius: 9px; background: transparent; color: #2C364A; font-family: inherit; font-size: 14px">Acabou (2)</button>
+</div>
+
+<sc-for list="{{secoes}}" as="s" hint-placeholder-count="3">
+<section style="background: #FFFFFF; border-radius: 20px; padding: 6px 14px 10px 14px; display: flex; flex-direction: column">
+<h2 style="margin: 0; padding: 12px 2px 6px 2px; font-size: 14px; font-weight: 650; color: #556070">{{s.nome}}</h2>
+<sc-for list="{{s.itens}}" as="i" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 10px 2px; box-shadow: inset 0 1px 0 #EEF1F6">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px"><span style="font-size: 16px; font-weight: 600">{{i.nome}}</span><span style="font-size: 12px; color: #556070">{{i.nota}}</span></div>
+<div role="radiogroup" aria-label="Estado de {{i.nome}}" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+<button role="radio" aria-checked="{{i.temSel}}" style="height: 40px; border: none; border-radius: 10px; background: {{i.temFundo}}; color: {{i.temCor}}; font-family: inherit; font-size: 14px; font-weight: 600">Tem</button>
+<button role="radio" aria-checked="{{i.acabandoSel}}" style="height: 40px; border: none; border-radius: 10px; background: {{i.acabandoFundo}}; color: {{i.acabandoCor}}; font-family: inherit; font-size: 14px; font-weight: 600">Acabando</button>
+<button role="radio" aria-checked="{{i.acabouSel}}" style="height: 40px; border: none; border-radius: 10px; background: {{i.acabouFundo}}; color: {{i.acabouCor}}; font-family: inherit; font-size: 14px; font-weight: 600">Acabou</button>
+</div>
+</div>
+</sc-for>
+</section>
+</sc-for>
+
+</div>
+
+<nav aria-label="Navegação principal" style="position: absolute; left: 0; right: 0; bottom: 0; background: #FFFFFF; box-shadow: 0 -1px 0 #E2E6EE; padding: 6px 6px 20px 6px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px">
+<a href="InicioCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg>Início</a>
+<a href="LancamentosCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>Lançamentos</a>
+<a href="ComprasListaCelular.dc.html" aria-current="page" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #1F4FBF; font-size: 11px; font-weight: 650"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11h11.2L21 8H6.2"></path><circle cx="9" cy="19" r="1.5"></circle><circle cx="17" cy="19" r="1.5"></circle></svg>Compras</a>
+<a href="RevisarCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><span style="position: relative; display: flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg><span style="position: absolute; top: -5px; right: -12px; background: #8A5A00; color: #FFFFFF; font-size: 10px; font-weight: 700; border-radius: 999px; padding: 1px 6px">6</span></span>Revisar</a>
+<a href="AnalisesCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7"></path></svg>Análises</a>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1300}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var cinza = { fundo: '#F4F6FA', cor: '#2C364A' };
+    var estilos = { tem: { fundo: '#E3F3EC', cor: '#145C40' }, acabando: { fundo: '#FFF3D6', cor: '#5C3D00' }, acabou: { fundo: '#FBE4D6', cor: '#8A2D0A' } };
+    function p(nome, estado, nota) {
+      var o = { nome: nome, nota: nota || '' };
+      ['tem', 'acabando', 'acabou'].forEach(function (e) {
+        var s = e === estado ? estilos[e] : cinza;
+        o[e + 'Fundo'] = s.fundo; o[e + 'Cor'] = s.cor; o[e + 'Sel'] = e === estado ? 'true' : 'false';
+      });
+      return o;
+    }
+    return {
+      secoes: [
+        { nome: 'Mercearia', itens: [ p('Arroz 5kg', 'acabando', 'sugerido na lista'), p('Feijão preto 1kg', 'acabou', 'na lista'), p('Azeite', 'tem', 'comprado há 12 dias') ] },
+        { nome: 'Frios e laticínios', itens: [ p('Leite integral 1L', 'acabou', 'na lista'), p('Manteiga', 'tem', 'comprado há 5 dias') ] },
+        { nome: 'Limpeza', itens: [ p('Detergente', 'acabando', 'sugerido na lista'), p('Papel higiênico', 'tem', 'comprado há 3 dias') ] }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

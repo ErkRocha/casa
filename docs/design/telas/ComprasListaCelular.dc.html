@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Lista de compras no celular</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1F4FBF}a:hover{color:#163A8F}
+</style>
+</helmet>
+<div style="width: 390px; height: 1400px; position: relative; box-sizing: border-box; background: #EEF1F6; font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; color: #172033; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow: hidden">
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px 14px 120px 14px">
+
+<header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; padding: 0 2px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.4px">Lista de compras</h1>
+<span style="font-size: 14px; color: #556070">9 para pegar, 3 no carrinho</span>
+</div>
+<a href="ComprasDespensaCelular.dc.html" style="text-decoration: none; height: 40px; border-radius: 12px; background: #FFFFFF; color: #172033; padding: 0 12px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16v13H4z"></path><path d="M4 7l2-3h12l2 3"></path><path d="M10 11h4"></path></svg>Despensa</a>
+</header>
+
+<a href="ComprasAdicionarCelular.dc.html" style="text-decoration: none; display: flex; align-items: center; gap: 10px; height: 52px; border-radius: 16px; background: #FFFFFF; padding: 0 16px; color: #556070; font-size: 16px; box-shadow: 0 1px 2px rgba(23,32,51,0.06)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1F4FBF" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Adicionar item</a>
+
+<section style="background: #FFF8E8; border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 14px; font-weight: 650; color: #5C3D00">Acabando em casa</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<button style="height: 36px; border: none; border-radius: 999px; background: #FFFFFF; color: #172033; padding: 0 12px 0 10px; font-family: inherit; font-size: 14px; display: flex; align-items: center; gap: 6px; box-shadow: inset 0 0 0 1px #E5C27A"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Arroz 5kg</button>
+<button style="height: 36px; border: none; border-radius: 999px; background: #FFFFFF; color: #172033; padding: 0 12px 0 10px; font-family: inherit; font-size: 14px; display: flex; align-items: center; gap: 6px; box-shadow: inset 0 0 0 1px #E5C27A"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Detergente</button>
+</div>
+</section>
+
+<sc-for list="{{secoes}}" as="s" hint-placeholder-count="4">
+<section style="background: #FFFFFF; border-radius: 20px; padding: 6px 14px 6px 14px; display: flex; flex-direction: column">
+<h2 style="margin: 0; padding: 12px 2px 6px 2px; font-size: 14px; font-weight: 650; color: #556070">{{s.nome}}</h2>
+<sc-for list="{{s.itens}}" as="i" hint-placeholder-count="3">
+<label style="display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 6px 2px; box-shadow: inset 0 1px 0 #EEF1F6; cursor: pointer">
+<span style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; box-shadow: inset 0 0 0 2px #B9C2D0; background: #FFFFFF"></span>
+<span style="display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0">
+<span style="font-size: 17px; font-weight: 550">{{i.nome}}</span>
+<span style="font-size: 13px; color: #556070">{{i.detalhe}}</span>
+</span>
+<span style="font-size: 15px; font-weight: 650; color: #2C364A">{{i.qtd}}</span>
+</label>
+</sc-for>
+</section>
+</sc-for>
+
+<section style="background: #FFFFFF; border-radius: 20px; padding: 6px 14px; display: flex; flex-direction: column">
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 2px 6px 2px"><h2 style="margin: 0; font-size: 14px; font-weight: 650; color: #556070">No carrinho (3)</h2><button style="height: 32px; border: none; background: transparent; color: #1F4FBF; font-family: inherit; font-size: 14px; font-weight: 600">Esconder</button></div>
+<sc-for list="{{carrinho}}" as="i" hint-placeholder-count="3">
+<label style="display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 6px 2px; box-shadow: inset 0 1px 0 #EEF1F6; cursor: pointer">
+<span style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; background: #1C7A55; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto">
+<span style="font-size: 16px; color: #8A94A6; text-decoration: line-through">{{i.nome}}</span>
+<span style="font-size: 13px; color: #8A94A6">{{i.detalhe}}</span>
+</span>
+</label>
+</sc-for>
+</section>
+
+<p style="margin: 0; text-align: center; font-size: 13px; color: #556070">Sincronizado agora. Tudo que um marca aparece pro outro em segundos.</p>
+
+</div>
+
+<nav aria-label="Navegação principal" style="position: absolute; left: 0; right: 0; bottom: 0; background: #FFFFFF; box-shadow: 0 -1px 0 #E2E6EE; padding: 6px 6px 20px 6px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px">
+<a href="InicioCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg>Início</a>
+<a href="LancamentosCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>Lançamentos</a>
+<a href="#compras" aria-current="page" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #1F4FBF; font-size: 11px; font-weight: 650"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11h11.2L21 8H6.2"></path><circle cx="9" cy="19" r="1.5"></circle><circle cx="17" cy="19" r="1.5"></circle></svg>Compras</a>
+<a href="RevisarCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><span style="position: relative; display: flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg><span style="position: absolute; top: -5px; right: -12px; background: #8A5A00; color: #FFFFFF; font-size: 10px; font-weight: 700; border-radius: 999px; padding: 1px 6px">6</span></span>Revisar</a>
+<a href="AnalisesCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7"></path></svg>Análises</a>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1400}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      secoes: [
+        { nome: 'Hortifrúti', itens: [
+          { nome: 'Banana', detalhe: 'Laura adicionou', qtd: '1 cacho' },
+          { nome: 'Tomate', detalhe: 'Erik adicionou, "bem maduro"', qtd: '6' }
+        ]},
+        { nome: 'Frios e laticínios', itens: [
+          { nome: 'Leite integral 1L', detalhe: 'Voltou da despensa', qtd: '12' },
+          { nome: 'Queijo mussarela', detalhe: 'Laura adicionou', qtd: '300 g' }
+        ]},
+        { nome: 'Mercearia', itens: [
+          { nome: 'Feijão preto 1kg', detalhe: 'Erik adicionou', qtd: '2' },
+          { nome: 'Molho de tomate', detalhe: 'Laura adicionou', qtd: '3' },
+          { nome: 'Aveia em flocos', detalhe: 'Laura adicionou', qtd: '1' }
+        ]},
+        { nome: 'Limpeza', itens: [
+          { nome: 'Sabão em pó', detalhe: 'Voltou da despensa', qtd: '1' },
+          { nome: 'Esponja', detalhe: 'Erik adicionou', qtd: '1 pacote' }
+        ]}
+      ],
+      carrinho: [
+        { nome: 'Pão de forma', detalhe: 'Laura pegou agora' },
+        { nome: 'Ovos', detalhe: 'Erik pegou há 2 min' },
+        { nome: 'Alface', detalhe: 'Erik pegou há 4 min' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -106,6 +106,8 @@
 
   /* --- Cor: ação destrutiva ("Desfazer") --------------------------------- */
   --color-perigo: #8a2d0a;
+  /* Fundo do "Acabou" na despensa (ComprasDespensaCelular, D-25). */
+  --color-perigo-fundo: #fbe4d6;
 
   /* --- Cor: orçamento -----------------------------------------------------
    * Até 90% azul; 90–100% âmbar; estourado. A faixa vem da API.

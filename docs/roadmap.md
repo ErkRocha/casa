@@ -490,6 +490,10 @@ Nesta ordem, sem pular:
    Entram no painel atual ou como página própria servida pelo mesmo nginx;
    o desenho decide. Sem app nativo (fora de escopo).
 
+   **Feito (02/11/2026):** desenho aprovado (`docs/design/COMPRAS.md`) e
+   implementado na seção Compras do painel (D-25, "Telas aprovadas"). Falta
+   o "pronto quando" abaixo, que só o casal faz.
+
    **Pronto quando:** o casal faz uma compra real do começo ao fim pelos
    dois celulares, cada um vendo o que o outro marcou em poucos segundos.
 3. **Uso compartilhado: identidade pelo Tailscale.** O "quem" deixa de ser

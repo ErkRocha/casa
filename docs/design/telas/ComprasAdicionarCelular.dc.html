@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Adicionar item no celular</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; box-sizing: border-box; background: #EEF1F6; font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; color: #172033; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow: hidden">
+
+<div aria-hidden="true" style="padding: 16px 14px; display: flex; flex-direction: column; gap: 12px; opacity: 0.5">
+<div style="font-size: 24px; font-weight: 700">Lista de compras</div>
+<div style="height: 52px; border-radius: 16px; background: #FFFFFF"></div>
+<div style="height: 150px; border-radius: 20px; background: #FFFFFF"></div>
+<div style="height: 200px; border-radius: 20px; background: #FFFFFF"></div>
+</div>
+<div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(23,32,51,0.45)"></div>
+
+<section role="dialog" aria-label="Adicionar item à lista" style="position: absolute; left: 0; right: 0; bottom: 0; background: #FFFFFF; border-radius: 24px 24px 0 0; padding: 10px 16px 28px 16px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 -8px 30px rgba(23,32,51,0.2)">
+<div style="align-self: center; width: 40px; height: 5px; border-radius: 3px; background: #D5DBE5"></div>
+<div style="display: flex; justify-content: space-between; align-items: center"><h2 style="margin: 0; font-size: 19px; font-weight: 700">Adicionar à lista</h2><button aria-label="Fechar" style="width: 44px; height: 44px; border: none; border-radius: 12px; background: #F4F6FA; color: #172033; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+
+<label style="display: flex; align-items: center; gap: 8px; height: 52px; border-radius: 14px; background: #F4F6FA; padding: 0 14px; box-shadow: inset 0 0 0 2px #1F4FBF"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden">Produto</span><input value="lei" style="flex: 1 1 auto; border: none; background: transparent; font-family: inherit; font-size: 17px; color: #172033; outline: none"></label>
+
+<div style="display: flex; flex-direction: column">
+<sc-for list="{{resultados}}" as="r" hint-placeholder-count="3">
+<button style="display: flex; justify-content: space-between; align-items: center; min-height: 52px; border: none; background: {{r.fundo}}; border-radius: 12px; padding: 0 12px; font-family: inherit; color: #172033; text-align: left">
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 16px; font-weight: 600">{{r.nome}}</span><span style="font-size: 13px; color: #556070">{{r.secao}}</span></span>
+<span style="font-size: 13px; color: #556070">{{r.nota}}</span>
+</button>
+</sc-for>
+<button style="display: flex; align-items: center; gap: 8px; min-height: 48px; border: none; background: transparent; padding: 0 12px; font-family: inherit; color: #1F4FBF; font-size: 15px; font-weight: 600"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Criar "lei" como produto novo</button>
+</div>
+
+<div style="display: flex; align-items: center; gap: 12px">
+<span style="font-size: 15px; font-weight: 600; flex: 1 1 auto">Quantidade</span>
+<div style="display: flex; align-items: center; gap: 4px; background: #F4F6FA; border-radius: 12px; padding: 4px">
+<button aria-label="Diminuir" style="width: 44px; height: 44px; border: none; border-radius: 10px; background: #FFFFFF; color: #172033; font-size: 20px; font-family: inherit">−</button>
+<span style="min-width: 48px; text-align: center; font-size: 18px; font-weight: 700">12</span>
+<button aria-label="Aumentar" style="width: 44px; height: 44px; border: none; border-radius: 10px; background: #FFFFFF; color: #172033; font-size: 20px; font-family: inherit">+</button>
+</div>
+</div>
+
+<label style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 15px; font-weight: 600">Observação <span style="font-weight: 400; color: #556070">(opcional)</span></span><input placeholder="Ex.: da marca que a gente gosta" style="height: 48px; border: none; border-radius: 12px; background: #F4F6FA; padding: 0 14px; font-family: inherit; font-size: 16px; color: #172033; outline: none"></label>
+
+<button style="height: 54px; border: none; border-radius: 14px; background: #1F4FBF; color: #FFFFFF; font-family: inherit; font-size: 17px; font-weight: 650">Atualizar leite integral na lista</button>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      resultados: [
+        { nome: 'Leite integral 1L', secao: 'Frios e laticínios', nota: 'Já na lista: 12', fundo: '#EAF0FD' },
+        { nome: 'Leite condensado', secao: 'Mercearia', nota: 'Tem em casa', fundo: 'transparent' },
+        { nome: 'Leite em pó', secao: 'Mercearia', nota: '', fundo: 'transparent' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

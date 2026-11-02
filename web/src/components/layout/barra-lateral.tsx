@@ -4,7 +4,7 @@ import { useEstadoSincronizacao } from "@/features/sincronizacao/queries";
 import { quandoRelativo } from "@/lib/format";
 import { href, type Rota } from "@/lib/rotas";
 import { cn } from "@/lib/utils";
-import { GRUPOS_COMPUTADOR } from "./navegacao";
+import { GRUPOS_COMPUTADOR, rotaAtiva } from "./navegacao";
 
 /**
  * Barra lateral do computador (`InicioDesktop` e afins, D-24).
@@ -65,7 +65,7 @@ export function BarraLateral({
         {GRUPOS_COMPUTADOR.map((grupo, indice) => (
           <ul key={indice} className="m-0 flex list-none flex-col gap-1 p-0">
             {grupo.map((item) => {
-              const atual = item.rota === rota;
+              const atual = item.rota === rotaAtiva(rota);
               const contador = item.rota === "revisar" && pendentes > 0 ? pendentes : null;
               return (
                 <li key={item.rota}>

@@ -12,6 +12,8 @@ import { useEffect, useState } from "react";
 export type Rota =
   | "inicio"
   | "lancamentos"
+  | "compras"
+  | "despensa"
   | "revisar"
   | "analises"
   | "relatorios"
@@ -25,6 +27,8 @@ export const ROTA_PADRAO: Rota = "inicio";
 const ROTAS = new Set<Rota>([
   "inicio",
   "lancamentos",
+  "compras",
+  "despensa",
   "revisar",
   "analises",
   "relatorios",
@@ -37,6 +41,8 @@ const ROTAS = new Set<Rota>([
 export const TITULO_DA_ROTA: Record<Rota, string> = {
   inicio: "Início",
   lancamentos: "Lançamentos",
+  compras: "Lista de compras",
+  despensa: "Despensa",
   revisar: "Revisar",
   analises: "Análises",
   relatorios: "Relatórios do mês",

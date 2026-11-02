@@ -4,8 +4,10 @@ import type { Rota } from "@/lib/rotas";
 /**
  * Os itens de navegação do README do desenho (D-24).
  *
- * Computador: três grupos sem rótulo, separados por espaço. Celular: quatro
- * itens na barra inferior e "Mais" para as telas de configuração.
+ * Computador: três grupos sem rótulo, separados por espaço; Compras no
+ * primeiro, depois de Lançamentos. Celular: cinco itens na barra inferior,
+ * com Compras no meio (docs/design/COMPRAS.md); as telas de configuração
+ * ficam em "Mais", aberto pelo topo do Início.
  */
 
 export interface ItemNavegacao {
@@ -14,9 +16,10 @@ export interface ItemNavegacao {
   icone: NomeIcone;
 }
 
-const ITENS: Record<Exclude<Rota, "mais">, ItemNavegacao> = {
+const ITENS: Record<Exclude<Rota, "mais" | "despensa">, ItemNavegacao> = {
   inicio: { rota: "inicio", rotulo: "Início", icone: "inicio" },
   lancamentos: { rota: "lancamentos", rotulo: "Lançamentos", icone: "lancamentos" },
+  compras: { rota: "compras", rotulo: "Compras", icone: "compras" },
   revisar: { rota: "revisar", rotulo: "Revisar", icone: "revisar" },
   analises: { rota: "analises", rotulo: "Análises", icone: "analises" },
   relatorios: { rota: "relatorios", rotulo: "Relatórios do mês", icone: "relatorios" },
@@ -26,7 +29,7 @@ const ITENS: Record<Exclude<Rota, "mais">, ItemNavegacao> = {
 };
 
 export const GRUPOS_COMPUTADOR: ItemNavegacao[][] = [
-  [ITENS.inicio, ITENS.lancamentos, ITENS.revisar],
+  [ITENS.inicio, ITENS.lancamentos, ITENS.compras, ITENS.revisar],
   [ITENS.analises, ITENS.relatorios],
   [ITENS.contas, ITENS.categorias, ITENS.sincronizacao],
 ];
@@ -34,9 +37,9 @@ export const GRUPOS_COMPUTADOR: ItemNavegacao[][] = [
 export const ITENS_CELULAR: ItemNavegacao[] = [
   ITENS.inicio,
   ITENS.lancamentos,
+  ITENS.compras,
   ITENS.revisar,
   ITENS.analises,
-  { rota: "mais", rotulo: "Mais", icone: "mais" },
 ];
 
 /** As telas que no celular ficam atrás de "Mais". */
@@ -47,7 +50,7 @@ export const ITENS_MAIS: ItemNavegacao[] = [
   ITENS.sincronizacao,
 ];
 
-/** "Mais" fica ativo quando a tela atual é uma das que ele guarda. */
-export function rotaAtivaNoCelular(rota: Rota): Rota {
-  return ITENS_MAIS.some((item) => item.rota === rota) ? "mais" : rota;
+/** A despensa é parte de Compras: o item ativo é o de Compras. */
+export function rotaAtiva(rota: Rota): Rota {
+  return rota === "despensa" ? "compras" : rota;
 }

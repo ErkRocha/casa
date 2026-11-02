@@ -2,17 +2,17 @@ import { Icone } from "@/components/ui/icone";
 import { useRevisarResumo } from "@/features/revisar/queries";
 import { href, type Rota } from "@/lib/rotas";
 import { cn } from "@/lib/utils";
-import { ITENS_CELULAR, rotaAtivaNoCelular } from "./navegacao";
+import { ITENS_CELULAR, rotaAtiva } from "./navegacao";
 
 /**
- * Barra inferior do celular (`InicioCelular` e afins, D-24): Início,
- * Lançamentos, Revisar (com contador), Análises e "Mais", que leva às telas
- * de configuração. Some a partir de 768px.
+ * Barra inferior do celular (D-24, D-25): Início, Lançamentos, Compras,
+ * Revisar (com contador) e Análises. As telas de configuração ficam em
+ * "Mais", aberto pelo topo do Início. Some a partir de 768px.
  */
 export function BarraInferior({ rota }: { rota: Rota }) {
   const revisar = useRevisarResumo();
   const pendentes = revisar.data?.total ?? 0;
-  const ativa = rotaAtivaNoCelular(rota);
+  const ativa = rotaAtiva(rota);
 
   return (
     <nav
