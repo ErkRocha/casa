@@ -34,3 +34,7 @@ dist/
 
 # Notas fiscais reais antes de anonimizar (compras/tests/amostras/README.md).
 compras/tests/amostras/*.bruta.*
+
+# Arquivos compactados (pacotes de desenho e afins): o conteúdo vai extraído
+# para o repositório, nunca o zip.
+*.zip
