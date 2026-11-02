@@ -545,6 +545,15 @@ Nesta ordem, sem pular:
    enquanto: o servidor MCP do vault seria cliente da API do `compras`
    ("põe leite na lista", "o que falta comprar?"), sem acesso ao banco.
 
+   **Feito (02/11/2026)** no servidor MCP do vault (`C:\Users\erikf\servidor`,
+   fora deste repositório): `ver_lista_compras`, `adicionar_na_lista` (vários
+   de uma vez, pelo nome, com quantidade opcional; acha o produto pela busca
+   e cria se não existir), `marcar_comprado` e `marcar_acabou`. Falam com a
+   API em `127.0.0.1` (`COMPRAS_API_URL`, padrão a porta 8001), com
+   `X-Quem: voz` e `origem: voz`. Nenhuma apaga nada; nada de finanças.
+   Testadas numa instância à parte (clone do vault e banco de teste); as
+   ferramentas antigas e as recusas de segurança continuam iguais.
+
    **Pronto quando:** um pedido por voz cria o item na lista com a origem
    `voz`, e ele aparece nos dois celulares como qualquer outro.
 

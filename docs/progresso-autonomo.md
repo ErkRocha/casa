@@ -6,12 +6,12 @@ continue da primeira fase que não está "OK" nem "bloqueada".
 | Fase | Status | Commit |
 |---|---|---|
 | 0 — Estado inicial | OK | — |
-| 1 — Telas da lista de compras | **bloqueada** | — |
+| 1 — Telas da lista de compras | OK (retomada) | `ac32920` |
 | 2 — Finanças sem superusuário (D-26) | OK | ver abaixo |
-| 3 — Identidade pelo Tailscale | **bloqueada** (depende da 1) | — |
+| 3 — Identidade pelo Tailscale | OK (retomada) | `e4b2a2f` |
 | 4 — Sincronização e relatório automáticos | OK | `1681428` |
-| 5 — NFC-e e preços (backend) | OK (sem nota real) | ver abaixo |
-| 6 — Lista pela voz (MCP do vault) | **bloqueada** | — |
+| 5 — NFC-e e preços (backend) | OK (sem nota real) | `bdaaddb` |
+| 6 — Lista pela voz (MCP do vault) | OK (retomada) | `c50f774` + servidor fora do git |
 
 ## Fase 0
 
@@ -103,3 +103,22 @@ Além da fase 1, o servidor MCP do vault não existe em
   GTIN só quando o código tem 13 dígitos, prefixo 789/790 e DV certo;
   CNPJ da página diferente do da chave vira erro; reler só nota com erro;
   vincular transação só com confirmação e só se ela existe em finanças.
+
+## Retomada (02/11/2026, com o usuário)
+
+O usuário pôs o `design-compras.zip` em `docs/design/` e indicou o servidor
+MCP em `C:\Users\erikf\servidor`. As fases bloqueadas rodaram:
+
+- **Fase 1 (`ac32920`)**: zip extraído para `docs/design/COMPRAS.md` e
+  `docs/design/telas/Compras*`; telas implementadas e conferidas por print
+  (390px e 1440px) contra o banco de teste. D-25 registra a aprovação.
+- **Fase 3 (`e4b2a2f`)**: migration `compras/0003` (backup
+  `backups/casa_20261102_101500_antes_compras_0003.dump`), `/eu`,
+  `/identidades`, nginx e Vite. nginx conferido com a imagem real no Docker
+  (que já estava instalado; só foi aberto). Login do usuário cadastrado como
+  "Erik". O `tailscale serve` NÃO foi ligado: a checagem de segurança
+  recusou expor o serviço; fica com o usuário.
+- **Fase 6 (`c50f774`)**: `origem: voz` no `POST /lista/itens`; ferramentas no
+  `server.py` do servidor MCP (cópia antes da mudança em
+  `server.py.antes-compras-20261102`). O servidor em produção (8765) roda o
+  código antigo até ser reiniciado.
