@@ -169,12 +169,16 @@ desistir sem gravar nada (o `make sync` sai com código 3 nesse caso).
   `docker compose logs agendador`. Falha vira log; a próxima tentativa é no
   dia seguinte.
 - **Modo local (Windows):** tarefas agendadas do Windows, no nível do
-  usuário (sem administrador). Rodam com o usuário logado.
+  usuário (sem administrador). Rodam com o usuário logado. **Depois da
+  migração para o Docker** só a do relatório fica no Windows (ela usa o
+  `claude` do host e lê o banco do Docker pelo `.env`); a sync é do
+  `agendador`, e `agendar.sh` não cria mais a tarefa dela.
 
 ```bash
 bash scripts/local/agendar.sh            # cria ou atualiza as duas tarefas
 bash scripts/local/agendar.sh --listar   # mostra a próxima execução de cada uma
 bash scripts/local/desagendar.sh         # remove as duas
+bash scripts/local/desagendar.sh sync    # só a sync (feito na migração)
 bash scripts/local/tarefa.sh sync        # roda agora o que a tarefa roda
 ```
 
@@ -328,9 +332,13 @@ suspensão, e o sistema roda continuamente. Para isso:
 - **Sem suspensão:** em *Configurações → Sistema → Energia*, "Colocar o
   dispositivo em suspensão" como *Nunca* (a tela pode desligar e bloquear).
 
+**Feita em 02/11/2026** (D-17): o banco ativo é o do Docker, e o local é
+cópia congelada. O que segue fica como registro, e para outra máquina.
+
 A migração do banco local para o container roda **uma vez**, com o Docker
 Desktop instalado e no ar, e `make` no PATH (no Windows:
-`winget install ezwinports.make`):
+`winget install ezwinports.make`, ou o `mingw32-make` do WinLibs com
+`MAKE=mingw32-make`):
 
 ```bash
 bash scripts/migrar_para_docker.sh

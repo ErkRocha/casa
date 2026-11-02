@@ -283,11 +283,29 @@ precisa dele no ar.
   banco do Docker está no ar, quando a porta está ocupada por outro processo
   ou depois da migração.
 
-**Pendente:** a migração ainda não foi feita — a máquina não tinha Docker em
-07/10/2026. O roteiro está em `scripts/migrar_para_docker.sh` (backup do
-banco local, restore no container, conferência de contagens, `make validar`
-e simulação da sync). Até ela rodar, o banco local continua sendo o único
-banco ativo.
+**Migração feita em 02/11/2026.** Pelo `scripts/migrar_para_docker.sh`, com
+o `mingw32-make` do WinLibs no lugar do `make` (`MAKE=mingw32-make`):
+
+- Dump do local em `backups/casa_local_20261102_111653.dump`. As 26 tabelas
+  dos dois schemas (finanças e compras, com as duas `alembic_version`)
+  batem linha a linha entre local e container
+  (`backups/contagens_local_20261102_111653.txt` e `.container`).
+- As roles `casa_financas`, `casa_compras` e `casa_insights` existem no
+  container com as mesmas permissões do local: atributos, donos, privilégios
+  por tabela e schema, privilégios padrão e os 10 triggers de proteção do
+  `compras` (comparação de 111 linhas, idêntica).
+- `make validar` e `make sync simular=1` passaram no container. O
+  `make test` e o `make compras-test` passaram a rodar no banco `casa_test`
+  do próprio Postgres do compose, porque dentro do container não há Docker
+  para o testcontainers.
+- O banco local está parado e marcado como migrado
+  (`~/.controle-casa-dev/MIGRADO_PARA_DOCKER`): é cópia congelada.
+- A sync diária é do serviço `agendador` do compose (6h); a tarefa
+  `ControleCasa-Sync` do Windows foi removida. A `ControleCasa-Relatorio`
+  continua no Windows (usa o `claude` do host) e lê o banco do Docker pela
+  URL que `api/scripts/_host.py` monta com o `.env`.
+- O servidor MCP do vault chama a API de compras pelo nginx do painel
+  (`http://127.0.0.1:5173/api/compras`).
 
 ---
 

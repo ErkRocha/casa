@@ -549,7 +549,8 @@ Nesta ordem, sem pular:
    fora deste repositório): `ver_lista_compras`, `adicionar_na_lista` (vários
    de uma vez, pelo nome, com quantidade opcional; acha o produto pela busca
    e cria se não existir), `marcar_comprado` e `marcar_acabou`. Falam com a
-   API em `127.0.0.1` (`COMPRAS_API_URL`, padrão a porta 8001), com
+   API pelo nginx do painel (`COMPRAS_API_URL`, padrão
+   `http://127.0.0.1:5173/api/compras` desde a migração para o Docker), com
    `X-Quem: voz` e `origem: voz`. Nenhuma apaga nada; nada de finanças.
    Testadas numa instância à parte (clone do vault e banco de teste); as
    ferramentas antigas e as recusas de segurança continuam iguais.
