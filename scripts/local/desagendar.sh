@@ -1,15 +1,23 @@
 #!/usr/bin/env bash
 # Remove as tarefas agendadas criadas pelo agendar.sh.
 #
-#   bash scripts/local/desagendar.sh
+#   bash scripts/local/desagendar.sh            # as duas
+#   bash scripts/local/desagendar.sh sync       # só a sync (depois da migração
+#                                               # para o Docker, D-17)
+#   bash scripts/local/desagendar.sh relatorio  # só o relatório
 #
-# Só as duas do projeto, pelo nome. Tarefa que já não existe é pulada.
-# Depois, reinicie a API (parar.sh e subir.sh) para o painel voltar a dizer
-# que a atualização é manual.
+# Só as do projeto, pelo nome. Tarefa que já não existe é pulada.
 set -uo pipefail
 source "$(dirname "$0")/_config.sh"
 
-for nome in "$CASA_TAREFA_SYNC" "$CASA_TAREFA_RELATORIO"; do
+case "${1:-todas}" in
+  todas) NOMES=("$CASA_TAREFA_SYNC" "$CASA_TAREFA_RELATORIO") ;;
+  sync) NOMES=("$CASA_TAREFA_SYNC") ;;
+  relatorio) NOMES=("$CASA_TAREFA_RELATORIO") ;;
+  *) echo "uso: desagendar.sh [sync|relatorio]" >&2; exit 2 ;;
+esac
+
+for nome in "${NOMES[@]}"; do
   if schtasks //Query //TN "$nome" >/dev/null 2>&1; then
     schtasks //Delete //TN "$nome" //F >/dev/null && echo "removida: $nome"
   else

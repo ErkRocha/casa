@@ -8,7 +8,8 @@
 # para quem está logado, e ela roda com o usuário logado (o PC de casa fica
 # ligado e com a sessão aberta, D-17). Rodar de novo atualiza (/F).
 #
-#   ControleCasa-Sync       todo dia às 06:00 (SYNC_AGENDA): sync da Pluggy
+#   ControleCasa-Sync       todo dia às 06:00 (SYNC_AGENDA): sync da Pluggy,
+#                           só no modo local (no Docker é o serviço `agendador`)
 #   ControleCasa-Relatorio  todo dia 1º às 07:00: relatório do mês anterior
 #
 # Para remover as duas: bash scripts/local/desagendar.sh
@@ -45,8 +46,14 @@ for t in sync relatorio; do
   fi
 done
 
-schtasks //Create //F //TN "$CASA_TAREFA_SYNC" //SC DAILY //ST "$CASA_SYNC_HORA" \
-  //TR "$(comando sync)" || { echo "não consegui criar $CASA_TAREFA_SYNC" >&2; exit 1; }
+# Depois da migração para o Docker (D-17), a sync é do serviço `agendador` do
+# compose: aqui fica só o relatório, que usa o `claude` do host.
+if [[ -f "$CASA_MARCADOR_MIGRACAO" ]]; then
+  echo "Modo Docker: a sync diária é do serviço 'agendador'; só o relatório é agendado aqui."
+else
+  schtasks //Create //F //TN "$CASA_TAREFA_SYNC" //SC DAILY //ST "$CASA_SYNC_HORA" \
+    //TR "$(comando sync)" || { echo "não consegui criar $CASA_TAREFA_SYNC" >&2; exit 1; }
+fi
 schtasks //Create //F //TN "$CASA_TAREFA_RELATORIO" //SC MONTHLY //D 1 //ST 07:00 \
   //TR "$(comando relatorio)" || { echo "não consegui criar $CASA_TAREFA_RELATORIO" >&2; exit 1; }
 
