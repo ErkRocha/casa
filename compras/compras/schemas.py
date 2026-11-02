@@ -222,6 +222,9 @@ class ItemCriar(BaseModel):
     quantidade: Quantidade | None = None
     unidade: TextoCurto | None = None
     observacao: Observacao | None = None
+    #: "voz" para o que chega pelo assistente de voz (MCP do vault). "despensa"
+    #: não: é do ciclo da despensa, que o service cria sozinho.
+    origem: Literal[OrigemItem.MANUAL, OrigemItem.VOZ] = OrigemItem.MANUAL
 
     @model_validator(mode="after")
     def _um_produto(self) -> Self:

@@ -328,3 +328,11 @@ def test_segundo_pedido_espera_o_primeiro_e_devolve_o_item_dele(client: TestClie
 
     fio.join(timeout=30)
     assert resultado == [(id_primeiro, False, True)]
+
+
+def test_origem_voz_e_aceita_e_despensa_nao(client: TestClient) -> None:
+    voz = adicionar(client, "Café", quem={"X-Quem": "voz"}, origem="voz")
+    assert voz.status_code == 201, voz.text
+    assert voz.json()["origem"] == "voz"
+    assert adicionar(client, "Chá").json()["origem"] == "manual"
+    assert adicionar(client, "Mel", origem="despensa").status_code == 422

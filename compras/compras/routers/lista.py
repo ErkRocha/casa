@@ -77,6 +77,7 @@ def adicionar(payload: ItemCriar, response: Response, session: SessionDep, quem:
         quantidade=payload.quantidade,
         unidade=payload.unidade,
         observacao=payload.observacao,
+        origem=payload.origem,
     )
     session.commit()
     if not criado:
