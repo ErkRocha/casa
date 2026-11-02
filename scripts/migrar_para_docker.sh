@@ -149,8 +149,20 @@ tabelas="${tabelas//[[:space:]]/}"
 if [[ "$tabelas" != "0" ]]; then
   falhou restore "O banco do container já tem $tabelas tabela(s). Nada foi sobrescrito; confira o volume antes de migrar."
 fi
+# O dump guarda os donos (D-25, D-26): casa_financas e casa_compras precisam
+# existir antes do restore. Nascem sem senha; os scripts de role, logo
+# depois, põem a do .env e repassam a posse do que faltar.
+$COMPOSE exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "
+  DO \$\$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '"'"'casa_financas'"'"') THEN
+      CREATE ROLE casa_financas LOGIN; END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '"'"'casa_compras'"'"') THEN
+      CREATE ROLE casa_compras LOGIN; END IF;
+  END \$\$;"' || falhou restore "não consegui criar as roles donas do dump."
 $COMPOSE exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --exit-on-error' <"$DUMP" \
   || falhou restore "pg_restore falhou. O dump continua em $DUMP."
+$MAKE --no-print-directory financas-role || falhou restore "make financas-role falhou."
+$MAKE --no-print-directory compras-role || falhou restore "make compras-role falhou."
 $MAKE --no-print-directory roles || falhou restore "make roles falhou."
 ok restore
 

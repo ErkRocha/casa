@@ -29,7 +29,12 @@ def com_connect_timeout(url: str, segundos: int = CONNECT_TIMEOUT_S) -> str:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    database_url: str = "postgresql+psycopg://casa:casa@db:5432/casa"
+    #: Sempre com a role `casa_financas`, sem superusuário (D-26).
+    database_url: str = "postgresql+psycopg://casa_financas:casa_financas@db:5432/casa"
+
+    #: Superusuário, só para administração: criar e reparar roles (D-11,
+    #: D-26). A API não usa; só os scripts de administração leem.
+    database_admin_url: str | None = None
     app_env: str = "dev"
 
     #: Gravado em `auditoria.autor` quando a escrita vem do painel. Agentes
@@ -88,7 +93,9 @@ class Settings(BaseSettings):
     #: repositório.
     casa_documentos: str | None = None
 
-    @field_validator("database_url", "insights_database_url_override", mode="after")
+    @field_validator(
+        "database_url", "database_admin_url", "insights_database_url_override", mode="after"
+    )
     @classmethod
     def _com_timeout(cls, valor: str | None) -> str | None:
         """Toda URL de banco do projeto passa por aqui: API, scripts, sync,

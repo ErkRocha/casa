@@ -55,6 +55,11 @@ class TestMigracao:
         for antes, depois in [
             ("pg_dump", "stop -m fast"),
             ("compose up -d --wait db", "pg_restore"),
+            # Os donos do dump (D-25, D-26) existem antes do restore.
+            ("CREATE ROLE casa_financas", "pg_restore"),
+            ("CREATE ROLE casa_compras", "pg_restore"),
+            ("pg_restore", "make --no-print-directory financas-role"),
+            ("make --no-print-directory financas-role", "make --no-print-directory compras-role"),
             ("pg_restore", "make --no-print-directory roles"),
             ("make --no-print-directory roles", "compose up -d --build"),
             ("make --no-print-directory validar", "make --no-print-directory sync simular=1"),
@@ -100,7 +105,10 @@ class TestMigracao:
     def test_pg_restore_falha(self, amb: Ambiente) -> None:
         _, etapas = _migrar(amb, FAKE_RESTORE="1")
         assert etapas["restore"] == "FALHOU" and etapas["contagens"] == "não executada"
-        assert "roles" not in amb.log
+        # Nenhum script de role depois do restore que falhou. Procura a
+        # chamada ao make: o SQL que cria os donos antes cita `pg_roles`.
+        for alvo in ("roles", "financas-role", "compras-role"):
+            assert f"make --no-print-directory {alvo}" not in amb.log
 
     def test_make_roles_falha(self, amb: Ambiente) -> None:
         _, etapas = _migrar(amb, FAKE_MAKE_FALHA="roles")

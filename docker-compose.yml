@@ -25,10 +25,14 @@ services:
   api:
     build:
       context: ./api
+    image: casa-api:local
     container_name: casa_api
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # D-26: a role casa_financas, sem superusuário. A senha vai literal na
+      # URL: só letras, dígitos, - e _ nela. A credencial de administração
+      # não entra aqui; fica no `api-admin`.
+      DATABASE_URL: postgresql+psycopg://casa_financas:${FINANCAS_DB_PASSWORD:-}@db:5432/${POSTGRES_DB}
       APP_ENV: ${APP_ENV:-dev}
       # Senha da role read-only dos insights (D-11). Sem ela aqui, `make roles`
       # e `make dossie` rodavam no container com o valor de exemplo do código,
@@ -83,6 +87,27 @@ services:
       - "127.0.0.1:${WEB_PORT:-5173}:5173"
     depends_on:
       - api
+
+  # Administração do banco (D-26): criar e reparar as roles de finanças e
+  # de insights. Mesma imagem da api, fora do `up` (perfil), e o único lugar
+  # com a credencial do superusuário junto do código de finanças. Usado por
+  # `make financas-role` e `make roles`.
+  api-admin:
+    image: casa-api:local
+    build:
+      context: ./api
+    profiles: ["ferramentas"]
+    restart: "no"
+    environment:
+      DATABASE_ADMIN_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql+psycopg://casa_financas:${FINANCAS_DB_PASSWORD:-}@db:5432/${POSTGRES_DB}
+      FINANCAS_DB_PASSWORD: ${FINANCAS_DB_PASSWORD:-}
+      INSIGHTS_PASSWORD: ${INSIGHTS_PASSWORD:-trocar_no_primeiro_uso}
+    volumes:
+      - ./api:/app
+    depends_on:
+      db:
+        condition: service_healthy
 
   # Lista de compras (D-25): serviço próprio, com schema e role próprios no
   # mesmo Postgres. Só conhece a credencial da role `casa_compras`; a dona do

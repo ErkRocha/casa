@@ -134,7 +134,14 @@ def main() -> int:
             file=sys.stderr,
         )
 
-    aplicar(cfg.database_url, cfg.insights_password, cfg.insights_role)
+    # Criar role e trocar senha é administração (D-26): `casa_financas` não
+    # pode. Sem a URL de administração, vale a da API, como antes da D-26.
+    if not cfg.database_admin_url:
+        print(
+            "AVISO: DATABASE_ADMIN_URL ausente; usando DATABASE_URL, que precisa poder criar role.",
+            file=sys.stderr,
+        )
+    aplicar(cfg.database_admin_url or cfg.database_url, cfg.insights_password, cfg.insights_role)
     legiveis, usuario = verificar(cfg.insights_database_url)
 
     print(f"role `{usuario}` pronta: {legiveis} objeto(s) legível(is), 0 de escrita.")

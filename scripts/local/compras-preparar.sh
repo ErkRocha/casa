@@ -23,7 +23,7 @@ echo "1/3 Role casa_compras e schema compras (credencial dona do banco)..."
 "$PY" -m scripts.aplicar_role || exit 1
 
 # Daqui em diante, só com a credencial da role.
-unset DATABASE_URL TEST_DATABASE_URL COMPRAS_DONO_DATABASE_URL PGPASSWORD
+unset DATABASE_URL DATABASE_ADMIN_URL TEST_DATABASE_URL COMPRAS_DONO_DATABASE_URL PGPASSWORD
 echo "2/3 Migrations..."
 "$PY" -m alembic upgrade head || exit 1
 echo "3/3 Seed..."

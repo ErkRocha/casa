@@ -48,3 +48,17 @@ GRANT USAGE ON SCHEMA public TO casa_insights;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO casa_insights;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO casa_insights;
 REVOKE CREATE ON SCHEMA public FROM casa_insights;
+
+-- D-26: quem cria as tabelas de finanças é a role `casa_financas`, não o
+-- superusuário que roda este arquivo. O default privilege acima vale só para
+-- o que o superusuário criar; este vale para o que ela criar. Ela não existe
+-- no primeiro boot do Docker: quem a cria (scripts.aplicar_role_financas)
+-- aplica o mesmo GRANT.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'casa_financas') THEN
+    ALTER DEFAULT PRIVILEGES FOR ROLE casa_financas IN SCHEMA public
+      GRANT SELECT ON TABLES TO casa_insights;
+  END IF;
+END
+$$;

@@ -748,3 +748,35 @@ fases e riscos em aberto no roadmap, seção "Lista de compras".
 - **Aprovadas as três simplificações do modelo:** uma lista só, uma ordem de
   seções para todos os mercados, e "acabando" só como sugestão (não põe o
   produto na lista sozinho; "acabou" põe).
+
+---
+
+## D-26 — API de finanças sem superusuário
+
+Decisão do usuário, 02/11/2026.
+
+A API de finanças conectava com o `POSTGRES_USER`, que no Docker e no modo
+local é superusuário. Superusuário passa por cima de todo GRANT: a separação
+da D-25 (o schema `compras` só da role `casa_compras`) dependia de um
+trigger, e um erro na API de finanças podia criar role, mexer na role de
+insights (D-11) ou escrever em qualquer schema.
+
+- **Role `casa_financas`**: LOGIN, sem SUPERUSER, CREATEROLE, CREATEDB,
+  REPLICATION nem BYPASSRLS. É dona de todos os objetos de finanças no
+  schema `public` (tabelas, views, sequências, funções e tipos) e tem
+  USAGE e CREATE no schema, o que basta para as migrations.
+- **A API e o Alembic de finanças usam só ela** (`DATABASE_URL`). O
+  superusuário fica para administração: criar roles, transferir posse,
+  backup e restore (`DATABASE_ADMIN_URL`, que só os scripts de
+  administração leem e que a API não recebe).
+- **Insights continua só leitura (D-11).** O script refaz o SELECT em todas
+  as tabelas e o default privilege **para objetos criados por
+  `casa_financas`**: o `ALTER DEFAULT PRIVILEGES` antigo valia para o
+  superusuário, que deixa de criar tabelas.
+- **O trigger de proteção do `compras` continua**, como segunda barreira.
+  Agora a primeira é a permissão: `casa_financas` não tem USAGE no schema
+  `compras`.
+- **Script versionado e idempotente**, `api/scripts/aplicar_role_financas.py`,
+  para o modo local e o Docker. Ele cria ou repara a role, transfere a
+  posse, refaz os GRANTs e conecta como ela para conferir o que ela não
+  pode fazer. A senha fica no `.env` (`FINANCAS_DB_PASSWORD`).

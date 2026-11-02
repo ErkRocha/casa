@@ -72,13 +72,17 @@ else
   echo "    Node não encontrado: pule o painel ou instale o Node e rode de novo"
 fi
 
-echo "6/6 Migrations, role read-only e seed"
+echo "6/6 Roles, migrations e seed"
+# Insights primeiro, para o default privilege de casa_financas ter a quem
+# dar; a role de finanças antes das migrations, que rodam como ela (D-26).
 (
   cd "$CASA_REPO/api" \
+    && "$PY" -m scripts.aplicar_roles \
+    && { [[ -z "${FINANCAS_DB_PASSWORD:-}" ]] || "$PY" -m scripts.aplicar_role_financas; } \
     && "$PY" -m alembic upgrade head \
     && "$PY" -m scripts.aplicar_roles \
     && "$PY" -m app.seed
-) || falhar "migrations, roles ou seed falharam"
+) || falhar "roles, migrations ou seed falharam"
 
 # Serviço de compras (D-25): role e schema próprios, migrations e seed.
 if [[ -n "${COMPRAS_DATABASE_URL:-}" ]]; then

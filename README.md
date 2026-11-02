@@ -453,6 +453,20 @@ elas vêm do `.env`.
    e o `_test`), o venv, instala API e web, aplica migrations, cria a role
    read-only e roda o seed. Pode rodar de novo: o que existe é mantido.
 
+**Role da API de finanças (D-26).** A API e o Alembic de finanças conectam
+como `casa_financas`, sem superusuário; o `POSTGRES_USER` fica só para
+administração. Com `FINANCAS_DB_PASSWORD` no `.env`, o `ambiente.sh` exporta
+`DATABASE_URL` com ela e `DATABASE_ADMIN_URL` com o superusuário. Para criar
+ou reparar a role e passar a ela os objetos de finanças (idempotente; faça
+backup antes da primeira vez):
+
+```bash
+source scripts/local/ambiente.sh && cd api && python -m scripts.aplicar_role_financas
+```
+
+No Docker: `make financas-role`. O `make roles` e o `make financas-role`
+rodam no serviço `api-admin`, o único com a credencial do superusuário.
+
 **No dia a dia:**
 
 ```bash

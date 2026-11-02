@@ -42,8 +42,14 @@ def url_do_host(env: Mapping[str, str | None]) -> str:
         raise ValueError(
             f"Para montar o DATABASE_URL no host faltam no .env: {', '.join(faltando)}."
         )
-    usuario = quote(str(env["POSTGRES_USER"]), safe="")
-    senha = quote(str(env["POSTGRES_PASSWORD"]), safe="")
+    # D-26: com a senha de casa_financas no .env, é ela; sem, o superusuário,
+    # como antes.
+    if env.get("FINANCAS_DB_PASSWORD"):
+        usuario = "casa_financas"
+        senha = quote(str(env["FINANCAS_DB_PASSWORD"]), safe="")
+    else:
+        usuario = quote(str(env["POSTGRES_USER"]), safe="")
+        senha = quote(str(env["POSTGRES_PASSWORD"]), safe="")
     banco = quote(str(env["POSTGRES_DB"]), safe="")
     porta = env.get("POSTGRES_PORT") or "5432"
     # Docker parado: falha em segundos, em vez de prender o terminal.

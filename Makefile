@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-resgates compras-role compras-migrate compras-seed compras-test compras-lint
+.PHONY: help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-resgates compras-role compras-migrate compras-seed compras-test compras-lint financas-role
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -40,8 +40,13 @@ demo: ## Gera 12 meses de lançamentos falsos para testar as telas
 demo-limpar: ## Remove os lançamentos de demonstração
 	$(COMPOSE) run --rm api python -m scripts.demo_data --limpar
 
+# Administração (D-26): rodam no `api-admin`, com a credencial do
+# superusuário, que a api não tem.
 roles: ## Cria/repara a role read-only do agente de insights (D-11)
-	$(COMPOSE) run --rm api python -m scripts.aplicar_roles
+	$(COMPOSE) run --rm api-admin python -m scripts.aplicar_roles
+
+financas-role: ## Cria/repara a role casa_financas e passa a ela os objetos de finanças (D-26)
+	$(COMPOSE) run --rm api-admin python -m scripts.aplicar_role_financas
 
 # O relatório com IA roda o `claude` do host, não do container: o CLI usa a
 # credencial já logada na sua máquina, que não existe dentro da imagem.
@@ -132,5 +137,8 @@ validar: ## Backup do banco, rebuild, /health, migrate, roles, lint e test — p
 reset: ## APAGA o volume do banco e recria do zero
 	$(COMPOSE) down -v
 	$(COMPOSE) up -d db
+	$(COMPOSE) run --rm api-admin python -m scripts.aplicar_roles
+	$(COMPOSE) run --rm api-admin python -m scripts.aplicar_role_financas
 	$(COMPOSE) run --rm api alembic upgrade head
+	$(COMPOSE) run --rm api-admin python -m scripts.aplicar_roles
 	$(COMPOSE) run --rm api python -m app.seed

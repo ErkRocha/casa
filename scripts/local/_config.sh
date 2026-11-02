@@ -17,6 +17,8 @@
 #   LOCAL_WEB_PORT           padrão: WEB_PORT, ou 5173
 #   LOCAL_COMPRAS_PORT       serviço de compras (D-25). Padrão: COMPRAS_PORT, ou 8001
 #   LOCAL_COMPRAS_PASSWORD   senha da role casa_compras. Padrão: COMPRAS_DB_PASSWORD
+#   LOCAL_FINANCAS_PASSWORD  senha da role casa_financas (D-26). Padrão:
+#                            FINANCAS_DB_PASSWORD
 
 CASA_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
@@ -52,6 +54,7 @@ API_PORTA="${LOCAL_API_PORT:-${API_PORT:-8000}}"
 WEB_PORTA="${LOCAL_WEB_PORT:-${WEB_PORT:-5173}}"
 COMPRAS_PORTA="${LOCAL_COMPRAS_PORT:-${COMPRAS_PORT:-8001}}"
 COMPRAS_SENHA="${LOCAL_COMPRAS_PASSWORD:-${COMPRAS_DB_PASSWORD:-}}"
+FINANCAS_SENHA="${LOCAL_FINANCAS_PASSWORD:-${FINANCAS_DB_PASSWORD:-}}"
 VENV="$CASA_DEV_DIR/venv"
 PY="$VENV/Scripts/python.exe"
 # Segundos até desistir de conectar ao banco (o mesmo da API, app/config.py).
@@ -77,8 +80,21 @@ casa_exportar_ambiente() {
   local senha
   senha="$(_casa_urlencode "$PG_SENHA")" || return 1
   # connect_timeout: banco fora do ar falha em segundos, em vez de travar.
-  export DATABASE_URL="postgresql+psycopg://$PG_USER:$senha@127.0.0.1:$PG_PORT/$PG_DB?connect_timeout=$CASA_CONNECT_TIMEOUT"
-  # Banco truncado entre testes: nunca o de verdade.
+  # Superusuário: só administração (D-26). Os scripts de role leem esta.
+  export DATABASE_ADMIN_URL="postgresql+psycopg://$PG_USER:$senha@127.0.0.1:$PG_PORT/$PG_DB?connect_timeout=$CASA_CONNECT_TIMEOUT"
+  # A API e o Alembic de finanças: a role casa_financas, sem superusuário.
+  # Sem a senha dela no .env, vale a de administração, como antes da D-26.
+  if [[ -n "$FINANCAS_SENHA" ]]; then
+    local senha_financas
+    senha_financas="$(_casa_urlencode "$FINANCAS_SENHA")" || return 1
+    export FINANCAS_DB_PASSWORD="$FINANCAS_SENHA"
+    export DATABASE_URL="postgresql+psycopg://casa_financas:$senha_financas@127.0.0.1:$PG_PORT/$PG_DB?connect_timeout=$CASA_CONNECT_TIMEOUT"
+  else
+    export DATABASE_URL="$DATABASE_ADMIN_URL"
+  fi
+  # Banco truncado entre testes: nunca o de verdade. É a URL de
+  # administração do banco de teste: os testes criam nele as roles e
+  # conectam como casa_financas e casa_compras.
   export TEST_DATABASE_URL="postgresql+psycopg://$PG_USER:$senha@127.0.0.1:$PG_PORT/$PG_DB_TESTE?connect_timeout=$CASA_CONNECT_TIMEOUT"
   export INSIGHTS_PASSWORD="$INSIGHTS_SENHA"
   # Serviço de compras (D-25): conecta só com a própria role. A URL dona vai
@@ -89,7 +105,7 @@ casa_exportar_ambiente() {
     senha_compras="$(_casa_urlencode "$COMPRAS_SENHA")" || return 1
     export COMPRAS_DB_PASSWORD="$COMPRAS_SENHA"
     export COMPRAS_DATABASE_URL="postgresql+psycopg://casa_compras:$senha_compras@127.0.0.1:$PG_PORT/$PG_DB?connect_timeout=$CASA_CONNECT_TIMEOUT"
-    export COMPRAS_DONO_DATABASE_URL="$DATABASE_URL"
+    export COMPRAS_DONO_DATABASE_URL="$DATABASE_ADMIN_URL"
   fi
   export PGPASSWORD="$PG_SENHA"
   # O mesmo limite para psql, pg_dump e afins (a migração usa os dois).

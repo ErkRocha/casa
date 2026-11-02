@@ -23,7 +23,7 @@ trap 'rm -f "$LOG_TESTES"' EXIT
 
 # Resultado por etapa em RES_<etapa>. Sem `declare -A` de propósito: o bash
 # do macOS é o 3.2, que não tem array associativo.
-ETAPAS=(backup build health migrate roles lint test compras)
+ETAPAS=(backup build health financas migrate roles lint test compras)
 marcar() { printf -v "RES_$1" '%s' "$2"; }
 for e in "${ETAPAS[@]}"; do marcar "$e" "não executada"; done
 TESTES="?"
@@ -97,6 +97,10 @@ echo "api saudável em $(( SECONDS - inicio ))s"
 ok health
 
 # --- d..g. alvos do próprio Makefile ---------------------------------------
+etapa "make financas-role (D-26)"
+$MAKE --no-print-directory financas-role || falhou financas
+ok financas
+
 etapa "make migrate"
 $MAKE --no-print-directory migrate || falhou migrate
 ok migrate

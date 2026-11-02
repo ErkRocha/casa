@@ -18,7 +18,11 @@ echo "2/4 API (porta $API_PORTA)..."
 if [[ -n "$(casa_pid_da_porta "$API_PORTA")" ]]; then
   echo "    já estava no ar"
 else
-  (cd "$CASA_REPO/api" && nohup "$PY" -m uvicorn app.main:app \
+  # A API só com a própria role (D-26): sem a URL nem a senha de
+  # administração, e sem a credencial do compras.
+  (cd "$CASA_REPO/api" && nohup env -u DATABASE_ADMIN_URL -u TEST_DATABASE_URL \
+    -u COMPRAS_DONO_DATABASE_URL -u COMPRAS_DATABASE_URL -u COMPRAS_DB_PASSWORD \
+    -u PGPASSWORD "$PY" -m uvicorn app.main:app \
     --host 127.0.0.1 --port "$API_PORTA" >"$CASA_DEV_DIR/api.log" 2>&1 &)
 fi
 
@@ -33,7 +37,8 @@ else
   # compose: o /docs funciona em /api/compras/docs pelo Vite. O
   # MSYS2_ENV_CONV_EXCL impede o Git Bash de converter o valor, que parece
   # caminho, em "C:/Program Files/Git/api/compras".
-  (cd "$CASA_REPO/compras" && nohup env -u DATABASE_URL -u TEST_DATABASE_URL \
+  (cd "$CASA_REPO/compras" && nohup env -u DATABASE_URL -u DATABASE_ADMIN_URL \
+    -u TEST_DATABASE_URL -u FINANCAS_DB_PASSWORD \
     -u COMPRAS_DONO_DATABASE_URL -u PGPASSWORD -u INSIGHTS_PASSWORD \
     MSYS2_ENV_CONV_EXCL=COMPRAS_ROOT_PATH COMPRAS_ROOT_PATH=/api/compras \
     "$PY" -m uvicorn compras.main:app \

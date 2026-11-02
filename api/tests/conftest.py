@@ -26,14 +26,26 @@ import pytest
 _url_externa = os.environ.get("TEST_DATABASE_URL")
 
 if _url_externa:
-    os.environ["DATABASE_URL"] = _url_externa
+    URL_ADMIN = _url_externa
 else:
     from testcontainers.postgres import PostgresContainer
 
     _postgres = PostgresContainer("postgres:16-alpine")
     _postgres.start()
     atexit.register(_postgres.stop)
-    os.environ["DATABASE_URL"] = _postgres.get_connection_url(driver="psycopg")
+    URL_ADMIN = _postgres.get_connection_url(driver="psycopg")
+
+# D-26: a URL acima é de administração (superusuário). A API e as migrations
+# rodam como `casa_financas`, criada no banco de teste pelo mesmo script da
+# produção. A role é do cluster: no modo local ela é a mesma do banco de
+# verdade, e a senha vem do ambiente quando existe, para não trocar a do
+# serviço que está no ar.
+SENHA_FINANCAS = os.environ.get("FINANCAS_DB_PASSWORD") or "financas_de_teste"
+
+from scripts.aplicar_role_financas import url_com_role  # noqa: E402
+
+os.environ["DATABASE_ADMIN_URL"] = URL_ADMIN
+os.environ["DATABASE_URL"] = url_com_role(URL_ADMIN, SENHA_FINANCAS)
 
 os.environ["APP_AUTOR_PADRAO"] = "teste"
 
@@ -53,6 +65,7 @@ from app.config import url_para_alembic  # noqa: E402
 from app.db import SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.seed import run as rodar_seed  # noqa: E402
+from scripts.aplicar_role_financas import aplicar as aplicar_role_financas  # noqa: E402
 from scripts.aplicar_roles import aplicar as aplicar_roles  # noqa: E402
 
 #: Tabelas limpas entre testes. `auditoria` junto: ela é populada por trigger
@@ -85,6 +98,14 @@ def _migrar() -> None:
     É a própria migration que roda — nunca `create_all()` (regra 4). Se o DDL
     quebrar, o teste quebra aqui, que é onde deve quebrar.
     """
+    from app.config import get_settings
+
+    cfg = get_settings()
+    # Insights antes, para o default privilege de `casa_financas` ter a quem
+    # dar; a posse antes das migrations, que rodam como ela.
+    aplicar_roles(URL_ADMIN, cfg.insights_password, cfg.insights_role)
+    aplicar_role_financas(URL_ADMIN, SENHA_FINANCAS)
+
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", url_para_alembic(os.environ["DATABASE_URL"]))
     command.upgrade(config, "head")
@@ -94,10 +115,7 @@ def _migrar() -> None:
     # Rodar o mesmo `init_roles.sql` que o Docker roda tem um efeito colateral
     # desejado: se aquele arquivo quebrar, quebra na suíte, e não no primeiro
     # boot de um banco novo meses depois.
-    from app.config import get_settings
-
-    cfg = get_settings()
-    aplicar_roles(cfg.database_url, cfg.insights_password, cfg.insights_role)
+    aplicar_roles(URL_ADMIN, cfg.insights_password, cfg.insights_role)
 
 
 def _truncar() -> None:
