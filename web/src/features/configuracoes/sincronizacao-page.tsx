@@ -7,7 +7,8 @@ import { Icone } from "@/components/ui/icone";
 import { UploadZone } from "@/features/ingestao/components/upload-zone";
 import { useDesfazerImportacao } from "@/features/ingestao/queries";
 import { useRevisarResumo } from "@/features/revisar/queries";
-import { useEstadoSincronizacao } from "@/features/sincronizacao/queries";
+import { useAtualizarAgora, useEstadoSincronizacao } from "@/features/sincronizacao/queries";
+import type { ExecucaoSync } from "@/features/sincronizacao/types";
 import { ApiError } from "@/lib/api";
 import { mesPorExtenso, quandoRelativo } from "@/lib/format";
 import { href } from "@/lib/rotas";
@@ -24,10 +25,10 @@ const HORAS_EM_DIA = 36;
  * Sincronização (`SincronizacaoDesktop`; D-24): o estado da última
  * atualização, as conexões com os bancos e o histórico com "Desfazer".
  *
- * Não há "Atualizar agora": a sync roda pelo `make sync` no computador de
- * casa e não há como dispará-la pela API sem prender a requisição. E não há
- * agendamento ainda, então a tela diz que a atualização é manual em vez de
- * prometer uma próxima execução (roadmap, seção do redesenho).
+ * "Atualizar agora" dispara a sync em segundo plano (POST
+ * /sincronizacao/atualizar) e a tela acompanha até terminar. A próxima
+ * execução só aparece quando há agendamento; sem ele, a tela diz que a
+ * atualização é manual em vez de prometer uma hora (fase 5b, passo 10).
  */
 export function SincronizacaoPage() {
   const estado = useEstadoSincronizacao();
@@ -60,6 +61,9 @@ export function SincronizacaoPage() {
           <Resumo
             ultima={estado.data.ultima_atualizacao}
             automatica={estado.data.automatica}
+            proxima={estado.data.proxima_execucao}
+            podeAtualizar={estado.data.pode_atualizar}
+            execucao={estado.data.execucao}
             ultimaSync={(historico.data ?? []).find((l) => l.origem === "pluggy") ?? null}
             paraRevisar={revisar.data?.total ?? 0}
           />
@@ -97,14 +101,22 @@ export function SincronizacaoPage() {
 function Resumo({
   ultima,
   automatica,
+  proxima,
+  podeAtualizar,
+  execucao,
   ultimaSync,
   paraRevisar,
 }: {
   ultima: string | null;
   automatica: boolean;
+  proxima: string | null;
+  podeAtualizar: boolean;
+  execucao: ExecucaoSync | null;
   ultimaSync: LinhaHistorico | null;
   paraRevisar: number;
 }) {
+  const atualizar = useAtualizarAgora();
+  const rodando = execucao?.situacao === "rodando" || atualizar.isPending;
   const horas = ultima ? (Date.now() - new Date(ultima).getTime()) / 3_600_000 : null;
   const emDia = horas !== null && horas <= HORAS_EM_DIA;
   const titulo =
@@ -129,9 +141,16 @@ function Resumo({
         <span className="text-bloco font-forte">{titulo}</span>
         <span className="text-apoio text-texto-2 leading-normal">
           {ultima ? `Última atualização ${quandoRelativo(ultima)}. ` : ""}
-          {automatica
-            ? "As próximas rodam sozinhas."
-            : "A atualização é manual: rode make sync no computador de casa."}
+          {automatica && proxima
+            ? `A próxima roda sozinha ${quandoRelativo(proxima)}.`
+            : "A atualização é manual: use o botão ou rode make sync no computador de casa."}
+        </span>
+        <span role="status" className="text-apoio text-texto-apoio empty:hidden">
+          {atualizar.isError
+            ? atualizar.error instanceof ApiError
+              ? atualizar.error.detail
+              : "Não foi possível começar a atualização."
+            : textoDaExecucao(execucao)}
         </span>
       </span>
       <span className="text-apoio grid grid-cols-2 gap-10">
@@ -143,9 +162,36 @@ function Resumo({
           </span>
         </a>
       </span>
-      <code className="bg-superficie-2 text-apoio rounded-campo px-6 py-4 select-all">make sync</code>
+      {podeAtualizar ? (
+        <Button variant="secondary" disabled={rodando} onClick={() => atualizar.mutate()}>
+          <Icone nome="sincronizacao" tamanho={16} className={cn(rodando && "animate-spin")} />
+          {rodando ? "Atualizando…" : "Atualizar agora"}
+        </Button>
+      ) : (
+        <code className="bg-superficie-2 text-apoio rounded-campo px-6 py-4 select-all">make sync</code>
+      )}
     </Card>
   );
+}
+
+/** O que a última execução disparada pelo painel fez, numa frase. */
+function textoDaExecucao(e: ExecucaoSync | null): string {
+  if (!e) return "";
+  switch (e.situacao) {
+    case "rodando":
+      return "Buscando nos bancos. Pode levar um minuto.";
+    case "ocupada":
+      return "Outra atualização já estava rodando. Tente de novo daqui a pouco.";
+    case "erro":
+      return `A atualização falhou e nada foi gravado. ${e.erro ?? ""}`.trim();
+    case "ok": {
+      const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+      const base = `Atualizado: ${plural(e.promovidos, "lançamento entrou", "lançamentos entraram")}, ${plural(e.na_revisao, "item foi", "itens foram")} para a revisão.`;
+      return e.erro ? `${base} Com erro em: ${e.erro}` : base;
+    }
+    default:
+      return "";
+  }
 }
 
 function Numero({ rotulo, valor }: { rotulo: string; valor: string }) {

@@ -85,11 +85,15 @@ def test_revisao_vazia(client: TestClient) -> None:
 
 
 def test_estado_da_sincronizacao(client: TestClient, session: Session) -> None:
-    assert client.get("/sincronizacao/estado").json() == {
+    vazio = client.get("/sincronizacao/estado").json()
+    # Os campos da agenda e do "Atualizar agora" (fase 5b, passo 10) têm
+    # teste próprio em test_execucao_sync.py.
+    assert {k: vazio[k] for k in ("ultima_atualizacao", "conexoes_ativas", "automatica")} == {
         "ultima_atualizacao": None,
         "conexoes_ativas": 0,
         "automatica": False,
     }
+    assert vazio["proxima_execucao"] is None
 
     conta = Conta(nome="Banco", tipo=TipoConta.CORRENTE)
     session.add(conta)

@@ -87,6 +87,12 @@ class Settings(BaseSettings):
     #: o valor só sai por `.get_secret_value()`, e só o cliente HTTP chama.
     pluggy_client_secret: SecretStr | None = None
 
+    #: Hora em que a sync roda sozinha, "HH:MM" no horário de São Paulo
+    #: (fase 5b, passo 10). Vazio: sem agendamento, e o painel diz que a
+    #: atualização é manual. Quem agenda (o serviço `agendador` do compose, ou
+    #: a tarefa do Windows no modo local) é quem define.
+    sync_agenda: str | None = None
+
     #: CPFs da casa além dos donos das contas conectadas, separados por
     #: vírgula (D-22). Pix ou TED com um deles do outro lado é movimento entre
     #: contas da casa: a sync rejeita sozinha. Fica só no `.env`, nunca no

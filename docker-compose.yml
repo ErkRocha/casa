@@ -49,6 +49,8 @@ services:
       PLUGGY_ITEM_IDS: ${PLUGGY_ITEM_IDS:-}
       # D-22: CPFs da casa além dos donos das contas (Pix entre vocês).
       CASA_DOCUMENTOS: ${CASA_DOCUMENTOS:-}
+      # A hora em que o `agendador` roda a sync; o painel mostra a próxima.
+      SYNC_AGENDA: ${SYNC_AGENDA:-06:00}
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:
@@ -87,6 +89,35 @@ services:
       - "127.0.0.1:${WEB_PORT:-5173}:5173"
     depends_on:
       - api
+
+  # Sync da Pluggy todo dia na hora de SYNC_AGENDA (fase 5b, passo 10). Um
+  # processo que dorme até a hora e roda; nunca dois ao mesmo tempo (a
+  # trava do Postgres recusa a sync se o painel ou um `make sync` estiver
+  # rodando). Log: `docker compose logs agendador`. Falha vira log, e a
+  # próxima tentativa é no dia seguinte.
+  agendador:
+    image: casa-api:local
+    build:
+      context: ./api
+    container_name: casa_agendador
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://casa_financas:${FINANCAS_DB_PASSWORD:-}@db:5432/${POSTGRES_DB}
+      PLUGGY_CLIENT_ID: ${PLUGGY_CLIENT_ID:-}
+      PLUGGY_CLIENT_SECRET: ${PLUGGY_CLIENT_SECRET:-}
+      CASA_DOCUMENTOS: ${CASA_DOCUMENTOS:-}
+      SYNC_AGENDA: ${SYNC_AGENDA:-06:00}
+      TZ: America/Sao_Paulo
+    volumes:
+      - ./api:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    command: python -m scripts.agendador
 
   # Administração do banco (D-26): criar e reparar as roles de finanças e
   # de insights. Mesma imagem da api, fora do `up` (perfil), e o único lugar

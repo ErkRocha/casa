@@ -222,7 +222,7 @@ function hora(momento: Date): string {
 }
 
 /**
- * `hoje às 6h`, `ontem às 18h30`, `14 out às 6h`. Para "Bancos atualizados
+ * `hoje às 6h`, `ontem às 18h30`, `amanhã às 6h`, `14 out às 6h`. Para "Bancos atualizados
  * ..." e o histórico da sincronização.
  */
 export function quandoRelativo(iso: string, agora: Date = new Date()): string {
@@ -231,6 +231,7 @@ export function quandoRelativo(iso: string, agora: Date = new Date()): string {
   const diferenca = Math.round((dia(agora) - dia(momento)) / 86_400_000);
   if (diferenca === 0) return `hoje às ${hora(momento)}`;
   if (diferenca === 1) return `ontem às ${hora(momento)}`;
+  if (diferenca === -1) return `amanhã às ${hora(momento)}`;
   const isoLocal = `${momento.getFullYear()}-${momento.getMonth() + 1}-${momento.getDate()}`;
   return `${diaEMes(isoLocal)} às ${hora(momento)}`;
 }

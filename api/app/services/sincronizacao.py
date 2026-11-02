@@ -1,17 +1,24 @@
 """Estado da sincronização com a Pluggy, para o painel (D-24).
 
-Só leitura. A sync roda pelo `make sync`; o agendamento (fase 5b, passo 10)
-ainda não existe, e a resposta diz isso em vez de inventar uma próxima
-execução.
+A sync roda pelo `make sync`, pelo agendamento (fase 5b, passo 10) e pelo
+"Atualizar agora" do painel, todos por `execucao_sync.executar`. A próxima
+execução só aparece quando há agenda (`SYNC_AGENDA`); sem ela, a resposta
+diz que a atualização é manual, em vez de inventar uma hora.
 """
 
 from __future__ import annotations
 
+from dataclasses import asdict
+from datetime import UTC, datetime
+
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
+from app.config import Settings, get_settings
 from app.models import ContaPluggy
-from app.schemas.sincronizacao import EstadoSincronizacao, LinhaHistorico
+from app.schemas.sincronizacao import EstadoSincronizacao, ExecucaoSync, LinhaHistorico
+from app.services import execucao_sync
+from app.services.execucao_sync import EmSegundoPlano, hora_da_agenda, proxima_execucao
 
 #: As importações do período, com o que cada uma trouxe. Conta os itens
 #: mesmo apagados: depois de desfeita, a linha mostra o que ela tinha trazido.
@@ -44,18 +51,44 @@ _HISTORICO = """
 
 
 class SincronizacaoService:
-    def __init__(self, session: Session) -> None:
+    def __init__(
+        self,
+        session: Session,
+        cfg: Settings | None = None,
+        execucoes: EmSegundoPlano | None = None,
+    ) -> None:
         self.session = session
+        self.cfg = cfg or get_settings()
+        # Lida na hora, não na definição: os testes trocam a instância.
+        self.execucoes = execucoes or execucao_sync.em_segundo_plano
 
-    def estado(self) -> EstadoSincronizacao:
+    def estado(self, agora: datetime | None = None) -> EstadoSincronizacao:
         ultima, ativas = self.session.execute(
             select(func.max(ContaPluggy.ultimo_sync_em), func.count()).where(
                 ContaPluggy.deleted_em.is_(None), ContaPluggy.ativo.is_(True)
             )
         ).one()
+        hora = hora_da_agenda(self.cfg.sync_agenda)
+        proxima = proxima_execucao(agora or datetime.now(UTC), hora) if hora else None
+        execucao = self.execucoes.estado()
         return EstadoSincronizacao(
-            ultima_atualizacao=ultima, conexoes_ativas=int(ativas or 0), automatica=False
+            ultima_atualizacao=ultima,
+            conexoes_ativas=int(ativas or 0),
+            automatica=hora is not None,
+            proxima_execucao=proxima,
+            pode_atualizar=self.cfg.pluggy_habilitada,
+            execucao=(
+                ExecucaoSync.model_validate(asdict(execucao))
+                if execucao.situacao != "nunca"
+                else None
+            ),
         )
+
+    def atualizar_agora(self) -> EstadoSincronizacao:
+        """Dispara a sync em segundo plano e volta na hora (`SyncDesligada`
+        sem credenciais). Já rodando: devolve a execução em curso."""
+        self.execucoes.iniciar(self.cfg)
+        return self.estado()
 
     def historico(self, dias: int) -> list[LinhaHistorico]:
         """As importações dos últimos `dias`, mais recente primeiro."""

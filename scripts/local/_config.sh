@@ -56,6 +56,10 @@ COMPRAS_PORTA="${LOCAL_COMPRAS_PORT:-${COMPRAS_PORT:-8001}}"
 COMPRAS_SENHA="${LOCAL_COMPRAS_PASSWORD:-${COMPRAS_DB_PASSWORD:-}}"
 FINANCAS_SENHA="${LOCAL_FINANCAS_PASSWORD:-${FINANCAS_DB_PASSWORD:-}}"
 VENV="$CASA_DEV_DIR/venv"
+# Tarefas agendadas do Windows (scripts/local/agendar.sh, fase 5b passo 10).
+CASA_TAREFA_SYNC="ControleCasa-Sync"
+CASA_TAREFA_RELATORIO="ControleCasa-Relatorio"
+CASA_SYNC_HORA="${SYNC_AGENDA:-06:00}"
 PY="$VENV/Scripts/python.exe"
 # Segundos até desistir de conectar ao banco (o mesmo da API, app/config.py).
 CASA_CONNECT_TIMEOUT=5

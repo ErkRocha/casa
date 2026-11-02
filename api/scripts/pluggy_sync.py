@@ -8,6 +8,9 @@ todas as contas mapeadas, e `ultimo_sync_em` de quem foi lido sem erro. Sem
 item novo, não cria importação. Rodar duas vezes seguidas não cria nada na
 segunda.
 
+Duas sincronizações nunca rodam juntas: com outra em curso (a agendada, ou o
+"Atualizar agora" do painel), esta desiste com código 3, sem gravar nada.
+
 `--simular` lê a Pluggy de verdade e o banco, monta tudo o que a sync
 gravaria e imprime, sem gravar nada — nem `ultimo_sync_em`. A amostra mostra
 data, valor, tipo, competência, forma, pessoa e confiança, sem a descrição.
@@ -21,7 +24,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -32,11 +34,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.conversao_pluggy import FUSO
 from app.models import Categoria, FormaPagamento, Pessoa
-from app.pluggy import PluggyCliente, RespostaBruta
 from app.services.promocao_pluggy import MOTIVOS, ROTULOS_REJEICAO
-from app.services.sync_pluggy import ResultadoSync, SyncPluggyService
+from app.services.sync_pluggy import ResultadoSync
 
 RAIZ = Path(__file__).resolve().parents[2]
 ARQUIVO_ENV = RAIZ / ".env"
@@ -148,29 +148,23 @@ def main(argv: list[str] | None = None) -> int:
         print("PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET não estão definidos.", file=sys.stderr)
         return 2
 
-    from app.db import SessionLocal
+    # O mesmo caminho do agendador e do botão do painel, com a trava que
+    # impede duas sincronizações ao mesmo tempo.
+    from app.services.execucao_sync import SyncOcupada, executar
 
-    respostas: list[RespostaBruta] = []
-    hoje = datetime.now(FUSO).date()
-    with (
-        PluggyCliente(
-            cfg.pluggy_client_id, cfg.pluggy_client_secret, ao_responder=respostas.append
-        ) as cliente,
-        SessionLocal() as session,
-    ):
-        servico = SyncPluggyService(session, cliente, hoje=hoje, respostas_brutas=lambda: respostas)
-        try:
-            resultado = servico.sincronizar(simular=args.simular)
-        except Exception as exc:
-            # A gravação é uma transação só: falhou, nada fica pela metade.
-            session.rollback()
-            print(f"A gravação falhou e foi desfeita: {type(exc).__name__}: {exc}", file=sys.stderr)
-            return 1
-        if args.simular:
-            session.rollback()
-        else:
-            session.commit()
-        imprimir(resultado, session)
+    try:
+        resultado = executar(cfg, simular=args.simular, ao_terminar=imprimir)
+    except SyncOcupada:
+        print(
+            "Outra sincronização está rodando agora (a agendada ou a do painel). "
+            "Nada foi feito; tente de novo quando ela terminar.",
+            file=sys.stderr,
+        )
+        return 3
+    except Exception as exc:
+        # A gravação é uma transação só: falhou, nada fica pela metade.
+        print(f"A gravação falhou e foi desfeita: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
     return 1 if any(c.erro for c in resultado.contas) else 0
 
 

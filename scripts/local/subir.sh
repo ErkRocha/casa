@@ -15,6 +15,13 @@ echo "1/4 Postgres (porta $PG_PORT)..."
 casa_subir_postgres || exit 1
 
 echo "2/4 API (porta $API_PORTA)..."
+# Com a tarefa agendada da sync criada (agendar.sh), a API sabe a hora e o
+# painel mostra a próxima execução. Sem ela, o painel diz que é manual.
+if schtasks //Query //TN "$CASA_TAREFA_SYNC" >/dev/null 2>&1; then
+  export SYNC_AGENDA="$CASA_SYNC_HORA"
+else
+  unset SYNC_AGENDA
+fi
 if [[ -n "$(casa_pid_da_porta "$API_PORTA")" ]]; then
   echo "    já estava no ar"
 else

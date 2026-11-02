@@ -9,7 +9,7 @@ continue da primeira fase que não está "OK" nem "bloqueada".
 | 1 — Telas da lista de compras | **bloqueada** | — |
 | 2 — Finanças sem superusuário (D-26) | OK | ver abaixo |
 | 3 — Identidade pelo Tailscale | **bloqueada** (depende da 1) | — |
-| 4 — Sincronização e relatório automáticos | pendente | — |
+| 4 — Sincronização e relatório automáticos | OK | ver abaixo |
 | 5 — NFC-e e preços (backend) | pendente | — |
 | 6 — Lista pela voz (MCP do vault) | **bloqueada** | — |
 
@@ -57,3 +57,24 @@ Além da fase 1, o servidor MCP do vault não existe em
   `api-admin` (perfil ferramentas) para `make roles` e `make financas-role`,
   `make reset` e `make validar` com a role antes das migrations, e o
   `migrar_para_docker.sh` cria os donos do dump antes do restore.
+
+## Fase 4 — OK
+
+- Backup antes da sync real: `backups/casa_20261102_092225_antes_fase4.dump`
+  (3,9 MB, 21 tabelas com dados).
+- Sync real pelo `scripts/local/tarefa.sh sync`, duas vezes seguidas: as
+  duas com código 0 e 0 itens novos (idempotente). Uma terceira disparada
+  pelo próprio Agendador do Windows (`schtasks /Run`): código 0.
+- Tarefas do Windows criadas no nível do usuário (`scripts/local/agendar.sh`):
+  `ControleCasa-Sync` (todo dia 6h, próxima 03/11/2026) e
+  `ControleCasa-Relatorio` (dia 1º às 7h, próxima 01/12/2026). Remover:
+  `bash scripts/local/desagendar.sh`. Log: `~/.controle-casa-dev/agendador.log`.
+- API: `POST /sincronizacao/atualizar` (202, volta em ms; a mesma execução se
+  pedir de novo), estado com `proxima_execucao`, `pode_atualizar` e
+  `execucao`. Trava `pg_try_advisory_lock` contra sobreposição (CLI, painel,
+  agendador). Testado ao vivo pelo painel: terminou "ok".
+- Web: botão "Atualizar agora" e "A próxima roda sozinha amanhã às 6h".
+- Docker: serviço `agendador` (escrito, não executado).
+- Testes: finanças 780 passados, 0 pulados; compras 51; web typecheck, lint
+  e build ok. `mypy app` ok (os 3 erros antigos de `scripts/demo_data.py`
+  ficam fora do escopo do `make lint`).

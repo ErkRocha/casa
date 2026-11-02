@@ -302,6 +302,12 @@ Nesta ordem, sem pular:
 10. **Execução agendada**, só depois de algumas semanas de `make sync` manual
    sem surpresa: uma vez por dia, depois da atualização da Pluggy. Falha vira
    log e aviso no painel, não retentativa infinita.
+   **Feito em 02/11/2026** (`feat: sincronização e relatório automáticos`),
+   depois de quase um mês de sync manual desde 06/10. Todo dia às 6h: serviço
+   `agendador` no Docker, tarefa do Windows no modo local
+   (`scripts/local/agendar.sh`). Uma trava do Postgres impede duas syncs ao
+   mesmo tempo. O painel ganhou "Atualizar agora" (`POST
+   /sincronizacao/atualizar`, em segundo plano) e mostra a próxima execução.
 11. **Ingestão mais direta (D-21, 09/10/2026).** Escrito, com testes de banco
    que ainda não rodaram: a máquina onde foi feito não tem Docker nem
    Postgres. Rodaram lint, mypy (SQLAlchemy 2.0 e 2.1), os testes sem banco e
@@ -371,7 +377,10 @@ Ficam registradas aqui como histórico da decisão:
 - [x] Chat sob demanda — servidor MCP local no Claude Desktop (D-20), só
   leitura pela role da D-11: `python -m app.mcp`. Sem tela de chat no painel
   por enquanto.
-- [ ] Agendamento (hoje o fechamento é um comando que você roda)
+- [x] Agendamento — dia 1º às 7h, o relatório do mês anterior: tarefa do
+  Windows no modo local (`scripts/local/agendar.sh`, 02/11/2026). No Docker
+  o relatório com IA depende do `claude` do host e continua pelo
+  `make relatorio`.
 
 **Pronto quando**: o fechamento do mês gera texto ancorado em números reais.
 
@@ -405,11 +414,10 @@ Pendências que o redesenho encontrou e não resolve sem mudar o schema:
 
 Pendências fora do schema:
 
-- **"Atualizar agora" na Sincronização.** O desenho tem o botão; ele entra
-  quando houver como disparar a sync pela API sem prender a requisição (um
-  job em segundo plano com estado consultável). Hoje é `make sync`.
-- **"A próxima roda sozinha amanhã às 6h".** Depende do agendamento (Fase
-  5b, passo 10, e Fase 6). Até lá a tela diz que a atualização é manual.
+- ~~**"Atualizar agora" na Sincronização.**~~ Feito em 02/11/2026: `POST
+  /sincronizacao/atualizar` roda em segundo plano e a tela acompanha.
+- ~~**"A próxima roda sozinha amanhã às 6h".**~~ Feito em 02/11/2026, com o
+  agendamento (Fase 5b, passo 10).
 - **"Já existiam" no resumo da sincronização.** A sync não grava quantas
   transações pulou por já estarem no banco; a tela mostra só o que entrou e
   o que espera revisão.

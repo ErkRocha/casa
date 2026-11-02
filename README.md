@@ -157,6 +157,36 @@ No modo local, sem Docker: `source scripts/local/ambiente.sh` e
 Uma importação que entrou errada se desfaz pela tela de importações: as
 transações e os itens dela saem por soft delete, com auditoria.
 
+### Sync e relatório automáticos
+
+A sync roda sozinha todo dia às 6h (`SYNC_AGENDA` no `.env`), e o painel
+(Configurações → Sincronização) mostra a próxima execução e tem o botão
+**Atualizar agora**, que dispara a mesma sync em segundo plano. Duas
+sincronizações nunca rodam juntas: uma trava no Postgres faz a segunda
+desistir sem gravar nada (o `make sync` sai com código 3 nesse caso).
+
+- **Docker:** o serviço `agendador` do compose. Log em
+  `docker compose logs agendador`. Falha vira log; a próxima tentativa é no
+  dia seguinte.
+- **Modo local (Windows):** tarefas agendadas do Windows, no nível do
+  usuário (sem administrador). Rodam com o usuário logado.
+
+```bash
+bash scripts/local/agendar.sh            # cria ou atualiza as duas tarefas
+bash scripts/local/agendar.sh --listar   # mostra a próxima execução de cada uma
+bash scripts/local/desagendar.sh         # remove as duas
+bash scripts/local/tarefa.sh sync        # roda agora o que a tarefa roda
+```
+
+| Tarefa | Quando | O quê |
+|---|---|---|
+| `ControleCasa-Sync` | todo dia, 6h | sync da Pluggy |
+| `ControleCasa-Relatorio` | dia 1º, 7h | relatório do mês anterior (`scripts.relatorio`, com o `claude` do host) |
+
+O log das duas fica em `~/.controle-casa-dev/agendador.log`. Depois de criar
+ou remover as tarefas, reinicie a API (`parar.sh` e `subir.sh`) para o painel
+mostrar a agenda certa.
+
 ---
 
 ## Estrutura
