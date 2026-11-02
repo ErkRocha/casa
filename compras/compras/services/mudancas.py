@@ -31,7 +31,8 @@ class Mudancas:
 
 def agora(session: Session) -> datetime:
     """O relógio do banco: é ele que carimba `atualizado_em`."""
-    valor = session.scalar(select(func.now()))
+    # Tipo declarado: no SQLAlchemy 2.1 o `scalar` de uma função devolve Any.
+    valor: datetime | None = session.scalar(select(func.now()))
     assert valor is not None
     return valor
 

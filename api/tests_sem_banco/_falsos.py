@@ -95,7 +95,9 @@ exit 0
     "psql.exe": r"""
 q="${@: -1}"
 if [[ "$q" == *server_version_num* ]]; then echo "${FAKE_PG_VERSAO:-160010}"; exit 0; fi
-if [[ "$q" =~ count\(\*\)\ FROM\ ([a-z_.]+) ]]; then t="${BASH_REMATCH[1]}"; echo "${#t}"; exit 0; fi
+if [[ "$q" =~ count\(\*\)\ FROM\ ([a-z_.]+) ]]; then
+  t="${BASH_REMATCH[1]}"; echo "${#t}"; exit 0
+fi
 exit 0
 """,
 }

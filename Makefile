@@ -101,7 +101,7 @@ test-db:
 	@$(COMPOSE) exec -T db sh -c 'psql -U "$$POSTGRES_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '"'"'casa_test'"'"'" | grep -q 1 || createdb -U "$$POSTGRES_USER" casa_test'
 
 test: test-db ## Roda o pytest (no banco casa_test)
-	$(COMPOSE) run --rm api-admin sh -c 'TEST_DATABASE_URL="$${DATABASE_ADMIN_URL%/*}/casa_test" pytest -q'
+	$(COMPOSE) run --rm api-admin sh -c 'TEST_DATABASE_URL="$${DATABASE_ADMIN_URL%/*}/casa_test" pytest'
 
 lint: ## ruff + mypy
 	$(COMPOSE) run --rm api ruff check .
@@ -130,7 +130,7 @@ compras-seed: ## Seções do mercado e produtos comuns (idempotente)
 	$(COMPOSE) run --rm compras python -m compras.seed
 
 compras-test: test-db ## Roda o pytest do serviço de compras (no banco casa_test)
-	$(COMPOSE) run --rm compras-role sh -c 'TEST_DATABASE_URL="$${COMPRAS_DONO_DATABASE_URL%/*}/casa_test" pytest -q'
+	$(COMPOSE) run --rm compras-role sh -c 'TEST_DATABASE_URL="$${COMPRAS_DONO_DATABASE_URL%/*}/casa_test" pytest'
 
 compras-lint: ## ruff + mypy do serviço de compras
 	$(COMPOSE) run --rm compras ruff check .

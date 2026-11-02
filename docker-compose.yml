@@ -136,6 +136,9 @@ services:
       INSIGHTS_PASSWORD: ${INSIGHTS_PASSWORD:-trocar_no_primeiro_uso}
     volumes:
       - ./api:/app
+      # Os testes de ingestão (`make test` roda aqui) leem os PDFs reais,
+      # como na api. Só leitura; o conteúdo fica fora do git.
+      - ./faturas:/faturas:ro
     depends_on:
       db:
         condition: service_healthy
