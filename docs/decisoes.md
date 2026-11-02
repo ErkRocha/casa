@@ -676,3 +676,65 @@ rebase sobre a `main`:
   busca e data que a `main` tinha acabado de pôr lá. A Revisar nova separa
   por motivo; busca e data na Revisar ficam como pendência. Os filtros
   continuam na API (`GET /importacoes/{id}`).
+
+---
+
+## D-25 — Lista de compras como serviço próprio, `compras`
+
+Decisão do usuário, 02/11/2026. É o primeiro microsserviço da direção
+modular do projeto (a mesma que descartou a FastAPI servindo o front, D-19).
+
+A lista de compras é usada pelo casal, pelo celular, dentro do mercado, e os
+dois editam ao mesmo tempo. Ela não é finanças: não tem dinheiro na fase
+principal, muda dezenas de vezes por compra e tem um ritmo de evolução
+próprio (telas, voz, leitura de nota). Dentro da API de finanças, cada
+mudança nela passaria pelas mesmas regras, testes e deploy do que conta
+dinheiro, e um erro nela poderia derrubar o painel. Separada, ela pode
+cair, mudar e ser refeita sem tocar no que já funciona.
+
+- **API própria**, em `compras/` na raiz do repositório, com o próprio
+  `pyproject`, Dockerfile, migrations (Alembic, com a tabela de versão no
+  schema `compras`) e testes. Ela não importa nada de `api/app`: o que se
+  repete (configuração, trigger de auditoria) é copiado de propósito. O
+  acoplamento por código importado é o que a separação quer evitar.
+- **Schema `compras` próprio, no mesmo Postgres.** Um banco a mais para
+  manter, fazer backup e restaurar não se paga numa casa; o schema separa o
+  suficiente, e o backup do banco leva os dois juntos.
+- **Role de banco própria**, `casa_compras`, dona do schema `compras` e sem
+  nenhum privilégio nas tabelas de finanças. É a mesma garantia da D-11:
+  quem impede o serviço de ler ou escrever em `transacoes` é o Postgres, não
+  a disciplina do código. A senha fica no `.env`.
+- **Nenhuma chave estrangeira para finanças.** Pessoa e transação, quando
+  aparecem, são guardadas como id simples (`transacao_id bigint`, sem FK) e
+  resolvidas chamando a API de finanças pela rede interna, nunca pelas
+  tabelas dela. O preço disso: o id pode apontar para algo que foi apagado
+  do outro lado, e quem lê tem que tolerar.
+- **Mesmo compose, atrás do mesmo nginx, em `/api/compras/`.** O nginx do
+  `web` (D-19) ganha um `location /api/compras/` que repassa para o
+  container `compras`, tirando o prefixo, antes do `/api/` de finanças (o
+  prefixo mais longo vence). A recusa de Host desconhecido vale igual. No
+  modo local, o proxy do Vite e o `scripts/local/subir.sh` precisam do mesmo
+  caminho: hoje é nesse modo que o sistema roda.
+- **As regras invioláveis do `CLAUDE.md` que não falam de finanças valem
+  aqui**: quantidade e dinheiro em `numeric`, soft delete, schema só por
+  migration nova, escrita por service, filtro e agregação no banco. As de
+  ingestão financeira (regra 5, D-07) não se aplicam: o serviço não escreve
+  em `transacoes`, e a role dele nem consegue.
+- **"Quem" é texto livre por enquanto**, enviado pelo celular. Na fase de
+  uso compartilhado ele passa a vir da identidade do Tailscale (D-18),
+  posta pelo proxy, e o celular deixa de poder escolher.
+
+**Funcionalidades, nesta ordem de fases:** lista compartilhada; despensa (o
+que tem em casa); leitura da nota fiscal (NFC-e) com histórico de preços;
+acesso por voz pelo servidor MCP do vault, que fica fora do escopo do
+serviço por enquanto (o MCP seria cliente da API, não parte dela).
+
+Modelo em `docs/compras/modelo-dados.md`, endpoints em `docs/compras/api.md`,
+fases e riscos em aberto no roadmap, seção "Lista de compras".
+
+**Sobreposição com a Fase 7, a decidir.** A Fase 7 previa `produtos`,
+`produto_aliases`, `itens_transacao` e `mv_historico_preco` dentro de
+finanças. Com a nota fiscal no `compras`, produto, apelido e preço passam a
+ter dono aqui; manter os dois criaria dois cadastros de produto. O que a
+Fase 7 ainda precisa de finanças (o detalhe de itens de uma transação) fica
+para quando ela for planejada.

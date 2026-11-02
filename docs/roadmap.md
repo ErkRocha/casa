@@ -432,6 +432,106 @@ Tudo aditivo, sem quebrar o que existe:
   D-16. Responde "quanto já gastei nesta fatura" sem esperar o fechamento. O
   dado oficial continua entrando pela sync, depois do fechamento (Fase 5b).
 
+**Sobreposição com a Lista de compras (D-25), a decidir antes desta fase:**
+`produtos`, `produto_aliases` e o histórico de preço passam a ter dono no
+serviço `compras`, que lê a nota fiscal. Manter os dois daria dois cadastros
+de produto.
+
+---
+
+## Lista de compras (D-25)
+
+Serviço próprio, `compras`: API, schema e role de banco próprios, sem FK
+para finanças, no mesmo compose e atrás do mesmo nginx, em `/api/compras/`.
+Usado pelo casal pelo celular, dentro do mercado, os dois editando. Modelo
+em `docs/compras/modelo-dados.md`, endpoints em `docs/compras/api.md`.
+
+Nesta ordem, sem pular:
+
+1. **Serviço: lista e despensa.**
+   - `compras/` com `pyproject`, Dockerfile, Alembic próprio (tabela de
+     versão no schema `compras`) e testes com testcontainers.
+   - Role `casa_compras`, dona do schema `compras`, criada como a de
+     insights (script de init e `make roles`), com a senha no `.env`.
+   - Tabelas `secoes`, `produtos`, `itens_lista`, `despensa`, `auditoria`;
+     seed das seções.
+   - Endpoints de `docs/compras/api.md`, com o ciclo lista e despensa no
+     service, e `GET /mudancas` com cursor.
+   - Container `compras` no compose, `location /api/compras/` no nginx, e o
+     mesmo caminho no proxy do Vite e no `scripts/local/subir.sh`.
+   - Alvos no Makefile para migrar e testar o serviço.
+
+   **Pronto quando:** `make up` sobe o serviço e `/api/compras/health`
+   responde pelo painel; dá para operar lista e despensa inteiras pelo
+   `/api/compras/docs`; um teste prova que a role `casa_compras` não lê nem
+   escreve em nenhuma tabela de finanças; outro prova que duas sessões
+   escrevendo veem as mudanças uma da outra por `/mudancas`, sem perder
+   nenhuma e sem duplicar item.
+2. **Telas.** Desenhadas no Claude Design antes de qualquer código (D-15),
+   pensadas para o celular em pé, com uma mão, dentro do mercado: lista por
+   seção, marcar comprado com um toque, adicionar com busca, despensa.
+   Entram no painel atual ou como página própria servida pelo mesmo nginx;
+   o desenho decide. Sem app nativo (fora de escopo).
+
+   **Pronto quando:** o casal faz uma compra real do começo ao fim pelos
+   dois celulares, cada um vendo o que o outro marcou em poucos segundos.
+3. **Uso compartilhado: identidade pelo Tailscale.** O "quem" deixa de ser
+   texto digitado. O `tailscale serve` (D-18) informa o usuário da tailnet
+   em cada requisição; o nginx passa esse valor no `X-Quem` e descarta o
+   que o celular mandar. Pré-requisito a conferir: os dois celulares
+   precisam entrar na tailnet com **usuários diferentes**. Com a mesma conta
+   nos dois, a identidade é a mesma e não distingue ninguém. Em casa, fora
+   do Tailscale (localhost), o comportamento precisa ser decidido.
+
+   **Pronto quando:** "adicionado por" e "comprado por" aparecem com o nome
+   certo sem ninguém digitar, e um `X-Quem` forjado pelo celular é ignorado
+   (teste no nginx).
+4. **Nota fiscal e preços.** Ler o QR code da NFC-e, buscar os itens na
+   consulta pública da SEFAZ-RS e gravar `mercados`, `notas_fiscais` e
+   `nota_itens`, com o conteúdo original guardado. Associação a produto por
+   GTIN e `apelidos`, aprendidos com a correção do usuário (D-09). Histórico
+   de preço por produto e mercado (`vw_preco_produto`). Item comprado na
+   lista e item da nota se encontram pelo produto.
+
+   **Pronto quando:** a nota de uma compra real vira itens com o total
+   batendo com o da nota; ler o mesmo QR code de novo não cria outra nota;
+   a segunda nota do mesmo mercado já vem com os itens associados pelo que a
+   primeira ensinou; o preço de um produto aparece comparado entre dois
+   mercados.
+5. **Acesso por voz pelo MCP do vault.** Fora do escopo do serviço por
+   enquanto: o servidor MCP do vault seria cliente da API do `compras`
+   ("põe leite na lista", "o que falta comprar?"), sem acesso ao banco.
+
+   **Pronto quando:** um pedido por voz cria o item na lista com a origem
+   `voz`, e ele aparece nos dois celulares como qualquer outro.
+
+### Riscos em aberto
+
+Registrados para decidir na fase em que aparecem, sem solução escolhida.
+
+- **Sinal ruim dentro do mercado.** O uso é justamente onde o celular pega
+  mal. Sem resposta, marcar comprado falha ou trava a tela. O modelo já tem
+  `id_cliente` para o reenvio não duplicar e o `/mudancas` para voltar a se
+  atualizar, mas falta decidir: fila de escritas no aparelho (e o que fazer
+  quando duas escritas offline se contradizem), cópia local da lista para
+  abrir sem rede, service worker. Afeta as fases 1 e 2.
+- **Leitura da NFC-e do RS.** O QR code traz a URL da consulta pública da
+  SEFAZ-RS com a chave de acesso. Não há API pública para baixar o XML
+  completo sem certificado digital: o caminho provável é ler a página da
+  consulta, que é HTML feito para gente. Em aberto: se a página traz GTIN
+  ou só o código interno do mercado; se há captcha ou limite de consultas;
+  por quanto tempo a nota fica consultável; e o que fazer quando o formato
+  mudar (o conteúdo original guardado permite reler, mas a leitura nova
+  quebra até o leitor ser corrigido). Afeta a fase 4.
+- **Ligação da nota com a transação do cartão vinda da Pluggy.** A
+  `notas_fiscais.transacao_id` é um id simples de finanças, resolvido pela
+  API (D-25). Em aberto: como achar a transação (valor e data, com a data
+  da Pluggy podendo variar um dia na compra pendente, D-23); o nome do
+  estabelecimento na fatura raramente é a razão social da nota; pagamento
+  dividido, troco e desconto; a compra que ainda não chegou da Pluggy; e o
+  id que deixa de valer quando a D-23 cancela e recria uma transação. Afeta
+  a fase 4.
+
 ---
 
 ## Fora de escopo
