@@ -505,6 +505,15 @@ Nesta ordem, sem pular:
    identidade do Tailscale (em casa, pelo localhost), o aparelho pergunta
    uma vez "quem é você?" e envia a resposta no `X-Quem`.
 
+   **Preparado (02/11/2026):** tabela `identidades_tailscale` (migration
+   `compras/0003`), `GET /eu` e `/identidades`; nginx e Vite põem
+   `Tailscale-User-Login` no `X-Quem` e descartam o do celular (conferido
+   com a imagem real do nginx e pelo Vite); o front só pergunta "quem é
+   você?" sem identidade. O login do usuário já está cadastrado como
+   "Erik". **Falta, do usuário:** ligar o `tailscale serve` (README,
+   "Acessando fora de casa") e convidar a esposa, cadastrando o login dela
+   (README, "Convidando outra pessoa").
+
    **Pronto quando:** "adicionado por" e "comprado por" aparecem com o nome
    certo sem ninguém digitar, e um `X-Quem` forjado pelo celular é ignorado
    (teste no nginx).

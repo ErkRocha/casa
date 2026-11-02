@@ -1,7 +1,8 @@
 # Modelo de dados — `compras`
 
-Implementado (D-25): migrations `0001` (lista e despensa) e `0002` (nota
-fiscal e preços), em `compras/alembic/versions/`. Postgres 16, schema `compras`, no
+Implementado (D-25): migrations `0001` (lista e despensa), `0002` (nota
+fiscal e preços) e `0003` (identidade pelo Tailscale: `identidades_tailscale`,
+`login` em minúsculas e único entre linhas vivas, `nome` exibido), em `compras/alembic/versions/`. Postgres 16, schema `compras`, no
 mesmo banco de finanças. Convenções gerais em `docs/CLAUDE.md`; aqui ficam
 as do serviço e o que muda em relação a `docs/modelo-dados.md`.
 

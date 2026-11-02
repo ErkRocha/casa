@@ -365,7 +365,9 @@ abaixo vale igual para `make up` e `make dev`.
 
 1. Instale o Tailscale no PC (`winget install Tailscale.Tailscale`) e no
    celular (loja do Android ou do iPhone).
-2. Entre na **mesma conta** nos dois.
+2. Entre na **sua conta** nos dois. Cada pessoa da casa usa a própria
+   conta (D-25): é por ela que a lista de compras sabe quem adicionou e quem
+   pegou. Para a outra pessoa, veja "Convidando outra pessoa", abaixo.
 3. No painel de administração do Tailscale
    (<https://login.tailscale.com/admin/dns>), deixe ligados **MagicDNS** e
    **HTTPS Certificates**. Sem eles, o `serve` não emite o certificado.
@@ -390,6 +392,41 @@ compose continuam em `127.0.0.1`: quem entrega para fora é só o `tailscale
 serve`. O `/docs` da API fica em `https://<nome-do-pc>.<sua-tailnet>.ts.net/api/docs`.
 
 **Não use `tailscale funnel`**: ele publicaria o painel na internet aberta.
+
+### Convidando outra pessoa (lista de compras compartilhada)
+
+Cada um entra com a própria conta do Tailscale. Assim o `tailscale serve`
+diz em cada pedido quem é a pessoa, e a lista mostra "Laura adicionou",
+"Erik pegou" sem ninguém digitar nome (roadmap, Lista de compras, 3).
+
+1. No painel do Tailscale, **Users** → **Invite users**
+   (<https://login.tailscale.com/admin/users>). Mande o convite para o
+   e-mail dela. O plano pessoal gratuito aceita até 3 usuários.
+2. Ela instala o Tailscale no celular, abre o link do convite e entra com
+   a conta dela (Google, Apple, Microsoft...). Confira em **Machines** que o
+   celular dela aparece.
+3. Descubra o login dela: na página **Users**, a coluna de e-mail (é o
+   mesmo valor que chega em `Tailscale-User-Login`).
+4. Cadastre o login com o nome que deve aparecer na lista, pelo
+   `/api/compras/docs` (`POST /identidades`) ou no terminal:
+
+   ```bash
+   curl -X POST http://127.0.0.1:5173/api/compras/identidades      -H "X-Quem: Erik" -H "Content-Type: application/json"      -d '{"login": "email-dela@exemplo.com", "nome": "Laura"}'
+   ```
+
+   Sem cadastro funciona igual, só que com o nome que o Tailscale manda
+   (às vezes o nome completo). `GET /identidades` lista os cadastrados;
+   `PATCH` troca o nome; `DELETE` desfaz.
+5. Ela abre `https://<nome-do-pc>.<sua-tailnet>.ts.net/#compras` no
+   celular. Não aparece "quem é você?": o nome vem da tailnet.
+
+Como funciona: o `tailscale serve` põe `Tailscale-User-Login` e
+`Tailscale-User-Name` em cada pedido e apaga esses cabeçalhos se vierem do
+celular. O nginx (e o Vite, no modo local) põem o login no `X-Quem` e
+descartam o `X-Quem` que o celular mandou; o serviço de compras troca o
+login pelo nome cadastrado. Pelo `localhost`, sem Tailscale, o aparelho
+pergunta "quem é você?" uma vez e guarda. Aparelhos com tag do Tailscale
+não recebem identidade e também caem na pergunta.
 
 **Para desfazer:**
 

@@ -5,6 +5,7 @@ import { apiCompras, buildQuery } from "@/lib/api";
 import { novoIdCliente } from "./id-cliente";
 import type {
   EstadoDespensa,
+  Eu,
   Item,
   ItemResposta,
   Lista,
@@ -264,5 +265,18 @@ export function useDefinirDespensa(quem: string) {
       // As sugestões da lista e as contagens das abas mudam.
       void queryClient.invalidateQueries({ queryKey: comprasKeys.todas });
     },
+  });
+}
+
+/**
+ * Quem o serviço vê (roadmap, Lista de compras, 3). Pelo Tailscale, o proxy
+ * põe a identidade da tailnet; sem ela, vale o nome guardado no aparelho.
+ */
+export function useEu() {
+  return useQuery({
+    queryKey: ["compras", "eu"] as const,
+    queryFn: () => apiCompras.get<Eu>("/eu"),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   });
 }

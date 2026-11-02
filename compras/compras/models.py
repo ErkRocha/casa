@@ -155,3 +155,15 @@ class Apelido(Comum, Base):
     #: "usuario" (associou um item sem produto) ou "correcao" (trocou o que
     #: a associação automática tinha escolhido).
     criado_por: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+# --- Identidade pelo Tailscale (migration 0003) --------------------------------
+
+
+class IdentidadeTailscale(Comum, Base):
+    __tablename__ = "identidades_tailscale"
+
+    #: `Tailscale-User-Login`, em minúsculas.
+    login: Mapped[str] = mapped_column(Text, nullable=False)
+    #: Como aparece em "adicionou" e "pegou": "Erik", "Laura".
+    nome: Mapped[str] = mapped_column(Text, nullable=False)

@@ -78,3 +78,12 @@ export interface RespostaDespensa {
   despensa: LinhaDespensa;
   item_criado: Item | null;
 }
+
+/** `GET /eu`: quem o serviço vê nesta requisição. */
+export interface Eu {
+  quem: string | null;
+  /** "tailscale": o nome vem da tailnet e o aparelho não pergunta nada. */
+  origem: "tailscale" | "aparelho" | null;
+  login: string | null;
+  cadastrado: boolean;
+}

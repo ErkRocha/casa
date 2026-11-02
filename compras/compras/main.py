@@ -11,6 +11,7 @@ from compras.db import engine
 from compras.financas import FinancasIndisponivel
 from compras.routers import (
     despensa,
+    identidades,
     lista,
     mercados,
     mudancas,
@@ -66,6 +67,7 @@ app.include_router(secoes.router)
 app.include_router(notas.router)
 app.include_router(mercados.router)
 app.include_router(precos.router)
+app.include_router(identidades.router)
 
 
 @app.get("/health", tags=["infra"])

@@ -9,6 +9,7 @@ import { AdicionarPainel } from "./adicionar-painel";
 import { Despensa } from "./despensa";
 import {
   useAdicionarItem,
+  useEu,
   useLista,
   useMarcarComprado,
   useSincronizacaoCompras,
@@ -31,10 +32,14 @@ import type { Item } from "./types";
 export function ComprasPage() {
   return (
     <ComTela>
-      {(quem, perguntar, conexao) => (
+      {(quem, perguntar, conexao, pelaTailnet) => (
         <div className="mx-auto flex w-full max-w-[1120px] gap-12">
           <div className="mx-auto w-full max-w-[640px] min-w-0 xl:mx-0">
-            <ListaDeCompras quem={quem} conexao={conexao} onTrocarQuem={perguntar} />
+            <ListaDeCompras
+              quem={quem}
+              conexao={conexao}
+              onTrocarQuem={pelaTailnet ? null : perguntar}
+            />
           </div>
           <aside aria-label="Despensa" className="hidden min-w-0 flex-1 xl:block">
             <Despensa quem={quem} lateral />
@@ -60,21 +65,34 @@ export function DespensaPage() {
 
 /**
  * O que as telas de compras dividem: o polling enquanto estão abertas e o
- * "quem é você?", perguntado uma vez por aparelho.
+ * "quem". Pelo Tailscale, o nome vem da tailnet (o proxy o põe no `X-Quem`)
+ * e nada é perguntado; sem ele, "quem é você?" uma vez por aparelho.
  */
 function ComTela({
   children,
 }: {
-  children: (quem: string | null, perguntar: () => void, conexao: EstadoConexao) => ReactNode;
+  children: (
+    quem: string | null,
+    perguntar: () => void,
+    conexao: EstadoConexao,
+    pelaTailnet: boolean,
+  ) => ReactNode;
 }) {
-  const quem = useQuemGuardado();
+  const guardado = useQuemGuardado();
+  const eu = useEu();
+  const pelaTailnet = eu.data?.origem === "tailscale";
+  const quem = pelaTailnet ? (eu.data?.quem ?? null) : guardado;
   const [perguntando, setPerguntando] = useState(false);
   // Um polling só, enquanto uma tela de compras está aberta.
   const conexao = useSincronizacaoCompras();
   return (
     <>
-      {children(quem, () => setPerguntando(true), conexao)}
-      <QuemDialogo aberto={quem === null || perguntando} onFechar={() => setPerguntando(false)} />
+      {children(quem, () => setPerguntando(true), conexao, pelaTailnet)}
+      {/* Só pergunta depois de saber que não há identidade do Tailscale. */}
+      <QuemDialogo
+        aberto={!pelaTailnet && !eu.isLoading && (guardado === null || perguntando)}
+        onFechar={() => setPerguntando(false)}
+      />
     </>
   );
 }
@@ -86,7 +104,8 @@ function ListaDeCompras({
 }: {
   quem: string | null;
   conexao: EstadoConexao;
-  onTrocarQuem: () => void;
+  /** Nulo pelo Tailscale: o nome vem da tailnet, não há o que trocar. */
+  onTrocarQuem: (() => void) | null;
 }) {
   const lista = useLista();
   const marcar = useMarcarComprado(quem ?? "");
@@ -246,13 +265,15 @@ function ListaDeCompras({
           <>
             {" "}
             Você é {quem}.{" "}
-            <button
-              type="button"
-              onClick={onTrocarQuem}
-              className="text-destaque cursor-pointer border-none bg-transparent p-0 font-semibold"
-            >
-              Trocar
-            </button>
+            {onTrocarQuem ? (
+              <button
+                type="button"
+                onClick={onTrocarQuem}
+                className="text-destaque cursor-pointer border-none bg-transparent p-0 font-semibold"
+              >
+                Trocar
+              </button>
+            ) : null}
           </>
         ) : null}
       </p>

@@ -8,13 +8,14 @@ e `deleted_em`: o celular troca a cópia local pela resposta.
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from compras.enums import EstadoDespensa, OrigemAssociacao, OrigemItem, SituacaoItem, StatusNota
 from compras.models import (
     Despensa,
+    IdentidadeTailscale,
     ItemLista,
     Mercado,
     NotaFiscal,
@@ -392,3 +393,42 @@ class PrecoLinha(BaseModel):
     preco_max: Decimal
     preco_medio: Decimal
     compras: int
+
+
+# --- Identidade pelo Tailscale ----------------------------------------------
+
+
+class Eu(BaseModel):
+    """Quem o serviço vê nesta requisição."""
+
+    quem: str | None
+    #: "tailscale": o front não pergunta "quem é você?". Nulo: perguntar.
+    origem: Literal["tailscale", "aparelho"] | None
+    login: str | None
+    cadastrado: bool
+
+
+class IdentidadeLeitura(Linha):
+    login: str
+    nome: str
+
+    @classmethod
+    def de(cls, i: IdentidadeTailscale) -> Self:
+        return cls(
+            id=i.id,
+            login=i.login,
+            nome=i.nome,
+            criado_em=i.criado_em,
+            atualizado_em=i.atualizado_em,
+            deleted_em=i.deleted_em,
+        )
+
+
+class IdentidadeCriar(BaseModel):
+    #: O login da pessoa na tailnet, como aparece no painel do Tailscale.
+    login: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=200)]
+    nome: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+
+
+class IdentidadeAtualizar(BaseModel):
+    nome: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]

@@ -190,4 +190,4 @@ def test_toda_tabela_do_schema_tem_o_trigger_de_protecao(dono: Engine) -> None:
             )
         ).scalar_one()
     assert sem_trigger == []
-    assert tabelas == 9
+    assert tabelas == 10

@@ -10,6 +10,16 @@ map $host $host_permitido {
     include hosts_permitidos.map;
 }
 
+# Quem pede, para o serviço de compras (roadmap, Lista de compras, 3). Pelo
+# Tailscale, o `tailscale serve` põe o login da tailnet em
+# Tailscale-User-Login e apaga esse cabeçalho se vier do cliente: ele vence, e
+# o X-Quem que o celular mandou é descartado. Sem ele (em casa, pelo
+# localhost), vale o X-Quem do aparelho ("quem é você?").
+map $http_tailscale_user_login $quem_compras {
+    ""      $http_x_quem;
+    default $http_tailscale_user_login;
+}
+
 server {
     listen 5173;
     server_name _;
@@ -59,9 +69,13 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Prefix /api/compras;
-        # X-Quem passa como o celular mandou. Na fase de uso compartilhado
-        # (roadmap, Lista de compras, 3) ele passa a ser sobrescrito aqui
-        # com a identidade do Tailscale.
+        # Identidade do Tailscale (map $quem_compras, no topo): com ela, o
+        # X-Quem do cliente é descartado. Tailscale-User-Login e
+        # Tailscale-User-Name seguem como vieram: o serviço transforma o
+        # login no nome exibido (identidades_tailscale).
+        proxy_set_header X-Quem $quem_compras;
+        proxy_set_header Tailscale-User-Login $http_tailscale_user_login;
+        proxy_set_header Tailscale-User-Name $http_tailscale_user_name;
 
         proxy_connect_timeout 5s;
         proxy_send_timeout 30s;

@@ -112,6 +112,22 @@ Casos que a fase precisa cobrir nos testes:
 
 Ver a seção seguinte.
 
+### Identidade (roadmap, Lista de compras, 3)
+
+| Método | Caminho | O que faz |
+|---|---|---|
+| GET | `/eu` | Quem o serviço vê: `origem = tailscale` (o nome vem da tailnet; o aparelho não pergunta), `aparelho` (o `X-Quem`) ou nulo (perguntar "quem é você?") |
+| GET | `/identidades` | Os logins da tailnet cadastrados |
+| POST | `/identidades` | `{"login", "nome"}`: liga o login ao nome exibido. Repetido: 409 |
+| PATCH | `/identidades/{id}` | Troca o `nome` |
+| DELETE | `/identidades/{id}` | Soft delete; o login volta a aparecer com o nome do Tailscale |
+
+Com `Tailscale-User-Login` (posto pelo `tailscale serve`, que apaga o que o
+cliente mandar), o "quem" de toda escrita é o nome cadastrado para o login,
+senão o `Tailscale-User-Name` (decodificado de RFC 2047), senão o login. O
+`X-Quem` do cliente é ignorado: o proxy o substitui pelo login, e o serviço
+não o lê nesse caso.
+
 ### Nota fiscal e preços (backend, 02/11/2026)
 
 Sem telas ainda (D-15: precisam de desenho antes). Toda escrita exige

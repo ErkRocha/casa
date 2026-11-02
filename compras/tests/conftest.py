@@ -52,6 +52,7 @@ from scripts.aplicar_role import aplicar as aplicar_role  # noqa: E402
 
 _TABELAS = (
     "auditoria",
+    "identidades_tailscale",
     "apelidos",
     "nota_itens",
     "notas_fiscais",
