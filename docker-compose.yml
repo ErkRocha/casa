@@ -155,6 +155,9 @@ services:
       COMPRAS_DATABASE_URL: postgresql+psycopg://casa_compras:${COMPRAS_DB_PASSWORD:-}@db:5432/${POSTGRES_DB}
       # Atrás do nginx em /api/compras; com isto o /docs funciona por lá.
       COMPRAS_ROOT_PATH: /api/compras
+      # A API de finanças, só para sugerir a transação de uma nota fiscal
+      # (GET /transacoes, só leitura). Fora do ar, a sugestão responde 502.
+      COMPRAS_FINANCAS_URL: http://api:8000
     ports:
       - "127.0.0.1:${COMPRAS_PORT:-8001}:8000"
     volumes:

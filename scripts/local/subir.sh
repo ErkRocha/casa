@@ -47,7 +47,7 @@ else
   (cd "$CASA_REPO/compras" && nohup env -u DATABASE_URL -u DATABASE_ADMIN_URL \
     -u TEST_DATABASE_URL -u FINANCAS_DB_PASSWORD \
     -u COMPRAS_DONO_DATABASE_URL -u PGPASSWORD -u INSIGHTS_PASSWORD \
-    MSYS2_ENV_CONV_EXCL=COMPRAS_ROOT_PATH COMPRAS_ROOT_PATH=/api/compras \
+    MSYS2_ENV_CONV_EXCL=COMPRAS_ROOT_PATH COMPRAS_ROOT_PATH=/api/compras     COMPRAS_FINANCAS_URL="http://127.0.0.1:$API_PORTA" \
     "$PY" -m uvicorn compras.main:app \
     --host 127.0.0.1 --port "$COMPRAS_PORTA" >"$CASA_DEV_DIR/compras.log" 2>&1 &)
 fi

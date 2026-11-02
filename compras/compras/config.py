@@ -52,6 +52,14 @@ class Settings(BaseSettings):
     #: Comprados que o `GET /lista` mostra quando o celular não diz desde quando.
     comprados_recentes_h: int = 6
 
+    #: A API de finanças, para sugerir a transação de uma nota (só leitura,
+    #: por HTTP; D-25). No compose, o serviço `api`; no modo local, a porta
+    #: dela. `COMPRAS_FINANCAS_URL`.
+    financas_url: str = "http://api:8000"
+
+    #: Segundos até desistir da consulta pública da SEFAZ.
+    sefaz_tempo_limite_s: float = 20.0
+
     @field_validator("database_url", mode="after")
     @classmethod
     def _com_timeout(cls, valor: str) -> str:

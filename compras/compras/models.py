@@ -9,11 +9,26 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, Numeric, Text, Uuid
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    Numeric,
+    Text,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from compras.db import Base, Comum, pg_enum
-from compras.enums import EstadoDespensa, OrigemItem, SituacaoItem
+from compras.enums import (
+    EstadoDespensa,
+    OrigemAssociacao,
+    OrigemItem,
+    SituacaoItem,
+    StatusNota,
+)
 
 #: Para onde vai o produto criado às pressas; sempre a última do percurso.
 SEM_SECAO = "Sem seção"
@@ -68,3 +83,75 @@ class Despensa(Comum, Base):
     estado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     produto: Mapped[Produto] = relationship(lazy="joined", innerjoin=True)
+
+
+# --- Nota fiscal e preços (migration 0002) ------------------------------------
+
+
+class Mercado(Comum, Base):
+    __tablename__ = "mercados"
+
+    nome: Mapped[str] = mapped_column(Text, nullable=False)
+    razao_social: Mapped[str | None] = mapped_column(Text)
+    cnpj: Mapped[str | None] = mapped_column(Text)
+    endereco: Mapped[str | None] = mapped_column(Text)
+    cidade: Mapped[str | None] = mapped_column(Text)
+
+
+class NotaFiscal(Comum, Base):
+    __tablename__ = "notas_fiscais"
+
+    chave_acesso: Mapped[str] = mapped_column(Text, nullable=False)
+    mercado_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("mercados.id"))
+    emitida_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    valor_total: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    desconto_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    url_consulta: Mapped[str] = mapped_column(Text, nullable=False)
+    conteudo_original: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
+    conteudo_tipo: Mapped[str | None] = mapped_column(Text)
+    leitor_versao: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[StatusNota] = mapped_column(pg_enum(StatusNota, "status_nota"), nullable=False)
+    erro_mensagem: Mapped[str | None] = mapped_column(Text)
+    #: A compra em finanças. Id simples, sem FK (D-25).
+    transacao_id: Mapped[int | None] = mapped_column(BigInteger)
+    lida_por: Mapped[str] = mapped_column(Text, nullable=False)
+
+    mercado: Mapped[Mercado | None] = relationship(lazy="joined")
+
+
+class NotaItem(Comum, Base):
+    __tablename__ = "nota_itens"
+
+    nota_fiscal_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("notas_fiscais.id"), nullable=False
+    )
+    linha_num: Mapped[int] = mapped_column(Integer, nullable=False)
+    codigo: Mapped[str | None] = mapped_column(Text)
+    gtin: Mapped[str | None] = mapped_column(Text)
+    #: O texto cru da nota. Imutável (trigger na 0002).
+    descricao_original: Mapped[str] = mapped_column(Text, nullable=False)
+    quantidade: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)
+    unidade: Mapped[str | None] = mapped_column(Text)
+    valor_unitario: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    valor_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    desconto: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    produto_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("produtos.id"))
+    origem_associacao: Mapped[OrigemAssociacao | None] = mapped_column(
+        pg_enum(OrigemAssociacao, "origem_associacao")
+    )
+
+    produto: Mapped[Produto | None] = relationship(lazy="joined")
+
+
+class Apelido(Comum, Base):
+    __tablename__ = "apelidos"
+
+    produto_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("produtos.id"), nullable=False)
+    texto_normalizado: Mapped[str | None] = mapped_column(Text)
+    gtin: Mapped[str | None] = mapped_column(Text)
+    #: Nulo: vale em qualquer mercado.
+    mercado_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("mercados.id"))
+    acertos: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    #: "usuario" (associou um item sem produto) ou "correcao" (trocou o que
+    #: a associação automática tinha escolhido).
+    criado_por: Mapped[str] = mapped_column(Text, nullable=False)

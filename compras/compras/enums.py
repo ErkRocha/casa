@@ -18,3 +18,16 @@ class OrigemItem(StrEnum):
     MANUAL = "manual"
     DESPENSA = "despensa"
     VOZ = "voz"
+
+
+class OrigemAssociacao(StrEnum):
+    """O que decidiu o produto de um item da nota."""
+
+    APELIDO = "apelido"
+    GTIN = "gtin"
+    USUARIO = "usuario"
+
+
+class StatusNota(StrEnum):
+    LIDA = "lida"
+    ERRO = "erro"

@@ -511,6 +511,18 @@ Nesta ordem, sem pular:
    de preço por produto e mercado (`vw_preco_produto`). Item comprado na
    lista e item da nota se encontram pelo produto.
 
+   **Backend feito (02/11/2026)**, sem telas (D-15) e **sem validação com
+   nota real**: não havia nenhuma disponível. Migration `0002`, leitura pela
+   URL do QR code ou pela chave (dígito verificador, UF e CNPJ), consulta da
+   SEFAZ-RS com a resposta guardada inteira, leitor isolado atrás de
+   `LeitorNota`, associação GTIN > apelido > sem produto com aprendizado na
+   correção, `vw_preco_produto` e a sugestão de transação de finanças pela
+   API dela. Endpoints em `docs/compras/api.md`.
+   **Pendente do usuário:** uma NFC-e real do RS, para validar o leitor
+   (layout presumido do portal SVRS) e a URL montada só com a chave. Como
+   fornecer, anonimizada: `compras/tests/amostras/README.md`. Até lá o
+   teste da amostra fica pulado.
+
    **Pronto quando:** a nota de uma compra real vira itens com o total
    batendo com o da nota; ler o mesmo QR code de novo não cria outra nota;
    a segunda nota do mesmo mercado já vem com os itens associados pelo que a

@@ -31,3 +31,6 @@ dist/
 
 # Configuração local do Claude Code (caminhos e credenciais da máquina)
 .claude/settings.local.json
+
+# Notas fiscais reais antes de anonimizar (compras/tests/amostras/README.md).
+compras/tests/amostras/*.bruta.*

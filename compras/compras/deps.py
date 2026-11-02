@@ -1,11 +1,16 @@
-"""Dependências dos routers: sessão e "quem" (`X-Quem`)."""
+"""Dependências dos routers: sessão, "quem" (`X-Quem`) e as peças da nota fiscal."""
 
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
+from compras.config import get_settings
 from compras.db import definir_autor, get_session
+from compras.financas import Financas, FinancasHttp
+from compras.nfce.consulta import ConsultaPublica, ConsultaSefazRs
+from compras.nfce.leitor import LeitorNota
+from compras.nfce.leitor_svrs import LeitorSvrsHtml
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
@@ -40,3 +45,25 @@ def quem(
 
 
 QuemDep = Annotated[str, Depends(quem)]
+
+
+# --- Nota fiscal: as peças que falam com fora, trocáveis nos testes -----------
+
+
+def consulta_publica() -> ConsultaPublica:
+    """A consulta da SEFAZ-RS. Os testes trocam por uma falsa
+    (`app.dependency_overrides`): nenhum teste fala com a SEFAZ."""
+    return ConsultaSefazRs(get_settings().sefaz_tempo_limite_s)
+
+
+def leitor_nota() -> LeitorNota:
+    return LeitorSvrsHtml()
+
+
+def financas() -> Financas:
+    return FinancasHttp(get_settings().financas_url)
+
+
+ConsultaDep = Annotated[ConsultaPublica, Depends(consulta_publica)]
+LeitorDep = Annotated[LeitorNota, Depends(leitor_nota)]
+FinancasDep = Annotated[Financas, Depends(financas)]

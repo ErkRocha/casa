@@ -50,7 +50,17 @@ from compras.main import app  # noqa: E402
 from compras.seed import run as rodar_seed  # noqa: E402
 from scripts.aplicar_role import aplicar as aplicar_role  # noqa: E402
 
-_TABELAS = ("auditoria", "despensa", "itens_lista", "produtos", "secoes")
+_TABELAS = (
+    "auditoria",
+    "apelidos",
+    "nota_itens",
+    "notas_fiscais",
+    "mercados",
+    "despensa",
+    "itens_lista",
+    "produtos",
+    "secoes",
+)
 
 
 @pytest.fixture(scope="session", autouse=True)

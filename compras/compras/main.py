@@ -8,7 +8,17 @@ from sqlalchemy import text
 
 from compras.config import get_settings
 from compras.db import engine
-from compras.routers import despensa, lista, mudancas, produtos, secoes
+from compras.financas import FinancasIndisponivel
+from compras.routers import (
+    despensa,
+    lista,
+    mercados,
+    mudancas,
+    notas,
+    precos,
+    produtos,
+    secoes,
+)
 from compras.services.base import Conflito, NaoEncontrado, RegraViolada
 
 settings = get_settings()
@@ -43,11 +53,19 @@ def _regra_violada(_: Request, exc: RegraViolada) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
+@app.exception_handler(FinancasIndisponivel)
+def _financas_indisponivel(_: Request, exc: FinancasIndisponivel) -> JSONResponse:
+    return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={"detail": str(exc)})
+
+
 app.include_router(lista.router)
 app.include_router(despensa.router)
 app.include_router(mudancas.router)
 app.include_router(produtos.router)
 app.include_router(secoes.router)
+app.include_router(notas.router)
+app.include_router(mercados.router)
+app.include_router(precos.router)
 
 
 @app.get("/health", tags=["infra"])

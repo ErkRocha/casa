@@ -13,6 +13,8 @@ dependencies = [
     "pydantic-settings>=2.6.0",
     # Fusos no Windows, como na API de finanças.
     "tzdata>=2024.1",
+    # Consulta pública da NFC-e e a API de finanças (nota fiscal e preços).
+    "httpx>=0.27.0",
 ]
 
 [project.optional-dependencies]
@@ -46,6 +48,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "alembic/versions/*" = ["E501"]
+# A página de NFC-e inventada para os testes: HTML, linhas longas de propósito.
+"tests/nfce_apoio.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -9,8 +9,8 @@ continue da primeira fase que não está "OK" nem "bloqueada".
 | 1 — Telas da lista de compras | **bloqueada** | — |
 | 2 — Finanças sem superusuário (D-26) | OK | ver abaixo |
 | 3 — Identidade pelo Tailscale | **bloqueada** (depende da 1) | — |
-| 4 — Sincronização e relatório automáticos | OK | ver abaixo |
-| 5 — NFC-e e preços (backend) | pendente | — |
+| 4 — Sincronização e relatório automáticos | OK | `1681428` |
+| 5 — NFC-e e preços (backend) | OK (sem nota real) | ver abaixo |
 | 6 — Lista pela voz (MCP do vault) | **bloqueada** | — |
 
 ## Fase 0
@@ -78,3 +78,28 @@ Além da fase 1, o servidor MCP do vault não existe em
 - Testes: finanças 780 passados, 0 pulados; compras 51; web typecheck, lint
   e build ok. `mypy app` ok (os 3 erros antigos de `scripts/demo_data.py`
   ficam fora do escopo do `make lint`).
+
+## Fase 5 — OK (backend), validação com nota real pendente
+
+- Migration `compras/0002` (permitida pela fase): `mercados`,
+  `notas_fiscais`, `nota_itens`, `apelidos`, enums `origem_associacao` e
+  `status_nota`, `vw_preco_produto`; as mesmas proteções da 0001 (auditoria,
+  `atualizado_em`, trigger só `casa_compras`) e `descricao_original`
+  imutável por trigger.
+- Backup antes de aplicar no banco real:
+  `backups/casa_20261102_094217_antes_compras_0002.dump`. Aplicada; o
+  `aplicar_role` do compras continua com 0 objetos fora do schema.
+- `compras/nfce/`: chave (DV módulo 11, UF, CNPJ, modelo 65), entrada (URL
+  do QR v1/v2 ou chave; só hosts da SEFAZ-RS), consulta HTTPS com limite de
+  tamanho e sem sair dos hosts permitidos, `LeitorNota` e o leitor do
+  layout presumido do portal SVRS (`svrs-html-1`).
+- Endpoints: `/notas` (ler, listar, detalhe, reler, associar item, sugestões
+  e vínculo de transação, remover), `/mercados`, `/precos`.
+- Sugestão de transação pela API de finanças (`GET /transacoes`, só
+  leitura); conferida contra a API local de verdade.
+- Testes: compras 100 passados, 1 pulado (o da amostra real, pendente);
+  web typecheck, lint e build ok. Nenhum teste fala com a SEFAZ.
+- Decisões tomadas sozinho (conservadoras): só NFC-e (modelo 65) do RS;
+  GTIN só quando o código tem 13 dígitos, prefixo 789/790 e DV certo;
+  CNPJ da página diferente do da chave vira erro; reler só nota com erro;
+  vincular transação só com confirmação e só se ela existe em finanças.

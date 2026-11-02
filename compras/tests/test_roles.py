@@ -11,6 +11,8 @@ superusuária, e superusuário passa por cima de todo GRANT.
 from collections.abc import Iterator
 
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import Connection, create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
@@ -144,7 +146,9 @@ def test_role_sem_poderes_e_dona_do_schema(dono: Engine) -> None:
         ).scalar_one()
         assert dona == ROLE
         versao = c.execute(text("SELECT version_num FROM compras.alembic_version")).scalar_one()
-        assert versao == "0001"
+        # A última migration do serviço.
+        head = ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
+        assert versao == head
 
 
 def test_aplicar_role_e_idempotente(url_dono: str, role_compras: Engine) -> None:
@@ -153,3 +157,37 @@ def test_aplicar_role_e_idempotente(url_dono: str, role_compras: Engine) -> None
     with role_compras.connect() as c:
         assert c.execute(text("SELECT current_user")).scalar_one() == ROLE
         assert c.execute(text("SHOW search_path")).scalar_one() == "compras"
+
+
+def test_toda_tabela_do_schema_tem_o_trigger_de_protecao(dono: Engine) -> None:
+    """Toda tabela de `compras`, inclusive as que vierem depois, recusa escrita
+    de outra role. Pelo catálogo: tabela nova sem o trigger quebra aqui."""
+    with dono.connect() as c:
+        sem_trigger = (
+            c.execute(
+                text(
+                    """
+                SELECT cl.relname
+                FROM pg_class cl
+                JOIN pg_namespace n ON n.oid = cl.relnamespace
+                WHERE n.nspname = 'compras' AND cl.relkind = 'r'
+                  AND cl.relname <> 'alembic_version'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM pg_trigger t
+                    JOIN pg_proc p ON p.oid = t.tgfoid
+                    WHERE t.tgrelid = cl.oid AND p.proname = 'fn_somente_casa_compras'
+                  )
+                """
+                )
+            )
+            .scalars()
+            .all()
+        )
+        tabelas = c.execute(
+            text(
+                "SELECT count(*) FROM pg_tables WHERE schemaname = 'compras' "
+                "AND tablename <> 'alembic_version'"
+            )
+        ).scalar_one()
+    assert sem_trigger == []
+    assert tabelas == 9

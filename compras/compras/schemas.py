@@ -6,14 +6,22 @@ e `deleted_em`: o celular troca a cópia local pela resposta.
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Self
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
-from compras.enums import EstadoDespensa, OrigemItem, SituacaoItem
-from compras.models import Despensa, ItemLista, Produto, Secao
+from compras.enums import EstadoDespensa, OrigemAssociacao, OrigemItem, SituacaoItem, StatusNota
+from compras.models import (
+    Despensa,
+    ItemLista,
+    Mercado,
+    NotaFiscal,
+    NotaItem,
+    Produto,
+    Secao,
+)
 
 Nome = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
 TextoCurto = Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)]
@@ -231,3 +239,156 @@ class ItemAtualizar(BaseModel):
 
 class DespensaDefinir(BaseModel):
     estado: EstadoDespensa
+
+
+# --- Nota fiscal e preços ---------------------------------------------------
+
+
+class MercadoLeitura(Linha):
+    nome: str
+    razao_social: str | None
+    cnpj: str | None
+    endereco: str | None
+    cidade: str | None
+
+    @classmethod
+    def de(cls, m: Mercado) -> Self:
+        return cls(
+            id=m.id,
+            nome=m.nome,
+            razao_social=m.razao_social,
+            cnpj=m.cnpj,
+            endereco=m.endereco,
+            cidade=m.cidade,
+            criado_em=m.criado_em,
+            atualizado_em=m.atualizado_em,
+            deleted_em=m.deleted_em,
+        )
+
+
+class MercadoAtualizar(BaseModel):
+    nome: Nome | None = None
+    cidade: Annotated[str, StringConstraints(strip_whitespace=True, max_length=80)] | None = None
+
+
+class NotaItemLeitura(Linha):
+    nota_fiscal_id: int
+    linha_num: int
+    codigo: str | None
+    gtin: str | None
+    descricao_original: str
+    quantidade: Decimal
+    unidade: str | None
+    valor_unitario: Decimal | None
+    valor_total: Decimal
+    desconto: Decimal
+    produto_id: int | None
+    produto_nome: str | None
+    origem_associacao: OrigemAssociacao | None
+
+    @classmethod
+    def de(cls, i: NotaItem) -> Self:
+        return cls(
+            id=i.id,
+            nota_fiscal_id=i.nota_fiscal_id,
+            linha_num=i.linha_num,
+            codigo=i.codigo,
+            gtin=i.gtin,
+            descricao_original=i.descricao_original,
+            quantidade=i.quantidade,
+            unidade=i.unidade,
+            valor_unitario=i.valor_unitario,
+            valor_total=i.valor_total,
+            desconto=i.desconto,
+            produto_id=i.produto_id,
+            produto_nome=i.produto.nome if i.produto is not None else None,
+            origem_associacao=i.origem_associacao,
+            criado_em=i.criado_em,
+            atualizado_em=i.atualizado_em,
+            deleted_em=i.deleted_em,
+        )
+
+
+class NotaResumo(Linha):
+    """A nota sem o conteúdo bruto (que fica só no banco)."""
+
+    chave_acesso: str
+    mercado_id: int | None
+    mercado_nome: str | None
+    emitida_em: datetime | None
+    valor_total: Decimal | None
+    desconto_total: Decimal
+    url_consulta: str
+    conteudo_tipo: str | None
+    leitor_versao: str | None
+    status: StatusNota
+    erro_mensagem: str | None
+    transacao_id: int | None
+    lida_por: str
+
+    @classmethod
+    def de(cls, n: NotaFiscal) -> Self:
+        return cls(
+            id=n.id,
+            chave_acesso=n.chave_acesso,
+            mercado_id=n.mercado_id,
+            mercado_nome=n.mercado.nome if n.mercado is not None else None,
+            emitida_em=n.emitida_em,
+            valor_total=n.valor_total,
+            desconto_total=n.desconto_total,
+            url_consulta=n.url_consulta,
+            conteudo_tipo=n.conteudo_tipo,
+            leitor_versao=n.leitor_versao,
+            status=n.status,
+            erro_mensagem=n.erro_mensagem,
+            transacao_id=n.transacao_id,
+            lida_por=n.lida_por,
+            criado_em=n.criado_em,
+            atualizado_em=n.atualizado_em,
+            deleted_em=n.deleted_em,
+        )
+
+
+class NotaDetalhe(NotaResumo):
+    itens: list[NotaItemLeitura]
+    #: Soma dos itens menos o desconto de cada um, pelo banco.
+    soma_itens: Decimal
+    #: `valor_total - soma_itens`: aparece, não bloqueia (desconto na nota).
+    diferenca: Decimal | None
+    sem_produto: int
+
+
+class NotaEntrada(BaseModel):
+    #: A URL do QR code ou a chave de acesso (44 dígitos, com ou sem espaços).
+    entrada: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+
+
+class AssociarItem(BaseModel):
+    produto_id: int
+
+
+class VincularTransacao(BaseModel):
+    #: Nulo desfaz o vínculo.
+    transacao_id: int | None
+
+
+class TransacaoSugerida(BaseModel):
+    id: int
+    data: date
+    valor: Decimal
+    descricao: str
+    forma_pagamento: str | None
+
+
+class PrecoLinha(BaseModel):
+    produto_id: int
+    produto_nome: str
+    mercado_id: int
+    mercado_nome: str
+    unidade: str
+    ultimo_preco: Decimal
+    ultima_compra_em: datetime | None
+    preco_min: Decimal
+    preco_max: Decimal
+    preco_medio: Decimal
+    compras: int

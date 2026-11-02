@@ -1,6 +1,6 @@
 # API — `compras`, fase de lista e despensa
 
-Proposta, ainda sem código (D-25). Modelo em `modelo-dados.md`.
+Implementado (D-25): lista e despensa, e o backend da nota fiscal e preços. Modelo em `modelo-dados.md`.
 
 ## Endereço
 
@@ -112,6 +112,37 @@ Casos que a fase precisa cobrir nos testes:
 
 Ver a seção seguinte.
 
+### Nota fiscal e preços (backend, 02/11/2026)
+
+Sem telas ainda (D-15: precisam de desenho antes). Toda escrita exige
+`X-Quem`; o que a leitura grava sozinha vai para a auditoria com o autor
+`leitura_nfce`.
+
+| Método | Caminho | O que faz |
+|---|---|---|
+| POST | `/notas` | `{"entrada": "<URL do QR code ou chave>"}`. Confere a chave (44 dígitos, dígito verificador, modelo 65, UF RS), busca a consulta pública e guarda a resposta **inteira**. 201 com a nota; **200 com a nota que já existe** se a chave já foi lida (sem buscar de novo). Consulta ou leitor falhou: 201 com `status = erro`. Entrada inválida: 422, nada gravado |
+| GET | `/notas` | As notas, mais recentes primeiro, sem o conteúdo bruto |
+| GET | `/notas/{id}` | A nota com os itens, `soma_itens`, `diferenca` (total menos a soma: desconto da nota inteira aparece, não bloqueia) e quantos estão `sem_produto` |
+| POST | `/notas/{id}/reler` | Só nota com erro: interpreta de novo o conteúdo guardado, ou busca de novo (sem conteúdo, ou `?buscar_de_novo=true`). Lida: 409 |
+| GET | `/notas/itens-sem-produto` | A fila de "associar" |
+| PUT | `/notas/{id}/itens/{item_id}/produto` | `{"produto_id": 7}`. Associa e grava (ou reforça) o apelido do texto no mercado da nota, e o do GTIN quando houver |
+| GET | `/notas/{id}/sugestoes-transacao` | Despesas de finanças do mesmo dia (São Paulo) e mesmo valor total, pela API de finanças (`GET /transacoes`). Só sugestão. Finanças fora do ar: 502 |
+| PUT | `/notas/{id}/transacao` | `{"transacao_id": 123}` confirma o vínculo (nulo desfaz); a transação precisa existir em finanças |
+| DELETE | `/notas/{id}` | Soft delete da nota e dos itens; a mesma chave pode ser lida de novo |
+| GET | `/mercados` | Os mercados, criados pelo CNPJ da chave |
+| PATCH | `/mercados/{id}` | `nome` como o casal chama o mercado, `cidade` |
+| GET | `/precos?produto_id=&mercado_id=` | `vw_preco_produto` com os nomes: último preço e data, mínimo, máximo, média e quantas compras, por produto, mercado e unidade |
+
+**Associação automática**, na leitura: GTIN aprendido > apelido do texto no
+mesmo mercado > apelido sem mercado > apelido de outro mercado, só se todos
+concordam. Nada disso: o item fica sem produto, na fila.
+
+**Pendente de uma nota real** (roadmap): o leitor da página
+(`compras/nfce/leitor_svrs.py`, versão `svrs-html-1`) segue o layout
+presumido do portal SVRS, e a URL montada só com a chave
+(`entrada.URL_CONSULTA_POR_CHAVE`) também não foi conferida. O teste contra
+a amostra fica pulado até existir `compras/tests/amostras/nfce_rs_anonimizada.html`.
+
 ---
 
 ## Os dois celulares ao mesmo tempo: polling com `desde` ou SSE
@@ -197,6 +228,5 @@ mudar o `/mudancas`.
 
 ### Fora desta fase
 
-- Endpoints da nota fiscal e de preços (fase "Nota fiscal e preços").
 - O cliente do MCP de voz: ele usará estes mesmos endpoints, com o seu
   próprio `X-Quem` (ou a identidade definida na fase de uso compartilhado).

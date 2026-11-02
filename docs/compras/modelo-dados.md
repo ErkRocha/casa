@@ -1,6 +1,7 @@
 # Modelo de dados — `compras`
 
-Proposta, ainda sem migration (D-25). Postgres 16, schema `compras`, no
+Implementado (D-25): migrations `0001` (lista e despensa) e `0002` (nota
+fiscal e preços), em `compras/alembic/versions/`. Postgres 16, schema `compras`, no
 mesmo banco de finanças. Convenções gerais em `docs/CLAUDE.md`; aqui ficam
 as do serviço e o que muda em relação a `docs/modelo-dados.md`.
 
@@ -258,11 +259,29 @@ linha viva.
 qualquer mercado. O GTIN é o mesmo em toda loja; o texto, não: cada mercado
 abrevia do seu jeito, por isso o apelido pode ficar preso a um mercado.
 
+### O que a migration 0002 acrescentou ao que está acima
+
+- `nota_itens` também tem `criado_em`, `atualizado_em` e `deleted_em`, como
+  toda tabela editável, e um trigger que recusa mudar `descricao_original`.
+- Checks: `produto_id` e `origem_associacao` nulos juntos; nota com
+  `status = erro` tem `erro_mensagem`; `chave_acesso` com 44 dígitos e
+  `cnpj` com 14; `apelidos.criado_por` em `usuario` ou `correcao`.
+- O apelido aprendido de uma correção é gravado em duas linhas quando o item
+  tem GTIN: uma do texto (presa ao mercado da nota) e uma do GTIN (sem
+  mercado). Assim os dois índices únicos não brigam.
+- O mercado nasce do CNPJ da chave, antes da consulta: uma nota com erro já
+  tem `mercado_id`. O nome provisório é o CNPJ formatado, trocado pela
+  razão social quando a nota é lida (e nunca por cima de um nome dado pelo
+  casal).
+
 ## `vw_preco_produto` (view)
 Por `produto_id` e `mercado_id`: último preço unitário e a data dele,
 mínimo, máximo, média e contagem, a partir dos `nota_itens` associados de
 notas vivas. View comum, não materializada: o volume de uma casa não pede
 mais. Vira materializada se ficar lenta, com `REFRESH` ao ler uma nota.
+
+Só entram notas com `status = lida` e com mercado. Sem o unitário na nota,
+vale `valor_total / quantidade`. Unidade vazia conta como `UN`.
 
 O preço comparado é o unitário de `nota_itens`, na unidade em que veio. Se
 o mesmo produto aparecer em unidades diferentes (KG e UN), a view separa
