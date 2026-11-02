@@ -11,12 +11,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from compras.db import SessionLocal, definir_autor
-from compras.models import Produto, Secao
+from compras.models import SEM_SECAO, Produto, Secao
 from compras.normalizar import normalizar
 
 #: O caminho mais comum num mercado: frescos na entrada, limpeza e higiene no
 #: fim. "Sem seção" é sempre a última (modelo-dados.md, `secoes`).
-SEM_SECAO = "Sem seção"
 
 SECOES: tuple[str, ...] = (
     "Hortifrúti",

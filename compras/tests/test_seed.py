@@ -3,8 +3,8 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from compras.models import Produto, Secao
-from compras.seed import PRODUTOS, SECOES, SEM_SECAO, run
+from compras.models import SEM_SECAO, Produto, Secao
+from compras.seed import PRODUTOS, SECOES, run
 
 
 def test_seed_cria_secoes_na_ordem_e_produtos(session: Session) -> None:

@@ -15,6 +15,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from compras.db import Base, Comum, pg_enum
 from compras.enums import EstadoDespensa, OrigemItem, SituacaoItem
 
+#: Para onde vai o produto criado às pressas; sempre a última do percurso.
+SEM_SECAO = "Sem seção"
+
 
 class Secao(Comum, Base):
     __tablename__ = "secoes"
