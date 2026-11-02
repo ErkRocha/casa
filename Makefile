@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-resgates compras-role compras-migrate compras-seed compras-test compras-lint financas-role
+.PHONY: test-db help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-resgates compras-role compras-migrate compras-seed compras-test compras-lint financas-role
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -92,8 +92,16 @@ relatorio-seco: ## Mesmo relatório, só com os números (sem chamar modelo)
 dossie: ## Imprime os números do mês em JSON, sem gerar relatório
 	$(COMPOSE) run --rm api python -m scripts.relatorio --dossie $(if $(m),--competencia $(m),)
 
-test: ## Roda o pytest
-	$(COMPOSE) run --rm api pytest -q
+# Os testes rodam no banco casa_test do próprio Postgres do compose (truncado
+# entre testes), com a credencial de administração: dentro do container não há
+# Docker para o testcontainers. As senhas das roles vêm do .env (api-admin e
+# compras-role já as têm): a role é do cluster, e uma senha de teste trocaria
+# a da produção (D-26).
+test-db:
+	@$(COMPOSE) exec -T db sh -c 'psql -U "$$POSTGRES_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '"'"'casa_test'"'"'" | grep -q 1 || createdb -U "$$POSTGRES_USER" casa_test'
+
+test: test-db ## Roda o pytest (no banco casa_test)
+	$(COMPOSE) run --rm api-admin sh -c 'TEST_DATABASE_URL="$${DATABASE_ADMIN_URL%/*}/casa_test" pytest -q'
 
 lint: ## ruff + mypy
 	$(COMPOSE) run --rm api ruff check .
@@ -121,8 +129,8 @@ compras-migrate: ## Aplica as migrations do serviço de compras
 compras-seed: ## Seções do mercado e produtos comuns (idempotente)
 	$(COMPOSE) run --rm compras python -m compras.seed
 
-compras-test: ## Roda o pytest do serviço de compras
-	$(COMPOSE) run --rm compras pytest -q
+compras-test: test-db ## Roda o pytest do serviço de compras (no banco casa_test)
+	$(COMPOSE) run --rm compras-role sh -c 'TEST_DATABASE_URL="$${COMPRAS_DONO_DATABASE_URL%/*}/casa_test" pytest -q'
 
 compras-lint: ## ruff + mypy do serviço de compras
 	$(COMPOSE) run --rm compras ruff check .

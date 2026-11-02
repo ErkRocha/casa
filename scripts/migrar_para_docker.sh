@@ -36,8 +36,15 @@ BACKUPS="${MIGRAR_BACKUPS:-backups}"
 TS="$(date +%Y%m%d_%H%M%S)"
 DUMP="$BACKUPS/casa_local_${TS}.dump"
 CONTAGENS="$BACKUPS/contagens_local_${TS}.txt"
-TABELAS=(pessoas contas formas_pagamento categorias transacoes importacoes
-  importacao_itens contas_pluggy regras_categorizacao auditoria)
+# Todas as tabelas dos dois schemas (finanças e compras, D-25), inclusive as
+# versões do Alembic: o portão compara linha a linha, e uma tabela que ficasse
+# de fora passaria sem ninguém ver.
+TABELAS=(alembic_version auditoria categorias categorias_pluggy contas contas_pluggy
+  formas_pagamento importacao_itens importacoes locais orcamentos pessoas
+  regras_categorizacao relatorios transacoes
+  compras.alembic_version compras.apelidos compras.auditoria compras.despensa
+  compras.identidades_tailscale compras.itens_lista compras.mercados compras.nota_itens
+  compras.notas_fiscais compras.produtos compras.secoes)
 
 # Sem `declare -A`, como no validar.sh: o bash do macOS é o 3.2.
 ETAPAS=(docker backup versao parar restore contagens validar sync)

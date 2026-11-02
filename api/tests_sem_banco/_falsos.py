@@ -56,7 +56,7 @@ case "$1" in
         cmd="${@: -1}"
         if [[ "$cmd" == *pg_tables* ]]; then echo "${FAKE_TABELAS_CONTAINER:-0}"; exit 0; fi
         if [[ "$cmd" == *pg_restore* ]]; then cat >/dev/null; exit "${FAKE_RESTORE:-0}"; fi
-        if [[ "$cmd" =~ count\(\*\)\ FROM\ ([a-z_]+) ]]; then
+        if [[ "$cmd" =~ count\(\*\)\ FROM\ ([a-z_.]+) ]]; then
           t="${BASH_REMATCH[1]}"; n=${#t}
           [[ "$t" == "${FAKE_DIF_TABELA:-}" ]] && n=$((n + 1))
           echo "$n"; exit 0
@@ -95,7 +95,7 @@ exit 0
     "psql.exe": r"""
 q="${@: -1}"
 if [[ "$q" == *server_version_num* ]]; then echo "${FAKE_PG_VERSAO:-160010}"; exit 0; fi
-if [[ "$q" =~ count\(\*\)\ FROM\ ([a-z_]+) ]]; then t="${BASH_REMATCH[1]}"; echo "${#t}"; exit 0; fi
+if [[ "$q" =~ count\(\*\)\ FROM\ ([a-z_.]+) ]]; then t="${BASH_REMATCH[1]}"; echo "${#t}"; exit 0; fi
 exit 0
 """,
 }
