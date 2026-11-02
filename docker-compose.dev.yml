@@ -12,6 +12,9 @@ services:
     # A recarga que a produção não tem: reinicia a cada alteração em api/.
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
+  compras:
+    command: uvicorn compras.main:app --host 0.0.0.0 --port 8000 --reload
+
   web:
     build:
       context: ./web
@@ -19,6 +22,7 @@ services:
     environment:
       # O proxy do Vite faz o papel do nginx: /api -> API, sem o prefixo.
       API_PROXY_TARGET: http://api:8000
+      COMPRAS_PROXY_TARGET: http://compras:8000
       WEB_ALLOWED_HOSTS: ${WEB_ALLOWED_HOSTS:-.ts.net}
     volumes:
       - ./web:/app

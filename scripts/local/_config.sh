@@ -15,6 +15,8 @@
 #   LOCAL_INSIGHTS_PASSWORD  senha da role read-only. Padrão: INSIGHTS_PASSWORD
 #   LOCAL_API_PORT           padrão: API_PORT, ou 8000
 #   LOCAL_WEB_PORT           padrão: WEB_PORT, ou 5173
+#   LOCAL_COMPRAS_PORT       serviço de compras (D-25). Padrão: COMPRAS_PORT, ou 8001
+#   LOCAL_COMPRAS_PASSWORD   senha da role casa_compras. Padrão: COMPRAS_DB_PASSWORD
 
 CASA_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
@@ -48,6 +50,8 @@ PG_SENHA="${LOCAL_POSTGRES_PASSWORD:-${POSTGRES_PASSWORD:-}}"
 INSIGHTS_SENHA="${LOCAL_INSIGHTS_PASSWORD:-${INSIGHTS_PASSWORD:-}}"
 API_PORTA="${LOCAL_API_PORT:-${API_PORT:-8000}}"
 WEB_PORTA="${LOCAL_WEB_PORT:-${WEB_PORT:-5173}}"
+COMPRAS_PORTA="${LOCAL_COMPRAS_PORT:-${COMPRAS_PORT:-8001}}"
+COMPRAS_SENHA="${LOCAL_COMPRAS_PASSWORD:-${COMPRAS_DB_PASSWORD:-}}"
 VENV="$CASA_DEV_DIR/venv"
 PY="$VENV/Scripts/python.exe"
 # Segundos até desistir de conectar ao banco (o mesmo da API, app/config.py).
@@ -77,6 +81,16 @@ casa_exportar_ambiente() {
   # Banco truncado entre testes: nunca o de verdade.
   export TEST_DATABASE_URL="postgresql+psycopg://$PG_USER:$senha@127.0.0.1:$PG_PORT/$PG_DB_TESTE?connect_timeout=$CASA_CONNECT_TIMEOUT"
   export INSIGHTS_PASSWORD="$INSIGHTS_SENHA"
+  # Serviço de compras (D-25): conecta só com a própria role. A URL dona vai
+  # em COMPRAS_DONO_DATABASE_URL, que só o `scripts.aplicar_role` lê. Sem a
+  # senha no .env, o serviço fica sem URL e o resto sobe igual.
+  if [[ -n "$COMPRAS_SENHA" ]]; then
+    local senha_compras
+    senha_compras="$(_casa_urlencode "$COMPRAS_SENHA")" || return 1
+    export COMPRAS_DB_PASSWORD="$COMPRAS_SENHA"
+    export COMPRAS_DATABASE_URL="postgresql+psycopg://casa_compras:$senha_compras@127.0.0.1:$PG_PORT/$PG_DB?connect_timeout=$CASA_CONNECT_TIMEOUT"
+    export COMPRAS_DONO_DATABASE_URL="$DATABASE_URL"
+  fi
   export PGPASSWORD="$PG_SENHA"
   # O mesmo limite para psql, pg_dump e afins (a migração usa os dois).
   export PGCONNECT_TIMEOUT="$CASA_CONNECT_TIMEOUT"

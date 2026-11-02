@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-resgates
+.PHONY: help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-resgates compras-role compras-migrate compras-seed compras-test compras-lint
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -104,6 +104,25 @@ shell: ## Shell dentro do container da api
 
 psql: ## psql no banco
 	$(COMPOSE) exec db psql -U $${POSTGRES_USER:-casa} -d $${POSTGRES_DB:-casa}
+
+# --- Lista de compras (D-25) ------------------------------------------------
+# Primeira vez: compras-role, compras-migrate, compras-seed.
+compras-role: ## Cria/repara a role casa_compras e o schema compras (D-25)
+	$(COMPOSE) run --rm compras-role
+
+compras-migrate: ## Aplica as migrations do serviço de compras
+	$(COMPOSE) run --rm compras alembic upgrade head
+
+compras-seed: ## Seções do mercado e produtos comuns (idempotente)
+	$(COMPOSE) run --rm compras python -m compras.seed
+
+compras-test: ## Roda o pytest do serviço de compras
+	$(COMPOSE) run --rm compras pytest -q
+
+compras-lint: ## ruff + mypy do serviço de compras
+	$(COMPOSE) run --rm compras ruff check .
+	$(COMPOSE) run --rm compras ruff format --check .
+	$(COMPOSE) run --rm compras mypy compras scripts tests
 
 # A lógica mora em scripts/validar.sh (etapas com resumo ficam ilegíveis em
 # receita de make). O MAKE vai junto para as etapas chamarem os alvos daqui.

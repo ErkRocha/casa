@@ -23,7 +23,7 @@ trap 'rm -f "$LOG_TESTES"' EXIT
 
 # Resultado por etapa em RES_<etapa>. Sem `declare -A` de propósito: o bash
 # do macOS é o 3.2, que não tem array associativo.
-ETAPAS=(backup build health migrate roles lint test)
+ETAPAS=(backup build health migrate roles lint test compras)
 marcar() { printf -v "RES_$1" '%s' "$2"; }
 for e in "${ETAPAS[@]}"; do marcar "$e" "não executada"; done
 TESTES="?"
@@ -119,5 +119,15 @@ falhas="$(grep -Eo '[0-9]+ (failed|errors?)' "$LOG_TESTES" | tail -2 | paste -sd
 [[ -n "$falhas" ]] && TESTES="$TESTES, $falhas"
 (( status_teste == 0 )) || falhou test
 ok test
+
+# --- h. serviço de compras (D-25) ------------------------------------------
+etapa "compras: role, migrations, lint e testes"
+{
+  $MAKE --no-print-directory compras-role \
+    && $MAKE --no-print-directory compras-migrate \
+    && $MAKE --no-print-directory compras-lint \
+    && $MAKE --no-print-directory compras-test
+} || falhou compras
+ok compras
 
 resumo

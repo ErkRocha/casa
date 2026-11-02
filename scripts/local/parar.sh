@@ -9,7 +9,7 @@
 set -uo pipefail
 source "$(dirname "$0")/_config.sh"
 
-for porta in "$WEB_PORTA" "$API_PORTA"; do
+for porta in "$WEB_PORTA" "$COMPRAS_PORTA" "$API_PORTA"; do
   pid="$(casa_pid_da_porta "$porta")"
   if [[ -n "$pid" ]]; then
     taskkill //PID "$pid" //T //F >/dev/null 2>&1 && echo "porta $porta: processo $pid encerrado"

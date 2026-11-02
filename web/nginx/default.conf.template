@@ -35,6 +35,40 @@ server {
     gzip_types text/plain text/css text/javascript application/javascript
                application/json image/svg+xml;
 
+    # --- Compras (D-25) ------------------------------------------------
+    # No nginx vence o prefixo mais longo; fica aqui em cima do /api/ para
+    # quem lê. A recusa de Host do server vale aqui também.
+    location = /api/compras {
+        return 301 /api/compras/;
+    }
+
+    location /api/compras/ {
+        # Destino em variável, resolvido pelo DNS do Docker a cada 10 s, e
+        # não na subida: com o `compras` fora do ar (ou ainda sem container),
+        # o nginx sobe igual e só /api/compras/ responde 502. Um serviço não
+        # derruba o painel do outro (D-25). Com variável, o prefixo sai pelo
+        # rewrite, e a query string vai junto.
+        resolver 127.0.0.11 valid=10s ipv6=off;
+        set $compras_destino ${COMPRAS_UPSTREAM};
+        rewrite ^/api/compras/(.*)$ /$1 break;
+        proxy_pass $compras_destino;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Prefix /api/compras;
+        # X-Quem passa como o celular mandou. Na fase de uso compartilhado
+        # (roadmap, Lista de compras, 3) ele passa a ser sobrescrito aqui
+        # com a identidade do Tailscale.
+
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+        client_max_body_size 1m;
+    }
+
     # --- API ------------------------------------------------------------
     location = /api {
         return 301 /api/;

@@ -12,6 +12,9 @@ import { defineConfig } from "vite";
  */
 const destinoApi = process.env.API_PROXY_TARGET || "http://127.0.0.1:8000";
 
+/** Para onde vai `/api/compras` (D-25): o serviço de compras, separado. */
+const destinoCompras = process.env.COMPRAS_PROXY_TARGET || "http://127.0.0.1:8001";
+
 /**
  * Hosts aceitos além de localhost e IPs (que o Vite sempre aceita). O padrão
  * libera só o domínio do Tailscale (`.ts.net`, com os subdomínios), por onde
@@ -37,7 +40,13 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 5173,
     allowedHosts: hostsPermitidos,
+    // A primeira regra que casa vence: compras antes de /api.
     proxy: {
+      "^/api/compras(/|$)": {
+        target: destinoCompras,
+        changeOrigin: true,
+        rewrite: (caminho) => caminho.replace(/^\/api\/compras/, "") || "/",
+      },
       "/api": {
         target: destinoApi,
         changeOrigin: true,

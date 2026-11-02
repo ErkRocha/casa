@@ -63,6 +63,7 @@ echo "4/6 Venv da API em $VENV"
 [[ -x "$PY" ]] || python -m venv "$VENV" || falhar "não consegui criar o venv"
 "$PY" -m pip install -q --upgrade pip || falhar "pip falhou"
 (cd "$CASA_REPO/api" && "$PY" -m pip install -q -e ".[dev]") || falhar "pip install da API falhou"
+(cd "$CASA_REPO/compras" && "$PY" -m pip install -q -e ".[dev]") || falhar "pip install do compras falhou"
 
 echo "5/6 Dependências do web"
 if command -v npm >/dev/null 2>&1; then

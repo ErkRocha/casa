@@ -72,6 +72,9 @@ services:
     environment:
       # Para onde o nginx repassa /api/, pela rede interna do compose.
       API_UPSTREAM: http://api:8000
+      # E /api/compras/, o serviço de compras (D-25). Resolvido a cada
+      # requisição: com o `compras` fora do ar, só /api/compras/ falha.
+      COMPRAS_UPSTREAM: http://compras:8000
       # Hosts aceitos além de localhost e 127.0.0.1: o domínio do Tailscale,
       # por onde o `tailscale serve` entrega o painel. Os outros recebem 403
       # (proteção contra DNS rebinding, também em /api).
@@ -80,6 +83,54 @@ services:
       - "127.0.0.1:${WEB_PORT:-5173}:5173"
     depends_on:
       - api
+
+  # Lista de compras (D-25): serviço próprio, com schema e role próprios no
+  # mesmo Postgres. Só conhece a credencial da role `casa_compras`; a dona do
+  # banco fica no `compras-role`, que roda à parte. Sem COMPRAS_DB_PASSWORD
+  # no .env ele sobe sem banco, e o /health diz isso.
+  compras:
+    build:
+      context: ./compras
+    image: casa-compras:local
+    container_name: casa_compras
+    restart: unless-stopped
+    environment:
+      # A senha vai literal na URL: use só letras, dígitos, - e _ nela.
+      COMPRAS_DATABASE_URL: postgresql+psycopg://casa_compras:${COMPRAS_DB_PASSWORD:-}@db:5432/${POSTGRES_DB}
+      # Atrás do nginx em /api/compras; com isto o /docs funciona por lá.
+      COMPRAS_ROOT_PATH: /api/compras
+    ports:
+      - "127.0.0.1:${COMPRAS_PORT:-8001}:8000"
+    volumes:
+      # Como na api: os alvos do Makefile rodam no código montado.
+      - ./compras:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:8000/health | grep -q 'banco.:.ok'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    command: uvicorn compras.main:app --host 0.0.0.0 --port 8000
+
+  # Cria ou repara a role `casa_compras` e o schema `compras`: `make
+  # compras-role`. Fica fora do `up` (perfil): é o único lugar com a
+  # credencial dona do banco junto do código do serviço, e só durante a
+  # execução.
+  compras-role:
+    image: casa-compras:local
+    build:
+      context: ./compras
+    profiles: ["ferramentas"]
+    restart: "no"
+    environment:
+      COMPRAS_DONO_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      COMPRAS_DB_PASSWORD: ${COMPRAS_DB_PASSWORD:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: python -m scripts.aplicar_role
 
 volumes:
   db_data:
