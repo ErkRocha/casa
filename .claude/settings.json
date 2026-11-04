@@ -24,9 +24,6 @@
       "Bash(node *)",
 
       "Bash(psql *)",
-      "Bash(pg_ctl *)",
-      "Bash(initdb *)",
-      "Bash(createdb *)",
       "Bash(pg_isready *)",
 
       "Bash(curl *)",
@@ -52,19 +49,50 @@
       "Bash(sleep *)",
       "Bash(export *)",
       "Bash(printf *)",
-      "Bash(jq *)",
-      "Bash(bash *)",
-
-      "PowerShell",
-
-      "Bash(/c/Users/erikf/.controle-casa-dev/venv/Scripts/python.exe *)",
-      "Bash(/c/Users/erikf/.controle-casa-dev/pgsql/bin/*)"
+      "Bash(jq *)"
     ],
     "deny": [
       "Bash(rm -rf /*)",
       "Bash(rm -rf ~*)",
       "Bash(git push --force*)",
-      "Bash(docker compose down -v*)"
+      "Bash(docker compose down -v*)",
+      "Bash(*make reset*)",
+      "PowerShell(*make reset*)",
+      "PowerShell(docker compose down -v*)",
+      "Bash(docker compose * down -v*)",
+      "PowerShell(docker compose * down -v*)",
+      "Bash(docker volume rm*)",
+      "PowerShell(docker volume rm*)",
+      "Bash(docker volume prune*)",
+      "PowerShell(docker volume prune*)",
+      "Bash(docker system prune*)",
+      "PowerShell(docker system prune*)",
+      "Bash(*DROP DATABASE*)",
+      "Bash(*drop database*)",
+      "Bash(*DROP SCHEMA*)",
+      "Bash(*DROP TABLE*)",
+      "Bash(*TRUNCATE*)",
+      "Bash(rm *backups*)",
+      "Bash(mv *backups*)",
+      "PowerShell(Remove-Item*backups*)",
+      "Edit(backups/**)",
+      "Write(backups/**)",
+      "Edit(faturas/**)",
+      "Write(faturas/**)"
+    ],
+    "ask": [
+      "Bash(*pg_restore*)",
+      "Bash(*alembic downgrade*)",
+      "Bash(*make demo-limpar*)",
+      "Bash(*executar=1*)",
+      "Bash(*--executar*)",
+      "Bash(*aplicar=1*)",
+      "Bash(*reorganizar_titulares*)",
+      "Bash(*make sync*)",
+      "Bash(docker compose down*)",
+      "Bash(git push*)",
+      "Edit(api/alembic/versions/**)",
+      "Edit(compras/alembic/versions/**)"
     ]
   }
 }

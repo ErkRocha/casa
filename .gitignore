@@ -38,3 +38,6 @@ compras/tests/amostras/*.bruta.*
 # Arquivos compactados (pacotes de desenho e afins): o conteúdo vai extraído
 # para o repositório, nunca o zip.
 *.zip
+
+# Notas de sessão do Claude Code (não versionadas).
+notas/

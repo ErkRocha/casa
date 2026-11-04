@@ -5,7 +5,7 @@ Docker na máquina do usuário — não é multi-tenant, não vai pra internet, 
 tem autenticação complexa.
 
 A documentação viva está em [`docs/`](docs/): leia
-[`CLAUDE.md`](docs/CLAUDE.md), [`modelo-dados.md`](docs/modelo-dados.md),
+[`CLAUDE.md`](CLAUDE.md), [`modelo-dados.md`](docs/modelo-dados.md),
 [`decisoes.md`](docs/decisoes.md) e [`roadmap.md`](docs/roadmap.md) **antes**
 de mexer em qualquer coisa. As decisões já estão tomadas.
 
@@ -25,6 +25,8 @@ make demo                 # opcional: 12 meses de lançamentos falsos para ver a
 - Painel: http://127.0.0.1:5173
 - `/docs` do FastAPI pelo painel: http://127.0.0.1:5173/api/docs
 - API direto, sem o painel: http://127.0.0.1:8000
+
+Detalhes de containers, portas e integração com o mcp-servidor: docs/ecossistema.md.
 
 O `make up` é o modo de produção (D-19): o painel é compilado na imagem e
 servido por nginx, que também repassa `/api/` para a API. Mudou o código do
@@ -506,6 +508,8 @@ banco `_test`, como os de finanças.
 
 ## Rodando sem Docker (Windows)
 
+> Legado, congelado desde a migração para Docker (D-17). Use `make up`/`make dev`.
+
 **Modo reserva (D-17).** Para máquina sem Docker ou sem privilégio de
 administrador: Postgres em binários portáteis, a API num venv e o painel com o
 Node da máquina. O `subir.sh` recusa subir se o container do banco estiver
@@ -587,9 +591,8 @@ o de `scripts/local/` não.
 `INSIGHTS_PASSWORD` e então **tenta escrever com a role** — se conseguir, o
 script aborta. Garantia que ninguém verifica não é garantia.
 
-**`CLAUDE.md` está em `docs/`, não na raiz.** O Claude Code carrega
-automaticamente só o da raiz. Se quiser que ele leia sem você pedir, mova ou
-crie um `CLAUDE.md` na raiz apontando para `docs/CLAUDE.md`.
+**Regras para o Claude Code.** Ficam no `CLAUDE.md` da raiz, que ele carrega
+sozinho; as consultas sob demanda ficam em `docs/`.
 
 **`hash_dedup` usa md5, não sha256.** Coluna gerada no Postgres exige
 expressão IMMUTABLE, e a única ponte text→bytea (`convert_to`) é STABLE — não

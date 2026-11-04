@@ -3,6 +3,35 @@
 Cada decisão registra o *porquê*, não só o *quê*. Antes de contrariar alguma,
 leia o motivo — ele costuma ser a parte que não é óbvia.
 
+## Índice
+
+- D-01 — Postgres, Python no backend, React no front
+- D-02 — `competencia` separada de `data`
+- D-03 — `pessoa_id` nullable em vez de N:N
+- D-04 — Gasto com pets é categoria, não pessoa
+- D-05 — Contas e transferências desde o v1
+- D-06 — Soft delete e auditoria por trigger
+- D-07 — Ingestão nunca escreve direto em `transacoes`
+- D-08 — Parser determinístico antes do LLM
+- D-09 — Correção do usuário vira regra
+- D-10 — Insights com tools, não text-to-SQL
+- D-11 — Role read-only para o agente de insights
+- D-12 — Harness determinístico em volta do LLM
+- D-13 — Evals com PDFs reais
+- D-14 — Agregação no banco
+- D-15 — Design das telas antes da implementação do front
+- D-16 — Sincronização via Pluggy como fonte de ingestão
+- D-17 — Docker como modo de execução principal em casa
+- D-18 — Acesso fora de casa pelo Tailscale
+- D-19 — Front compilado e servido por nginx
+- D-20 — Chat sob demanda por servidor MCP local, no Claude Desktop
+- D-21 — Promoção automática por exceção, só na sync da Pluggy
+- D-22 — Rejeição automática do que não é gasto nem receita da casa
+- D-23 — Compras da fatura aberta entram antes de o banco confirmar
+- D-24 — Painel no desenho aprovado em `docs/design/`
+- D-25 — Lista de compras como serviço próprio, `compras`
+- D-26 — API de finanças sem superusuário
+
 ---
 
 ## D-01 — Postgres, Python no backend, React no front
