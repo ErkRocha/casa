@@ -546,7 +546,8 @@ Nesta ordem, sem pular:
    ("põe leite na lista", "o que falta comprar?"), sem acesso ao banco.
 
    **Feito (02/11/2026)** no servidor MCP do vault (`C:\Users\erikf\servidor`,
-   fora deste repositório): `ver_lista_compras`, `adicionar_na_lista` (vários
+   desde 04/11/2026 em `C:\Users\erikf\dev\casa\mcp-servidor`, fora deste
+   repositório): `ver_lista_compras`, `adicionar_na_lista` (vários
    de uma vez, pelo nome, com quantidade opcional; acha o produto pela busca
    e cria se não existir), `marcar_comprado` e `marcar_acabou`. Falam com a
    API pelo nginx do painel (`COMPRAS_API_URL`, padrão

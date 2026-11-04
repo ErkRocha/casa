@@ -107,7 +107,8 @@ Além da fase 1, o servidor MCP do vault não existe em
 ## Retomada (02/11/2026, com o usuário)
 
 O usuário pôs o `design-compras.zip` em `docs/design/` e indicou o servidor
-MCP em `C:\Users\erikf\servidor`. As fases bloqueadas rodaram:
+MCP em `C:\Users\erikf\servidor` (desde 04/11/2026 em
+`C:\Users\erikf\dev\casa\mcp-servidor`). As fases bloqueadas rodaram:
 
 - **Fase 1 (`ac32920`)**: zip extraído para `docs/design/COMPRAS.md` e
   `docs/design/telas/Compras*`; telas implementadas e conferidas por print
