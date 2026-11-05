@@ -31,6 +31,11 @@ class ItemContaCartao(BaseModel):
     #: Cartão: finais de cartão virtual ou adicional vistos nas compras dele.
     cartoes_virtuais: list[str]
     ultimo_movimento: date | None
+    #: Cartão de crédito: dias de fechamento e vencimento cadastrados (D-27).
+    dia_fechamento: int | None = None
+    dia_vencimento: int | None = None
+    #: Cartão: tem conta da Pluggy mapeada (viva), que traz as datas reais.
+    datas_pluggy: bool = False
 
 
 class GrupoContas(BaseModel):

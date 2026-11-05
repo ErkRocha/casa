@@ -82,14 +82,20 @@ def test_contas_por_banco(session: Session) -> None:
     session.add_all([nubank, sicredi, poupanca, antiga])
     session.flush()
 
-    def forma(apelido: str, tipo: TipoPagamento, conta: Conta) -> FormaPagamento:
-        f = FormaPagamento(apelido=apelido, tipo=tipo, conta_id=conta.id)
+    def forma(apelido: str, tipo: TipoPagamento, conta: Conta, **dias: int) -> FormaPagamento:
+        f = FormaPagamento(apelido=apelido, tipo=tipo, conta_id=conta.id, **dias)
         session.add(f)
         session.flush()
         return f
 
     pix_nu = forma("Pix Nubank", TipoPagamento.PIX, nubank)
-    gold = forma("Nubank Gold •••• 7704", TipoPagamento.CREDITO, nubank)
+    gold = forma(
+        "Nubank Gold •••• 7704",
+        TipoPagamento.CREDITO,
+        nubank,
+        dia_fechamento=3,
+        dia_vencimento=10,
+    )
     pix_sic = forma("Pix Sicredi", TipoPagamento.PIX, sicredi)
     forma("Débito Sicredi", TipoPagamento.DEBITO, sicredi)
     master = forma("Mastercard •••• 0117", TipoPagamento.CREDITO, sicredi)
@@ -159,6 +165,11 @@ def test_contas_por_banco(session: Session) -> None:
     )
     assert cartao_nu.cartoes_virtuais == ["4216", "7924"]
     assert cartao_nu.ultimo_movimento == date(2026, 10, 8)
+    assert (cartao_nu.dia_fechamento, cartao_nu.dia_vencimento, cartao_nu.datas_pluggy) == (
+        3,
+        10,
+        True,
+    )
 
     sic = grupos[1]
     assert (sic.desde, sic.situacao) == (date(2026, 1, 1), "parcial")
@@ -171,10 +182,32 @@ def test_contas_por_banco(session: Session) -> None:
     assert por_nome["Sicredi Conta Corrente"].formas == [TipoPagamento.DEBITO, TipoPagamento.PIX]
     assert por_nome["Sicredi Poupança"].situacao == "sem_movimento"
     assert por_nome["Mastercard •••• 0117"].situacao == "pausado"
+    # Mapeamento desativado: sem datas da Pluggy e sem dias cadastrados.
+    mc = por_nome["Mastercard •••• 0117"]
+    assert (mc.dia_fechamento, mc.dia_vencimento, mc.datas_pluggy) == (None, None, False)
 
     manual = grupos[2]
     assert (manual.situacao, [i.nome for i in manual.itens]) == ("manual", ["Conta Corrente"])
     assert manual.itens[0].situacao == "manual"
+
+
+def test_patch_dias_da_fatura(client: TestClient, session: Session) -> None:
+    f = FormaPagamento(apelido="Visa •••• 1111", tipo=TipoPagamento.CREDITO)
+    session.add(f)
+    session.commit()
+
+    r = client.patch(f"/formas-pagamento/{f.id}", json={"dia_fechamento": 5, "dia_vencimento": 12})
+    assert r.status_code == 200
+    assert (r.json()["dia_fechamento"], r.json()["dia_vencimento"]) == (5, 12)
+
+    r = client.patch(
+        f"/formas-pagamento/{f.id}", json={"dia_fechamento": None, "dia_vencimento": None}
+    )
+    assert r.status_code == 200
+    assert (r.json()["dia_fechamento"], r.json()["dia_vencimento"]) == (None, None)
+
+    for ruim in ({"dia_fechamento": 0}, {"dia_vencimento": 32}):
+        assert client.patch(f"/formas-pagamento/{f.id}", json=ruim).status_code == 422
 
 
 def test_contas_endpoint_vazio(client: TestClient) -> None:

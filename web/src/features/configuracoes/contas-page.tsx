@@ -206,18 +206,27 @@ function Renomear({ item, onFechar }: { item: ItemContaCartao | null; onFechar: 
 
 function FormularioNome({ item, onFechar }: { item: ItemContaCartao; onFechar: () => void }) {
   const [nome, setNome] = useState(item.nome);
+  const [fechamento, setFechamento] = useState(item.dia_fechamento?.toString() ?? "");
+  const [vencimento, setVencimento] = useState(item.dia_vencimento?.toString() ?? "");
   const renomear = useRenomear();
   const cartao = item.tipo === "cartao";
+  const erroFechamento = erroDoDia(fechamento);
+  const erroVencimento = erroDoDia(vencimento);
+  const invalido = cartao && (erroFechamento !== null || erroVencimento !== null);
   return (
     <form
       className="flex flex-col gap-7"
       onSubmit={(e) => {
         e.preventDefault();
+        if (invalido) return;
         renomear.mutate(
           {
             tipo: item.tipo,
             id: cartao ? (item.forma_pagamento_id ?? 0) : item.conta_id,
             nome: nome.trim(),
+            dias: cartao
+              ? { dia_fechamento: valorDoDia(fechamento), dia_vencimento: valorDoDia(vencimento) }
+              : undefined,
           },
           { onSuccess: onFechar },
         );
@@ -231,15 +240,63 @@ function FormularioNome({ item, onFechar }: { item: ItemContaCartao; onFechar: (
           Mantenha os 4 últimos dígitos no fim: é por eles que a importação acha o cartão.
         </p>
       ) : null}
+      {cartao ? (
+        <>
+          <div className="grid grid-cols-2 gap-7">
+            <Campo rotulo="Dia do fechamento">
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={31}
+                step={1}
+                value={fechamento}
+                onChange={(e) => setFechamento(e.target.value)}
+                className="w-full"
+              />
+              {erroFechamento ? <span className="text-pequeno text-perigo">{erroFechamento}</span> : null}
+            </Campo>
+            <Campo rotulo="Dia do vencimento">
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={31}
+                step={1}
+                value={vencimento}
+                onChange={(e) => setVencimento(e.target.value)}
+                className="w-full"
+              />
+              {erroVencimento ? <span className="text-pequeno text-perigo">{erroVencimento}</span> : null}
+            </Campo>
+          </div>
+          <p className="text-pequeno text-texto-2 m-0">
+            {item.datas_pluggy
+              ? "As datas reais das faturas vindas do banco (Pluggy) têm prioridade; estas valem para a fatura ainda aberta quando o banco não informa."
+              : "Usadas para saber quando a fatura de cada mês sai da conta."}
+          </p>
+        </>
+      ) : null}
       {renomear.error ? <ErroDoFormulario erro={renomear.error} /> : null}
       <div className="flex justify-end gap-4">
         <Button variant="secondary" onClick={onFechar}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={!nome.trim() || renomear.isPending}>
+        <Button type="submit" disabled={!nome.trim() || invalido || renomear.isPending}>
           {renomear.isPending ? "Salvando..." : "Salvar"}
         </Button>
       </div>
     </form>
   );
+}
+
+/** Dia do mês vazio (sem data) ou inteiro de 1 a 31. */
+function erroDoDia(texto: string): string | null {
+  if (texto.trim() === "") return null;
+  const n = Number(texto);
+  return Number.isInteger(n) && n >= 1 && n <= 31 ? null : "Use um dia de 1 a 31.";
+}
+
+function valorDoDia(texto: string): number | null {
+  return texto.trim() === "" ? null : Number(texto);
 }

@@ -45,7 +45,7 @@ export function useHistorico(dias = 30) {
 function useInvalidarCadastros() {
   const client = useQueryClient();
   return () => {
-    for (const chave of [["configuracoes"], ["contas"], ["formas-pagamento"], ["categorias"], ["transacoes"]]) {
+    for (const chave of [["configuracoes"], ["contas"], ["formas-pagamento"], ["categorias"], ["transacoes"], ["analytics"]]) {
       void client.invalidateQueries({ queryKey: chave });
     }
   };
@@ -68,14 +68,17 @@ export function useRenomear() {
       tipo,
       id,
       nome,
+      dias,
     }: {
       tipo: "conta" | "cartao";
       id: number;
       nome: string;
+      /** Só do cartão: dias da fatura, nulo limpa (D-27). */
+      dias?: { dia_fechamento: number | null; dia_vencimento: number | null };
     }): Promise<Conta | FormaPagamento> =>
       tipo === "conta"
         ? api.patch<Conta>(`/contas/${id}`, { nome })
-        : api.patch<FormaPagamento>(`/formas-pagamento/${id}`, { apelido: nome }),
+        : api.patch<FormaPagamento>(`/formas-pagamento/${id}`, { apelido: nome, ...dias }),
     onSuccess: invalidar,
   });
 }

@@ -45,7 +45,12 @@ export function detalheDoItem(item: ItemContaCartao): string {
   }
   if (item.situacao === "sem_movimento") return "Nenhuma movimentação nos últimos 12 meses";
   if (item.tipo === "cartao") {
-    const paga = item.paga_por ? `Fatura paga pela conta ${item.paga_por}` : "Cartão de crédito";
+    const dias = [
+      item.dia_fechamento ? `fecha dia ${item.dia_fechamento}` : null,
+      item.dia_vencimento ? `vence dia ${item.dia_vencimento}` : null,
+    ].filter(Boolean);
+    const base = item.paga_por ? `Fatura paga pela conta ${item.paga_por}` : "Cartão de crédito";
+    const paga = dias.length > 0 ? `${base} · ${dias.join(" · ")}` : base;
     return item.cartoes_virtuais.length > 0
       ? `${paga}. Inclui os cartões virtuais ${listaEmPortugues(item.cartoes_virtuais)}`
       : paga;

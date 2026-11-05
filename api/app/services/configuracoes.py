@@ -252,6 +252,9 @@ class ConfiguracoesService:
             paga_por=conta.nome,
             cartoes_virtuais=virtuais.get(m.pluggy_account_id, []),
             ultimo_movimento=movimento,
+            dia_fechamento=forma.dia_fechamento,
+            dia_vencimento=forma.dia_vencimento,
+            datas_pluggy=m.deleted_em is None,
         )
 
     def _item_conta(

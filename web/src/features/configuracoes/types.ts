@@ -18,6 +18,11 @@ export interface ItemContaCartao {
   paga_por: string | null;
   cartoes_virtuais: string[];
   ultimo_movimento: string | null;
+  /** Cartão: dias cadastrados da fatura (D-27). */
+  dia_fechamento: number | null;
+  dia_vencimento: number | null;
+  /** Cartão com conta da Pluggy ativa: as datas reais têm prioridade. */
+  datas_pluggy: boolean;
 }
 
 export interface GrupoContas {
