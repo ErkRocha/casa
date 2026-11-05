@@ -31,6 +31,7 @@ for c in casa_db casa_api casa_web casa_compras casa_agendador; do
     est="${est% }"
     case "$est" in
         running|"running healthy") linha OK "container $c: $est" ;;
+        "running starting") linha AVISO "container $c: subindo agora (rode de novo em 1 min)" ;;
         "") linha FALHA "container $c: não existe (make up)" ;;
         *) linha FALHA "container $c: $est (veja: docker logs $c)" ;;
     esac
