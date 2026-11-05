@@ -898,10 +898,13 @@ mês. O `comprometido` passa a ser essas faturas.
 
 **Faturas abertas.** Bloco novo no Início: um por cartão com compra nos
 últimos 90 dias, com as compras desde o último fechamento somadas pela
-**data da compra**, "fecha dia X, vence dia Y" e uma barrinha da evolução.
-Usa só o que já existe em `docs/design/`: `Card` e `CabecalhoBloco`, a barra
-de `bg-trilho` com o preenchimento de destaque (como a do orçamento) e o
-tracejado `stroke-guia` do gráfico. Nenhum token ou padrão novo.
+**data da compra**, "fecha dia X, vence dia Y" e uma mini-área da evolução.
+O último fechamento é o mais recente entre o da última fatura da Pluggy e o
+do dia cadastrado: a Pluggy demora alguns dias para listar a fatura que
+acabou de fechar. O próximo fechamento é sempre depois de hoje.
+Usa só o que já existe em `docs/design/`: `Card` e `CabecalhoBloco`, a linha
+`stroke-destaque` com a área `fill-destaque-fundo` e o trilho do gráfico, e o
+tracejado do gráfico para o que ainda vai sair. Nenhum token ou padrão novo.
 
 **Análises.** Seletor "o que sai da conta" (padrão, competência) ou "pela
 data da compra" (mês da `data`), para os gráficos da tela. O orçamento fica
