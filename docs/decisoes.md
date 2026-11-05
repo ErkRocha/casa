@@ -31,6 +31,7 @@ leia o motivo — ele costuma ser a parte que não é óbvia.
 - D-24 — Painel no desenho aprovado em `docs/design/`
 - D-25 — Lista de compras como serviço próprio, `compras`
 - D-26 — API de finanças sem superusuário
+- D-27 — Visão de caixa: o que sai da conta, com a fatura no vencimento
 
 ---
 
@@ -846,3 +847,68 @@ insights (D-11) ou escrever em qualquer schema.
   para o modo local e o Docker. Ele cria ou repara a role, transfere a
   posse, refaz os GRANTs e conecta como ela para conferir o que ela não
   pode fazer. A senha fica no `.env` (`FINANCAS_DB_PASSWORD`).
+
+---
+
+## D-27 — Visão de caixa: o que sai da conta, com a fatura no vencimento
+
+Decisão do usuário, 05/11/2026. Complementa a D-02.
+
+O usuário acompanha o mês pelo que **sai da conta**. A compra no cartão não
+tira dinheiro no dia da compra: a fatura inteira sai de uma vez, no dia em que
+é paga. O gráfico do Início, que punha a fatura no dia 1 (o "comprometido" da
+D-02), mostrava um mês que não acontece na conta.
+
+**O total do mês não muda.** Continua o da D-02 (competência), e o orçamento
+segue a mesma base. Muda só a distribuição por dia:
+
+- Pix, débito, boleto e o resto saem na data deles.
+- A fatura de cada cartão vira **um degrau único**: a soma das compras daquele
+  cartão com a competência do mês, no dia em que saiu da conta. Se já há um
+  pagamento de fatura identificado (D-22), o dia é o do pagamento. Senão, é o
+  dia do vencimento, marcado "a pagar" (tracejado na tela até o pagamento).
+  O degrau usa a soma das compras, não o `totalAmount` da Pluggy: assim o fim
+  da curva fecha com o total do mês.
+
+**De onde vem cada data, por cartão.** Cada cartão tem as suas datas.
+
+1. **Vencimento real** da fatura da Pluggy (`/bills`, `dueDate`), quando
+   existe uma fatura com vencimento no mês.
+2. Para a fatura ainda aberta: as datas da conta de crédito da Pluggy
+   (`creditData.balanceCloseDate`/`balanceDueDate`), se ela informar datas
+   posteriores ao último fechamento.
+3. Senão, `dia_fechamento` e `dia_vencimento` da forma de pagamento,
+   editáveis em Contas e cartões. Dia maior que o mês cai no último dia.
+4. Sem nenhuma das três, as compras ficam na data delas, como antes.
+
+O pagamento identificado é o item rejeitado como pagamento de fatura (D-22).
+Vale primeiro o lado da conta, que é a saída de verdade: forma da conta que
+paga o cartão, entre o fechamento e uns dias depois do vencimento, com o valor
+mais próximo do degrau. Na falta dele, vale o lado do cartão.
+
+**Sem schema novo.** Não há tabela de fatura: as datas da Pluggy são lidas no
+banco, a cada pedido, do JSON que a sync já guarda em
+`importacoes.arquivo_conteudo` (só os 3 comprovantes mais recentes; cada sync
+traz a lista inteira de faturas). Se isso ficar lento, uma tabela de faturas
+gravada pela sync é o próximo passo, com decisão e migration próprias.
+
+**Previsão de fechamento.** Faturas que vencem no mês (valor já conhecido,
+pagas ou não) mais o ritmo de Pix, débito e boleto projetado até o fim do
+mês. O `comprometido` passa a ser essas faturas.
+
+**Faturas abertas.** Bloco novo no Início: um por cartão com compra nos
+últimos 90 dias, com as compras desde o último fechamento somadas pela
+**data da compra**, "fecha dia X, vence dia Y" e uma barrinha da evolução.
+Usa só o que já existe em `docs/design/`: `Card` e `CabecalhoBloco`, a barra
+de `bg-trilho` com o preenchimento de destaque (como a do orçamento) e o
+tracejado `stroke-guia` do gráfico. Nenhum token ou padrão novo.
+
+**Análises.** Seletor "o que sai da conta" (padrão, competência) ou "pela
+data da compra" (mês da `data`), para os gráficos da tela. O orçamento fica
+sempre na base da D-02.
+
+**Fica de fora.**
+- Gasto até hoje, pessoas, categorias e orçamento do Início continuam por
+  competência (D-02). Só o gráfico e a previsão mudam.
+- Cartão sem conexão com a Pluggy e sem compras no sistema não tem degrau: o
+  pagamento dele continua rejeitado como transferência (D-22) e não aparece.
