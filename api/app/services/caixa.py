@@ -26,7 +26,7 @@ faturas abertas usa `:hoje`.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -34,7 +34,15 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.conversao_pluggy import OBS_PAGAMENTO_NA_CONTA, OBS_PAGAMENTO_NO_CARTAO
-from app.schemas.inicio import FaturaAberta, FaturaMes, PontoEvolucao
+from app.schemas.inicio import (
+    DiaJanela,
+    FaturaAberta,
+    FaturaMes,
+    Janela,
+    PagamentoJanela,
+    PontoEvolucao,
+    VencimentoJanela,
+)
 
 #: Quantos comprovantes da Pluggy são lidos.
 COMPROVANTES_LIDOS = 3
@@ -46,6 +54,10 @@ JANELA_ABERTAS_DIAS = 90
 VALIDADE_FECHAMENTO_DIAS = 45
 #: Sem fechamento conhecido, a fatura fecha este tanto antes de vencer.
 FECHAMENTO_ANTES_DO_VENCIMENTO_DIAS = 10
+
+#: Dias da janela até hoje (inclusive) e dias à frente em que um vencimento aparece.
+JANELA_DIAS = 30
+VENCIMENTOS_DIAS = 15
 
 _C = "CAST(:c AS date)"
 _HOJE = "CAST(:hoje AS date)"
@@ -456,3 +468,143 @@ def faturas_abertas(session: Session, hoje: date) -> list[FaturaAberta]:
                 PontoEvolucao(data=linha["dia"], acumulado=Decimal(linha["acumulado"]))
             )
     return list(abertas.values())
+
+
+#: Vencimentos de `:c` (competência) a pagar entre amanhã e hoje + 15 dias.
+_VENCIMENTOS = f"""
+    WITH {CTES_DEGRAUS},
+    {CTE_PENDENTES}
+    SELECT g.fid, g.apelido, g.valor, g.vencimento, g.origem,
+      (SELECT coalesce(sum(p.valor), 0) FROM pendentes p
+        WHERE p.forma_pagamento_id = g.fid AND p.fatura_prevista = {_C}) AS pendente
+    FROM degraus g
+    WHERE g.situacao = 'a_pagar'
+      AND g.vencimento > {_HOJE} AND g.vencimento <= {_HOJE} + {VENCIMENTOS_DIAS}
+"""
+
+#: Um dia por linha de `:inicio` até `:fim`. Cartão = forma `credito`; conta =
+#: o resto das despesas (Pix, débito, boleto). Pagamento de fatura não é
+#: transação (é item rejeitado), então nunca aparece aqui. As colunas `tot_*`
+#: repetem os totais de `:inicio` até hoje.
+_DIAS_JANELA = f"""
+    WITH {CTE_PENDENTES},
+    desp AS MATERIALIZED (
+      SELECT t.data,
+        coalesce(sum(t.valor) FILTER (WHERE t.forma_pagamento_tipo = 'credito'), 0) AS cartao,
+        coalesce(sum(t.valor) FILTER (
+          WHERE t.forma_pagamento_tipo IS DISTINCT FROM 'credito'), 0) AS conta
+      FROM vw_transacoes_completa t
+      WHERE t.tipo = 'despesa' AND t.data >= CAST(:inicio AS date) AND t.data <= {_HOJE}
+      GROUP BY t.data
+    ),
+    pend AS MATERIALIZED (
+      SELECT p.data, sum(p.valor) AS valor FROM pendentes p
+      WHERE p.data >= CAST(:inicio AS date) AND p.data <= {_HOJE}
+      GROUP BY p.data
+    ),
+    dias AS (
+      SELECT d.data,
+        coalesce(x.cartao, 0) AS cartao,
+        coalesce(q.valor, 0) AS cartao_pendente,
+        coalesce(x.conta, 0) AS conta,
+        d.data > {_HOJE} AS a_pagar
+      FROM generate_series(CAST(:inicio AS date), CAST(:fim AS date), interval '1 day') AS g(dt)
+      CROSS JOIN LATERAL (SELECT g.dt::date AS data) d
+      LEFT JOIN desp x ON x.data = d.data
+      LEFT JOIN pend q ON q.data = d.data
+    )
+    SELECT dias.*, dias.cartao + dias.cartao_pendente + dias.conta AS total,
+      sum(dias.cartao + dias.cartao_pendente) OVER () AS tot_cartao,
+      sum(dias.cartao_pendente) OVER () AS tot_cartao_pendente,
+      sum(dias.conta) OVER () AS tot_conta
+    FROM dias
+    ORDER BY dias.data
+"""
+
+#: Pagamentos de fatura que saíram da conta (lado da conta, D-22) na janela. O
+#: cartão pago é o único cartão ativo ligado à mesma conta da forma do item.
+_PAGAMENTOS_JANELA = """
+    SELECT i.data, i.valor, k.n, k.fid, k.apelido
+    FROM importacao_itens i
+    LEFT JOIN formas_pagamento fs ON fs.id = i.forma_pagamento_sugerida_id
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS n, min(c.id) AS fid, min(c.apelido) AS apelido
+      FROM formas_pagamento c
+      WHERE c.tipo = 'credito' AND c.ativo AND c.deleted_em IS NULL
+        AND fs.conta_id IS NOT NULL AND c.conta_id = fs.conta_id
+    ) k ON true
+    WHERE i.status = 'rejeitado' AND i.deleted_em IS NULL
+      AND position(CAST(:obs_conta AS text) IN coalesce(i.observacao, '')) > 0
+      AND i.data >= CAST(:inicio AS date) AND i.data <= CAST(:hoje AS date)
+    ORDER BY i.data, i.id
+"""
+
+
+def janela(session: Session, hoje: date) -> Janela:
+    """Os últimos 30 dias até hoje e os vencimentos dos próximos 15 (D-28).
+
+    Independe do mês escolhido. Os vencimentos vêm dos degraus da competência
+    de hoje e da seguinte (a faixa pode cruzar o mês).
+    """
+    inicio = hoje - timedelta(days=JANELA_DIAS - 1)
+    mes = date(hoje.year, hoje.month, 1)
+    seguinte = date(mes.year + (mes.month == 12), mes.month % 12 + 1, 1)
+
+    vencimentos: list[VencimentoJanela] = []
+    for c in (mes, seguinte):
+        linhas = session.execute(
+            text(_VENCIMENTOS), {"c": c, "hoje": hoje, **parametros()}
+        ).mappings()
+        vencimentos.extend(
+            VencimentoJanela(
+                data=linha["vencimento"],
+                forma_pagamento_id=linha["fid"],
+                cartao=linha["apelido"],
+                valor=Decimal(linha["valor"]),
+                pendente=Decimal(linha["pendente"]),
+                origem_vencimento=linha["origem"],
+            )
+            for linha in linhas
+        )
+    vencimentos.sort(key=lambda v: (v.data, v.cartao, v.forma_pagamento_id))
+    fim = max((v.data for v in vencimentos), default=hoje)
+
+    linhas_dias = list(
+        session.execute(text(_DIAS_JANELA), {"inicio": inicio, "fim": fim, "hoje": hoje}).mappings()
+    )
+    pagamentos = [
+        PagamentoJanela(
+            data=linha["data"],
+            valor=Decimal(linha["valor"]),
+            cartao=linha["apelido"] if linha["n"] == 1 else None,
+            forma_pagamento_id=linha["fid"] if linha["n"] == 1 else None,
+        )
+        for linha in session.execute(
+            text(_PAGAMENTOS_JANELA), {"inicio": inicio, "hoje": hoje, **parametros()}
+        ).mappings()
+    ]
+    primeira = linhas_dias[0]
+    conta = Decimal(primeira["tot_conta"])
+    cartao = Decimal(primeira["tot_cartao"])
+    return Janela(
+        inicio=inicio,
+        hoje=hoje,
+        fim=fim,
+        dias=[
+            DiaJanela(
+                data=linha["data"],
+                cartao=Decimal(linha["cartao"]),
+                cartao_pendente=Decimal(linha["cartao_pendente"]),
+                conta=Decimal(linha["conta"]),
+                total=Decimal(linha["total"]),
+                a_pagar=linha["a_pagar"],
+            )
+            for linha in linhas_dias
+        ],
+        pagamentos=pagamentos,
+        vencimentos=vencimentos,
+        total=cartao + conta,
+        cartao=cartao,
+        cartao_pendente=Decimal(primeira["tot_cartao_pendente"]),
+        conta=conta,
+    )

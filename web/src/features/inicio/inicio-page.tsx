@@ -17,7 +17,7 @@ import {
   ResumoComputador,
 } from "./components/blocos";
 import { FaturasAbertas } from "./components/faturas-abertas";
-import { GraficoAcumulado } from "./components/grafico-acumulado";
+import { Grafico30Dias, ResumoJanela } from "./components/grafico-30-dias";
 import { UltimosLancamentos } from "./components/ultimos-lancamentos";
 import { useInicio, useUltimosLancamentos } from "./queries";
 import type { Inicio } from "./types";
@@ -111,23 +111,19 @@ function Conteudo({
   ultimos: Parameters<typeof UltimosLancamentos>[0]["transacoes"];
   carregandoUltimos: boolean;
 }) {
-  const grafico = (variante: "computador" | "celular") => (
-    <GraficoAcumulado
-      serie={i.serie}
-      faturas={i.faturas}
-      diasNoMes={i.dias_no_mes}
-      diaReferencia={i.dia_referencia}
-      orcamento={i.orcamento?.total ?? null}
-      situacao={i.situacao}
-      variante={variante}
-    />
+  // Os últimos 30 dias até hoje: iguais em qualquer mês escolhido (D-28).
+  const graficoCelular = (
+    <>
+      <ResumoJanela janela={i.janela} />
+      <Grafico30Dias janela={i.janela} variante="celular" />
+    </>
   );
 
   return (
     <>
       {/* Celular: um bloco com o gasto, a meta, a previsão e o gráfico. */}
       <div className="flex flex-col gap-7 md:hidden">
-        <ResumoCelular i={i} grafico={grafico("celular")} />
+        <ResumoCelular i={i} grafico={graficoCelular} />
         <FaturasAbertas i={i} />
         <CartaoRevisar resumo={revisar} />
         <QuemGastou i={i} pessoas={pessoas} />
@@ -140,16 +136,9 @@ function Conteudo({
         <ResumoComputador i={i} />
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
           <Card className="flex flex-col gap-6 px-11 py-10 lg:col-span-2">
-            <div className="flex items-baseline justify-between">
-              <h2 className="text-bloco font-forte m-0">O que saiu da conta no mês</h2>
-              <span className="text-apoio text-texto-2">
-                dia {i.dia_referencia} de {i.dias_no_mes}
-              </span>
-            </div>
-            {grafico("computador")}
-            <p className="text-pequeno text-texto-2 m-0">
-              Linha cheia: o que já saiu da conta · tracejado: faturas a pagar.
-            </p>
+            <h2 className="text-bloco font-forte m-0">Últimos 30 dias</h2>
+            <ResumoJanela janela={i.janela} comTitulo={false} />
+            <Grafico30Dias janela={i.janela} variante="computador" />
           </Card>
           <div className="flex flex-col gap-8">
             <CartaoRevisar resumo={revisar} />

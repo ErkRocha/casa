@@ -90,6 +90,52 @@ export interface AvisoReajuste {
   valor_atual: Dinheiro;
 }
 
+export interface DiaJanela {
+  data: string;
+  /** Compras no cartão lançadas, pela data da compra. */
+  cartao: Dinheiro;
+  /** Compras no cartão ainda pendentes no banco (só exibição, D-28). */
+  cartao_pendente: Dinheiro;
+  /** Pix, débito, boleto e outras despesas fora do cartão. */
+  conta: Dinheiro;
+  total: Dinheiro;
+  /** Dia depois de hoje (faixa "a pagar"); os valores são zero. */
+  a_pagar: boolean;
+}
+
+/** Pagamento de fatura que saiu da conta: uma marca, nunca somada às barras. */
+export interface PagamentoJanela {
+  data: string;
+  valor: Dinheiro;
+  cartao: string | null;
+  forma_pagamento_id: number | null;
+}
+
+export interface VencimentoJanela {
+  data: string;
+  forma_pagamento_id: number;
+  cartao: string;
+  /** Compras lançadas da fatura. */
+  valor: Dinheiro;
+  /** Compras pendentes esperadas na fatura (além de `valor`). */
+  pendente: Dinheiro;
+  origem_vencimento: OrigemDatas;
+}
+
+/** Últimos 30 dias até hoje (D-28); não depende do mês escolhido. */
+export interface Janela {
+  inicio: string;
+  hoje: string;
+  fim: string;
+  dias: DiaJanela[];
+  pagamentos: PagamentoJanela[];
+  vencimentos: VencimentoJanela[];
+  total: Dinheiro;
+  cartao: Dinheiro;
+  cartao_pendente: Dinheiro;
+  conta: Dinheiro;
+}
+
 export interface Inicio {
   competencia: string;
   situacao: SituacaoMes;
@@ -99,6 +145,15 @@ export interface Inicio {
   gasto: Dinheiro;
   gasto_mes_anterior: Dinheiro;
   diferenca_mes_anterior: Dinheiro;
+  /** Gasto do mês pela data da compra, só lançado, até `dia_referencia`. */
+  gasto_compra: Dinheiro;
+  gasto_compra_mes_anterior: Dinheiro;
+  diferenca_compra_mes_anterior: Dinheiro;
+  /** O que já saiu da conta no mês até `dia_referencia` (D-27). */
+  saiu_da_conta: Dinheiro;
+  /** Faturas com vencimento no mês ainda não pagas. */
+  a_pagar_mes: Dinheiro;
+  janela: Janela;
   receitas: Dinheiro;
   sobra: Dinheiro;
   orcamento: OrcamentoInicio | null;

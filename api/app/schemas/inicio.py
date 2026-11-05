@@ -84,6 +84,67 @@ class FaturaAberta(BaseModel):
     evolucao: list[PontoEvolucao]
 
 
+class DiaJanela(BaseModel):
+    """Um dia da janela dos últimos 30 dias mais a faixa "a pagar" (D-27/D-28)."""
+
+    data: date
+    #: Despesas lançadas em cartão de crédito, pela data da compra.
+    cartao: Decimal
+    #: Compras pendentes do cartão (D-28), pela data da compra.
+    cartao_pendente: Decimal
+    #: Pix, débito, boleto e o resto, pela data.
+    conta: Decimal
+    #: `cartao + cartao_pendente + conta`.
+    total: Decimal
+    #: Dia depois de hoje (faixa dos vencimentos): os valores são zero.
+    a_pagar: bool
+
+
+class PagamentoJanela(BaseModel):
+    """Pagamento de fatura que saiu da conta (D-22), só para marcar no gráfico."""
+
+    data: date
+    valor: Decimal
+    #: Cartão pago, se a conta paga exatamente um cartão ativo.
+    cartao: str | None
+    forma_pagamento_id: int | None
+
+
+class VencimentoJanela(BaseModel):
+    """Fatura a pagar que vence nos próximos dias."""
+
+    data: date
+    forma_pagamento_id: int
+    cartao: str
+    #: Soma das compras lançadas da fatura (degrau da D-27).
+    valor: Decimal
+    #: Compras pendentes previstas para esta fatura (D-28); não entram em `valor`.
+    pendente: Decimal
+    origem_vencimento: OrigemDatas
+
+
+class Janela(BaseModel):
+    """Os últimos 30 dias até hoje e os vencimentos dos próximos 15.
+
+    Não depende do mês escolhido. A compra no cartão conta no dia da compra e
+    o pagamento da fatura nunca entra nas barras (já está nas compras).
+    """
+
+    inicio: date
+    hoje: date
+    #: Último vencimento mostrado, ou `hoje` se não há nenhum.
+    fim: date
+    dias: list[DiaJanela]
+    pagamentos: list[PagamentoJanela]
+    vencimentos: list[VencimentoJanela]
+    #: `cartao + conta` de `inicio` até hoje.
+    total: Decimal
+    #: Cartão no período, lançado mais pendente.
+    cartao: Decimal
+    cartao_pendente: Decimal
+    conta: Decimal
+
+
 class Orcamento(BaseModel):
     total: Decimal
     #: Gasto até o dia de referência sobre a meta total, inteiro.
@@ -162,6 +223,18 @@ class Inicio(BaseModel):
     receitas: Decimal
     #: `receitas - gasto`.
     sobra: Decimal
+
+    #: Despesas pela data da compra no mês, até o dia de referência (sem
+    #: pendentes). Difere de `gasto`, que é por competência.
+    gasto_compra: Decimal
+    #: O mesmo no mês anterior, até o mesmo dia.
+    gasto_compra_mes_anterior: Decimal
+    diferenca_compra_mes_anterior: Decimal
+    #: O que já saiu da conta no dia de referência (`serie`); zero sem série.
+    saiu_da_conta: Decimal
+    #: Faturas do mês ainda "a pagar".
+    a_pagar_mes: Decimal
+    janela: Janela
 
     orcamento: Orcamento | None
     previsao: Previsao | None

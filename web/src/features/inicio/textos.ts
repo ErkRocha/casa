@@ -20,12 +20,12 @@ function mesAnterior(competencia: string): string {
 export function textoComparacao(i: Inicio): string {
   const anterior = mesAnterior(i.competencia);
   const noDia = i.situacao === "corrente" ? ` no dia ${i.dia_referencia}` : "";
-  if (sinal(i.gasto_mes_anterior) === 0) {
+  if (sinal(i.gasto_compra_mes_anterior) === 0) {
     return `${anterior.charAt(0).toUpperCase()}${anterior.slice(1)} não teve gasto${noDia ? ` até o dia ${i.dia_referencia}` : ""}`;
   }
-  const s = sinal(i.diferenca_mes_anterior);
+  const s = sinal(i.diferenca_compra_mes_anterior);
   if (s === 0) return `O mesmo que ${anterior}${noDia}`;
-  const quanto = reaisAbs(i.diferenca_mes_anterior, { centavos: false });
+  const quanto = reaisAbs(i.diferenca_compra_mes_anterior, { centavos: false });
   return `${quanto} ${s < 0 ? "a menos" : "a mais"} que ${anterior}${noDia}`;
 }
 

@@ -6,31 +6,11 @@ import { Icone } from "@/components/ui/icone";
 import type { Pessoa } from "@/features/cadastros/types";
 import { corDaChave } from "@/features/filters/baldes";
 import type { RevisarResumo } from "@/features/revisar/types";
-import { inteiro, reais, reaisAbs, sinal, toNumero } from "@/lib/format";
+import { inteiro, reais, sinal, toNumero } from "@/lib/format";
 import { href } from "@/lib/rotas";
 import { cn } from "@/lib/utils";
 import { COR_FAIXA, textoComparacao, textoRevisar } from "../textos";
 import type { AvisoOrcamento, AvisoReajuste, Inicio } from "../types";
-
-function textoPrevisao(i: Inicio, curto: boolean): string | null {
-  const diferenca = i.previsao?.diferenca_orcamento;
-  if (!diferenca) return null;
-  const s = sinal(diferenca);
-  if (s === 0) return curto ? "no limite" : "exatamente o orçamento";
-  const quanto = reaisAbs(diferenca, { centavos: false });
-  const lado = s > 0 ? "acima" : "abaixo";
-  return curto ? `${quanto} ${lado}` : `${quanto} ${lado} do orçamento`;
-}
-
-/** "Já saiu da conta: R$ X · faturas a pagar: R$ Y" (D-27). */
-function textoSaiuDaConta(i: Inicio): string {
-  const ref = i.serie.find((p) => p.dia === i.dia_referencia);
-  const saiu = `Já saiu da conta: ${reais(ref?.acumulado ?? "0")}`;
-  const aPagar = i.faturas.filter((f) => f.situacao === "a_pagar");
-  if (aPagar.length === 0) return saiu;
-  const centavos = aPagar.reduce((soma, f) => soma + Math.round(toNumero(f.valor) * 100), 0);
-  return `${saiu} · faturas a pagar: ${reais((centavos / 100).toFixed(2))}`;
-}
 
 function BarraOrcamento({ i, grossa = false }: { i: Inicio; grossa?: boolean }) {
   if (!i.orcamento) return null;
@@ -103,7 +83,17 @@ function CaixaOrcamento({ i, compacta = false }: { i: Inicio; compacta?: boolean
     <Caixa
       rotulo="Orçamento do mês"
       valor={i.orcamento ? reais(i.orcamento.total, { centavos: false }) : "Sem meta"}
-      apoio={i.orcamento ? `${i.orcamento.percentual_usado}% já usado` : "Nenhuma meta neste mês"}
+      apoio={
+        i.orcamento ? (
+          <>
+            {`${i.orcamento.percentual_usado}% já usado`}
+            <br />
+            pelo mês da fatura
+          </>
+        ) : (
+          "Nenhuma meta neste mês"
+        )
+      }
       tamanho={compacta ? "compacto" : "normal"}
     >
       {compacta ? null : <BarraOrcamento i={i} />}
@@ -111,42 +101,26 @@ function CaixaOrcamento({ i, compacta = false }: { i: Inicio; compacta?: boolean
   );
 }
 
-function CaixaFechamento({ i, compacta = false }: { i: Inicio; compacta?: boolean }) {
-  const tamanho = compacta ? "compacto" : "normal";
-  if (i.previsao) {
-    const acima = sinal(i.previsao.diferenca_orcamento) > 0;
-    return (
-      <Caixa
-        rotulo="Previsão do que sai da conta"
-        valor={reais(i.previsao.valor, { centavos: false })}
-        apoio={
-          compacta ? (
-            <>
-              {textoPrevisao(i, true)}
-              {textoPrevisao(i, true) ? <br /> : null}
-              faturas + ritmo de Pix e débito
-            </>
-          ) : (
-            <>
-              {textoPrevisao(i, false)}
-              {textoPrevisao(i, false) ? <br /> : null}
-              faturas do mês + ritmo de Pix, débito e boleto
-            </>
-          )
-        }
-        tom={acima ? "atencao" : "interno"}
-        tamanho={tamanho}
-      />
-    );
-  }
-  // Mês fechado: o que fechou, contra a meta que havia.
+function CaixaSaiu({ i, compacta = false }: { i: Inicio; compacta?: boolean }) {
+  const aPagar = toNumero(i.a_pagar_mes) > 0;
+  const acima = i.previsao ? sinal(i.previsao.diferenca_orcamento) > 0 : false;
   return (
     <Caixa
-      rotulo="Fechamento do mês"
-      valor={reais(i.gasto, { centavos: false })}
-      apoio={i.orcamento ? `${i.orcamento.percentual_usado}% do orçamento` : "mês encerrado"}
-      tom={i.orcamento?.faixa === "estourado" ? "atencao" : "interno"}
-      tamanho={tamanho}
+      rotulo={i.situacao === "corrente" ? "Saiu da conta" : "Saiu da conta no mês"}
+      valor={reais(i.saiu_da_conta, { centavos: false })}
+      apoio={
+        aPagar || i.previsao ? (
+          <>
+            {aPagar ? `+ ${reais(i.a_pagar_mes, { centavos: false })} em faturas a pagar` : null}
+            {aPagar && i.previsao ? <br /> : null}
+            {i.previsao ? `previsão do mês ${reais(i.previsao.valor, { centavos: false })}` : null}
+          </>
+        ) : (
+          "pagamentos, Pix, débito e boleto"
+        )
+      }
+      tom={acima ? "atencao" : "interno"}
+      tamanho={compacta ? "compacto" : "normal"}
     />
   );
 }
@@ -160,19 +134,19 @@ export function ResumoComputador({ i }: { i: Inicio }) {
     >
       <Caixa
         rotulo={i.situacao === "corrente" ? "Gasto até hoje" : "Gasto no mês"}
-        valor={reais(i.gasto)}
+        valor={reais(i.gasto_compra)}
         apoio={
           <>
             {textoComparacao(i)}
             <br />
-            {textoSaiuDaConta(i)}
+            pela data da compra
           </>
         }
         tom="nenhum"
         tamanho="grande"
       />
       <CaixaOrcamento i={i} />
-      <CaixaFechamento i={i} />
+      <CaixaSaiu i={i} />
       <Caixa
         rotulo="Receitas do mês"
         valor={<span className="text-receita">{reais(i.receitas, { centavos: false })}</span>}
@@ -182,7 +156,7 @@ export function ResumoComputador({ i }: { i: Inicio }) {
   );
 }
 
-/** O bloco do topo no celular: gasto grande, meta e previsão, e o gráfico. */
+/** O bloco do topo no celular: gasto grande, meta e o que saiu da conta, e o gráfico dos 30 dias. */
 export function ResumoCelular({ i, grafico }: { i: Inicio; grafico: ReactNode }) {
   return (
     <section
@@ -194,20 +168,19 @@ export function ResumoCelular({ i, grafico }: { i: Inicio; grafico: ReactNode })
           {i.situacao === "corrente" ? "Gasto até hoje" : "Gasto no mês"}
         </span>
         <span className="text-numero-grande leading-none font-bold tracking-[-1.5px]">
-          {reais(i.gasto)}
+          {reais(i.gasto_compra)}
         </span>
-        <span className="text-pequeno text-texto-2">{textoSaiuDaConta(i)}</span>
+        <span className="text-pequeno text-texto-2">
+          {textoComparacao(i)}
+          <br />
+          pela data da compra
+        </span>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <CaixaOrcamento i={i} compacta />
-        <CaixaFechamento i={i} compacta />
+        <CaixaSaiu i={i} compacta />
       </div>
-      <figure className="m-0 flex flex-col gap-3">
-        {grafico}
-        <figcaption className="text-pequeno text-texto-2">
-          Linha cheia: o que já saiu da conta · tracejado: faturas a pagar.
-        </figcaption>
-      </figure>
+      <div className="flex flex-col gap-5">{grafico}</div>
     </section>
   );
 }

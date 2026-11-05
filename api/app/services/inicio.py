@@ -121,7 +121,8 @@ _TOTAIS = f"""
       CASE WHEN razao > 100 THEN 'estourado' WHEN razao > 90 THEN 'perto' ELSE 'ok' END AS faixa,
       previsao,
       previsao - meta AS previsao_menos_meta,
-      (SELECT count(*) FROM vw_transacoes_completa WHERE competencia = :c) AS lancamentos
+      (SELECT count(*) FROM vw_transacoes_completa WHERE competencia = :c) AS lancamentos,
+      (SELECT coalesce(sum(valor), 0) FROM degraus WHERE situacao = 'a_pagar') AS a_pagar_mes
     FROM calculo
 """
 
@@ -148,6 +149,19 @@ _SERIE = f"""
          WHERE dia > :dia_ref AND dia <= d.dia) AS futuras
     ) x
     ORDER BY d.dia
+"""
+
+#: Despesas pela data da compra (não a competência), sem pendentes (D-28):
+#: no mês `:c` até o dia `:dia_ref` e no mês `:p` até `:dia_cmp`.
+_GASTO_COMPRA = """
+    SELECT
+      coalesce(sum(t.valor) FILTER (
+        WHERE t.data >= CAST(:c AS date) AND extract(day FROM t.data) <= :dia_ref), 0) AS atual,
+      coalesce(sum(t.valor) FILTER (
+        WHERE t.data < CAST(:c AS date) AND extract(day FROM t.data) <= :dia_cmp), 0) AS anterior
+    FROM vw_transacoes_completa t
+    WHERE t.tipo = 'despesa' AND t.data >= CAST(:p AS date)
+      AND t.data < (CAST(:c AS date) + interval '1 month')::date
 """
 
 _PESSOAS = f"""
@@ -260,6 +274,20 @@ class InicioService:
             else None
         )
 
+        compra = self.session.execute(text(_GASTO_COMPRA), params).mappings().one()
+        serie = [
+            PontoAcumulado(
+                dia=linha.dia,
+                acumulado=Decimal(linha.acumulado),
+                com_a_pagar=Decimal(linha.com_a_pagar),
+            )
+            for linha in self.session.execute(
+                text(_SERIE),
+                {**params_caixa, "dias": dias, "dia_ref": dia_ref},
+            )
+        ]
+        saiu = next((ponto.acumulado for ponto in serie if ponto.dia == dia_ref), Decimal(0))
+
         return Inicio(
             competencia=c,
             situacao=situacao,
@@ -271,19 +299,15 @@ class InicioService:
             diferenca_mes_anterior=Decimal(t["diferenca_anterior"]),
             receitas=Decimal(t["receitas"]),
             sobra=Decimal(t["sobra"]),
+            gasto_compra=Decimal(compra["atual"]),
+            gasto_compra_mes_anterior=Decimal(compra["anterior"]),
+            diferenca_compra_mes_anterior=Decimal(compra["atual"]) - Decimal(compra["anterior"]),
+            saiu_da_conta=saiu,
+            a_pagar_mes=Decimal(t["a_pagar_mes"]),
+            janela=caixa.janela(self.session, self.hoje),
             orcamento=orcamento,
             previsao=previsao,
-            serie=[
-                PontoAcumulado(
-                    dia=linha.dia,
-                    acumulado=Decimal(linha.acumulado),
-                    com_a_pagar=Decimal(linha.com_a_pagar),
-                )
-                for linha in self.session.execute(
-                    text(_SERIE),
-                    {**params_caixa, "dias": dias, "dia_ref": dia_ref},
-                )
-            ],
+            serie=serie,
             faturas=caixa.faturas_do_mes(self.session, c),
             faturas_abertas=caixa.faturas_abertas(self.session, self.hoje),
             pessoas=[
