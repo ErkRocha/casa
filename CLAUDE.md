@@ -1,7 +1,7 @@
 # controle-casa — finanças e compras da casa
 
 Sistema local (Docker, uso de um casal, sem internet nem multi-tenant).
-Decisões já tomadas estão em docs/decisoes.md (D-01..D-27): se algo parecer
+Decisões já tomadas estão em docs/decisoes.md (D-01..D-28): se algo parecer
 faltando, pergunte, não invente. Containers, portas e mcp-servidor:
 docs/ecossistema.md.
 
@@ -32,7 +32,8 @@ web/: npm run dev | build | typecheck | lint
 
 1. Dinheiro é `numeric(12,2)`; quantidade `numeric(12,3)`. Nunca float.
 2. Sem DELETE físico: `deleted_at = now()`; toda leitura filtra
-   `deleted_at IS NULL`.
+   `deleted_at IS NULL`. Exceção única: `pluggy_pendentes`, cópia
+   descartável substituída a cada sync (D-28).
 3. `pessoa_id NULL` = gasto conjunto. Nunca N:N entre transação e pessoa.
 4. Schema só muda por migration nova. Nunca editar migration aplicada, nunca
    `create_all()` fora de teste. Em execução autônoma, mudança de schema é

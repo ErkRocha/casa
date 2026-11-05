@@ -32,6 +32,7 @@ leia o motivo — ele costuma ser a parte que não é óbvia.
 - D-25 — Lista de compras como serviço próprio, `compras`
 - D-26 — API de finanças sem superusuário
 - D-27 — Visão de caixa: o que sai da conta, com a fatura no vencimento
+- D-28 — Compras pendentes do cartão só para exibição
 
 ---
 
@@ -268,6 +269,9 @@ O que é novo:
 - **Só transação consolidada.** Transação ainda pendente na Pluggy pode mudar
   de valor ou sumir. Entra só a lançada. O id estável é o que permite pegá-la
   na sync seguinte, quando consolidar.
+  **Revisto em 01/11/2026 pela D-23 e de novo em 05/11/2026 pela D-28:** a
+  compra pendente do cartão é trazida, mas só para exibição, numa tabela à
+  parte; em `importacao_itens` e `transacoes` continua entrando só a lançada.
 
 Segurança e escopo:
 
@@ -580,7 +584,8 @@ o orçamento da casa, dinheiro entre vocês é o mesmo dinheiro.
 
 ## D-23 — Compras da fatura aberta entram antes de o banco confirmar
 
-Decisão do usuário, 01/11/2026.
+Decisão do usuário, 01/11/2026. **Substituída pela D-28 em 05/11/2026:** a
+compra pendente deixou de virar transação.
 
 Outubro no app do Nubank somava R$ 2.792,23, e o sistema não tinha quase
 nada dele: a Pluggy entrega as compras da fatura aberta como `PENDING` até
@@ -912,6 +917,72 @@ sempre na base da D-02.
 
 **Fica de fora.**
 - Gasto até hoje, pessoas, categorias e orçamento do Início continuam por
-  competência (D-02). Só o gráfico e a previsão mudam.
+  competência (D-02). Só o gráfico e a previsão mudam. **Revisto em
+  05/11/2026 pela D-28:** o gráfico passou a ser o dos últimos 30 dias, e
+  "Gasto até hoje" passou a ser pela data da compra.
 - Cartão sem conexão com a Pluggy e sem compras no sistema não tem degrau: o
   pagamento dele continua rejeitado como transferência (D-22) e não aparece.
+
+---
+
+## D-28 — Compras pendentes do cartão só para exibição
+
+Decisão do usuário, 05/11/2026. Substitui a D-23 e revê a D-16 e a D-27.
+
+A D-23 pôs a compra `PENDING` do cartão direto em `transacoes`, para o mês
+não ficar semanas sem o gasto do cartão. Funcionou, mas misturou o que o
+banco ainda pode mudar com o que é registro: o valor pendente entrava no
+gasto, no orçamento e nos relatórios, e o que mudava ou sumia precisava de
+um caminho próprio de atualização e de cancelamento. A pendente passa a ser
+**só exibida**, e o registro volta a ser só o que o banco lançou.
+
+**O que foi verificado antes (05/11/2026).** As 13 transações `PENDING` das
+amostras de 05/10 foram comparadas com as syncs guardadas. As 11 das contas
+mapeadas viraram `POSTED` **com o mesmo id**: as 6 do Mercado Pago já em
+01/11; as 5 do Nubank ficaram pendentes até a sync de 05/11 (enquanto
+pendentes, a Pluggy as mostrou um dia depois da data da compra, e a
+confirmação voltou à data original). As outras 2 são da conta do cartão
+Sicredi, que não está mapeada e nunca mais foi lida: sem como saber.
+Nenhuma virou `POSTED` com outro id.
+
+**Tabela `pluggy_pendentes`.** Uma linha por compra pendente de cartão: id
+da transação na Pluggy, conta mapeada e forma de pagamento, data, valor,
+descrição e fatura prevista (competência estimada pelos dias do cartão,
+D-27). A cada sync, as linhas de cada conta lida sem erro são **substituídas
+inteiras** pelo que a Pluggy entrega como pendente hoje; conta que deu erro
+fica com as linhas da sync anterior.
+
+- **Exceção à regra 2 (sem DELETE físico):** é uma cópia descartável do que
+  a Pluggy mostra agora, não um registro da casa. Não tem `deleted_em` nem
+  auditoria; o que a sync leu fica no comprovante da importação.
+- **Nunca** escreve em `transacoes` nem em `importacao_itens`, e não entra
+  em gasto, orçamento, pessoas, categorias, relatórios nem insights.
+- **Quando consolida,** a compra chega como `POSTED` com o mesmo id e segue
+  o fluxo normal (D-16, D-21). Ela sai da tabela na mesma sync, e toda
+  leitura ignora pendente cujo id já está no staging: nunca conta duas vezes.
+
+**As compras em aberto da D-23 que já viraram transação** saem por soft
+delete, com o item de staging, e o id da Pluggy fica livre para a versão
+lançada. Script `make pluggy-remover-abertas`, que simula por padrão e só
+grava com `executar=1`; a transação que o usuário editou fica, com nota.
+
+**Início.** O gráfico passa a ser o dos **últimos 30 dias até hoje**, em
+barras diárias: cartão pela data da compra (lançadas cheias, pendentes em
+tom mais claro) e Pix, débito e boleto. O pagamento de fatura é uma marca
+no dia em que saiu da conta, com o valor, **sem somar nas barras**: o gasto
+já está nas compras. À direita, uma faixa "a pagar" até o último vencimento
+dos próximos 15 dias, com cartão e valor de cada fatura. Acima, o total dos
+30 dias, quanto no cartão e quanto em Pix, débito e boleto, e quanto disso é
+pendente. O gráfico não depende do mês escolhido na tela.
+
+**Cartões do topo.** Continuam mensais. "Gasto até hoje" passa a ser o
+gasto do mês **pela data da compra**, só com o que foi lançado; o que já
+saiu da conta e o que está em faturas a pagar ficam num cartão separado.
+Pessoas, categorias e orçamento continuam por competência (D-02).
+
+**Faturas abertas** (D-27) somam lançadas e pendentes do ciclo atual e dizem
+quanto é pendente.
+
+**Fica de fora.** Pendente de conta corrente e crédito pendente no cartão
+(estorno) continuam ignorados. A pendente não pode ser editada nem
+categorizada: ela só existe até o banco lançar.
