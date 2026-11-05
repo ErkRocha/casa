@@ -18,10 +18,67 @@ FaixaOrcamento = Literal["ok", "perto", "estourado"]
 SituacaoMes = Literal["corrente", "passado", "futuro"]
 
 
+#: De onde vieram as datas de uma fatura (D-27): fatura da Pluggy, conta de
+#: crédito da Pluggy ou dia cadastrado na forma de pagamento.
+OrigemDatas = Literal["pluggy_fatura", "pluggy_conta", "cadastro"]
+
+
 class PontoAcumulado(BaseModel):
+    """Um dia do gráfico "o que sai da conta" (D-27).
+
+    O total do mês é o da competência (D-02); aqui só muda o dia em que cada
+    despesa conta. Cartão com datas conhecidas vira um degrau único.
+    """
+
     dia: int
-    #: Despesa somada do dia 1 até este dia.
+    #: O que já saiu da conta até este dia: despesas que não são fatura de
+    #: cartão (até hoje, no mês corrente) mais as faturas já pagas.
     acumulado: Decimal
+    #: `acumulado` mais o que ainda vai sair até este dia: faturas a pagar e,
+    #: no mês corrente, despesas com data futura. No último dia é o total do
+    #: mês (competência).
+    com_a_pagar: Decimal
+
+
+class FaturaMes(BaseModel):
+    """Degrau de um cartão no mês: a soma das compras da competência."""
+
+    forma_pagamento_id: int
+    cartao: str
+    #: Soma das compras do cartão na competência (não o total da Pluggy).
+    valor: Decimal
+    #: Dia do mês em que a fatura sai da conta: o do pagamento ou o do vencimento.
+    dia: int
+    situacao: Literal["paga", "a_pagar"]
+    vencimento: date
+    #: Data do pagamento identificado (D-22); nulo enquanto "a pagar".
+    pago_em: date | None
+    origem_vencimento: OrigemDatas
+
+
+class PontoEvolucao(BaseModel):
+    data: date
+    #: Compras do cartão desde o último fechamento, até esta data.
+    acumulado: Decimal
+
+
+class FaturaAberta(BaseModel):
+    """Fatura em aberto de um cartão ativo, somada pela data da compra."""
+
+    forma_pagamento_id: int
+    cartao: str
+    #: Compras com data depois de `desde` e até hoje.
+    valor: Decimal
+    #: Último fechamento.
+    desde: date
+    #: Próximo fechamento.
+    fecha: date
+    #: Vencimento previsto; nulo se não há como estimar.
+    vence: date | None
+    #: A origem mais fraca entre as do fechamento e do vencimento.
+    origem_datas: OrigemDatas
+    #: Um ponto por dia, de `desde` + 1 até hoje.
+    evolucao: list[PontoEvolucao]
 
 
 class Orcamento(BaseModel):
@@ -34,10 +91,11 @@ class Orcamento(BaseModel):
 class Previsao(BaseModel):
     """Fechamento do mês no ritmo atual (só no mês corrente).
 
-    `comprometido` é o que entrou no mês com data anterior a ele (compras de
-    cartão da fatura que vence agora): já está decidido e não se repete, por
-    isso fica fora do ritmo. O resto é projetado em linha reta até o fim do
-    mês.
+    `comprometido` é o que já está decidido e não se repete, por isso fica
+    fora do ritmo: as faturas de cartão que saem da conta no mês (pagas ou
+    não, D-27) mais as despesas sem degrau com data anterior ao mês (cartão
+    sem datas conhecidas). O resto — Pix, débito, boleto — é projetado em
+    linha reta até o fim do mês.
     """
 
     valor: Decimal
@@ -104,7 +162,12 @@ class Inicio(BaseModel):
 
     orcamento: Orcamento | None
     previsao: Previsao | None
+    #: Um ponto por dia do mês (vazio no mês futuro).
     serie: list[PontoAcumulado]
+    #: Degraus de fatura do mês, em ordem de dia (D-27).
+    faturas: list[FaturaMes]
+    #: Faturas abertas hoje; não dependem do mês pedido.
+    faturas_abertas: list[FaturaAberta]
     pessoas: list[LinhaPessoaInicio]
     categorias: list[LinhaCategoriaInicio]
     avisos: list[AvisoOrcamento | AvisoReajuste]

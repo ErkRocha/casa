@@ -135,12 +135,20 @@ class TestMesCorrente:
         assert r.orcamento.faixa == "ok"
 
     def test_serie_acumulada_dia_a_dia(self, session: Session, mes: dict[str, Any]) -> None:
-        serie = {p.dia: p.acumulado for p in _resumo(session).serie}
-        assert list(serie) == list(range(1, 17))
-        assert serie[1] == Decimal("100.00")  # a fatura conta no dia 1
+        pontos = _resumo(session).serie
+        serie = {p.dia: p.acumulado for p in pontos}
+        # D-27: o mês corrente traz todos os dias; `acumulado` para em hoje.
+        assert list(serie) == list(range(1, 32))
+        assert serie[1] == Decimal("100.00")  # sem cartão cadastrado: compra antiga no dia 1
         assert serie[4] == Decimal("100.00")
         assert serie[5] == Decimal("150.00")
         assert serie[16] == Decimal("180.00")
+        assert serie[31] == Decimal("180.00")
+        com_a_pagar = {p.dia: p.com_a_pagar for p in pontos}
+        assert com_a_pagar[16] == Decimal("180.00")
+        assert com_a_pagar[19] == Decimal("180.00")
+        assert com_a_pagar[20] == Decimal("220.00")  # o Mercado de 20/10 ainda vai sair
+        assert com_a_pagar[31] == Decimal("220.00")  # fecha no total da competência
 
     def test_quem_gastou(self, session: Session, mes: dict[str, Any]) -> None:
         pessoas = [(p.nome, p.valor, p.percentual) for p in _resumo(session).pessoas]

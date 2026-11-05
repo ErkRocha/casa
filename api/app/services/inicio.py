@@ -4,13 +4,16 @@ Toda soma, diferença, percentual e a previsão saem do SQL abaixo; o Python
 só escolhe o mês e monta a resposta (regras 7 e 10, D-14). Transferência
 fica fora de tudo (D-05).
 
-**Por competência, desenhado por dia.** O mês é o da competência (D-02), o
-mesmo do orçamento e do relatório. A compra de cartão que entrou na fatura
-deste mês tem data no mês anterior: ela conta como **dia 1** — já estava
-decidida quando o mês começou. Por isso a previsão "no ritmo atual" separa
-esse comprometido do resto, e só projeta em linha reta o que tem data
-dentro do mês. Sem a separação, a fatura inteira entraria no ritmo e seria
-multiplicada pelos dias que faltam.
+**Por competência, desenhado pelo caixa (D-27).** O total do mês é o da
+competência (D-02), o mesmo do orçamento e do relatório. O que muda é o dia:
+Pix, débito e boleto contam na data deles; cada cartão com compra na
+competência vira um degrau único, no dia do pagamento da fatura (ou do
+vencimento, enquanto "a pagar"). As datas e o cálculo dos degraus estão em
+`app.services.caixa`. Cartão sem nenhuma data conhecida mantém as compras no
+dia delas, e a compra com data anterior ao mês conta no dia 1. A previsão
+soma as faturas do mês (já conhecidas, pagas ou não) e o "antes" dos cartões
+sem datas, e só projeta em linha reta o que sobra. Sem essa separação, a
+fatura inteira entraria no ritmo e seria multiplicada pelos dias que faltam.
 """
 
 from __future__ import annotations
@@ -34,6 +37,7 @@ from app.schemas.inicio import (
     PontoAcumulado,
     Previsao,
 )
+from app.services import caixa
 from app.services.cadastros import primeiro_dia_do_mes
 
 #: Quantas categorias com nome a tela mostra; "Sem categoria" vem à parte.
@@ -51,6 +55,7 @@ _BASE = """
       t.pessoa_id,
       t.categoria_id,
       t.categoria_nome,
+      t.forma_pagamento_id,
       t.data < t.competencia AS antes,
       CASE
         WHEN t.data < t.competencia THEN 1
@@ -63,15 +68,25 @@ _BASE = """
 """
 
 _TOTAIS = f"""
-    WITH base AS ({_BASE} AND t.competencia IN (:c, :p)),
+    WITH {caixa.CTES_DEGRAUS},
+    base AS ({_BASE} AND t.competencia IN (:c, :p)),
+    marcada AS (
+      SELECT b.*,
+        EXISTS (SELECT 1 FROM degraus g WHERE g.fid = b.forma_pagamento_id) AS em_degrau
+      FROM base b
+    ),
     atual AS (
       SELECT
         coalesce(sum(valor) FILTER (WHERE tipo = 'despesa' AND dia <= :dia_ref), 0) AS gasto,
-        coalesce(sum(valor) FILTER (WHERE tipo = 'despesa' AND dia <= :dia_ref AND antes), 0)
-          AS comprometido,
+        coalesce(sum(valor) FILTER (
+          WHERE tipo = 'despesa' AND dia <= :dia_ref AND NOT em_degrau), 0) AS livre,
+        coalesce(sum(valor) FILTER (
+          WHERE tipo = 'despesa' AND dia <= :dia_ref AND NOT em_degrau AND antes), 0)
+          AS livre_antes,
         coalesce(sum(valor) FILTER (WHERE tipo = 'receita' AND dia <= :dia_ref), 0) AS receitas
-      FROM base WHERE competencia = :c
+      FROM marcada WHERE competencia = :c
     ),
+    faturas_mes AS (SELECT coalesce(sum(valor), 0) AS total FROM degraus),
     anterior AS (
       SELECT coalesce(sum(valor) FILTER (WHERE tipo = 'despesa' AND dia <= :dia_cmp), 0) AS gasto
       FROM base WHERE competencia = :p
@@ -83,15 +98,16 @@ _TOTAIS = f"""
     calculo AS (
       SELECT
         a.gasto,
-        a.comprometido,
+        f.total + a.livre_antes AS comprometido,
         a.receitas,
         ant.gasto AS gasto_anterior,
         m.total AS meta,
         CASE WHEN m.total > 0 THEN a.gasto / m.total * 100 END AS razao,
         CASE WHEN :corrente AND :dia_ref > 0
-          THEN round(a.comprometido + (a.gasto - a.comprometido) / :dia_ref * :dias, 2)
+          THEN round(
+            f.total + a.livre_antes + (a.livre - a.livre_antes) / :dia_ref * :dias, 2)
         END AS previsao
-      FROM atual a, anterior ant, meta m
+      FROM atual a, faturas_mes f, anterior ant, meta m
     )
     SELECT
       gasto,
@@ -109,12 +125,28 @@ _TOTAIS = f"""
     FROM calculo
 """
 
+#: Um ponto por dia do mês (D-27). `acumulado` é o que já saiu da conta;
+#: `com_a_pagar` soma o que ainda vai sair. Despesa de cartão sem degrau fica
+#: no dia dela (ou no dia 1, se a data é anterior ao mês).
 _SERIE = f"""
-    WITH base AS ({_BASE} AND t.competencia = :c AND t.tipo = 'despesa'),
-    por_dia AS (SELECT dia, sum(valor) AS total FROM base GROUP BY dia)
-    SELECT d.dia, sum(coalesce(p.total, 0)) OVER (ORDER BY d.dia) AS acumulado
-    FROM generate_series(1, :dia_ref) AS d(dia)
-    LEFT JOIN por_dia p ON p.dia = d.dia
+    WITH {caixa.CTES_DEGRAUS},
+    base AS ({_BASE} AND t.competencia = :c AND t.tipo = 'despesa'),
+    livres AS (
+      SELECT b.dia, b.valor FROM base b
+      WHERE NOT EXISTS (SELECT 1 FROM degraus g WHERE g.fid = b.forma_pagamento_id)
+    )
+    SELECT d.dia, x.acumulado, x.acumulado + x.a_pagar + x.futuras AS com_a_pagar
+    FROM generate_series(1, CASE WHEN :dia_ref > 0 THEN :dias ELSE 0 END) AS d(dia)
+    CROSS JOIN LATERAL (
+      SELECT
+        (SELECT coalesce(sum(valor), 0) FROM livres WHERE dia <= least(d.dia, :dia_ref))
+        + (SELECT coalesce(sum(valor), 0) FROM degraus
+           WHERE situacao = 'paga' AND dia <= d.dia) AS acumulado,
+        (SELECT coalesce(sum(valor), 0) FROM degraus
+         WHERE situacao = 'a_pagar' AND dia <= d.dia) AS a_pagar,
+        (SELECT coalesce(sum(valor), 0) FROM livres
+         WHERE dia > :dia_ref AND dia <= d.dia) AS futuras
+    ) x
     ORDER BY d.dia
 """
 
@@ -204,7 +236,8 @@ class InicioService:
             "corrente": situacao == "corrente",
         }
 
-        t = self.session.execute(text(_TOTAIS), params).mappings().one()
+        params_caixa = {**params, **caixa.parametros()}
+        t = self.session.execute(text(_TOTAIS), params_caixa).mappings().one()
 
         orcamento = (
             Orcamento(
@@ -241,9 +274,18 @@ class InicioService:
             orcamento=orcamento,
             previsao=previsao,
             serie=[
-                PontoAcumulado(dia=linha.dia, acumulado=Decimal(linha.acumulado))
-                for linha in self.session.execute(text(_SERIE), params)
+                PontoAcumulado(
+                    dia=linha.dia,
+                    acumulado=Decimal(linha.acumulado),
+                    com_a_pagar=Decimal(linha.com_a_pagar),
+                )
+                for linha in self.session.execute(
+                    text(_SERIE),
+                    {**params_caixa, "dias": dias, "dia_ref": dia_ref},
+                )
             ],
+            faturas=caixa.faturas_do_mes(self.session, c),
+            faturas_abertas=caixa.faturas_abertas(self.session, self.hoje),
             pessoas=[
                 LinhaPessoaInicio(
                     balde=linha.balde,
