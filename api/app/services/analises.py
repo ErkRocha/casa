@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.schemas.analises import (
     Analises,
+    BaseAnalise,
     CategoriaAnalise,
     LinhaOrcamentoAnalise,
     MesAnalise,
@@ -44,6 +45,19 @@ MESES_DO_PERIODO: dict[str, int] = {"mes": 1, "3m": 3, "12m": 12}
 LIMITE_MUDANCAS = 5
 SEM_CATEGORIA = "Sem categoria"
 
+#: O mês de cada transação, por base (D-27). Dicionário fechado: o SQL nunca
+#: recebe texto do usuário. `caixa` = o que sai da conta (D-02); `compra` = o
+#: mês da data da compra.
+_MES_POR_BASE: dict[str, str] = {
+    "caixa": "t.competencia",
+    "compra": "date_trunc('month', t.data)::date",
+}
+
+
+def _sql(consulta: str, base: str) -> str:
+    return consulta.replace("__MES__", _MES_POR_BASE[base])
+
+
 #: `:pessoa` é o id em texto, `conjunto`, ou nulo para todos.
 _PESSOA = """
     AND (CAST(:pessoa AS text) IS NULL
@@ -57,14 +71,14 @@ _MENSAL = f"""
     ),
     somas AS (
       SELECT
-        t.competencia,
+        __MES__ AS competencia,
         sum(t.valor) FILTER (WHERE t.tipo = 'despesa') AS despesas,
         sum(t.valor) FILTER (WHERE t.tipo = 'receita') AS receitas
       FROM vw_transacoes_completa t
       WHERE t.tipo <> 'transferencia'
-        AND t.competencia BETWEEN CAST(:inicio AS date) AND CAST(:fim AS date)
+        AND __MES__ BETWEEN CAST(:inicio AS date) AND CAST(:fim AS date)
         {_PESSOA}
-      GROUP BY t.competencia
+      GROUP BY __MES__
     ),
     mensal AS (
       SELECT
@@ -110,7 +124,7 @@ _CATEGORIAS = f"""
         t.valor
       FROM vw_transacoes_completa t
       WHERE t.tipo = 'despesa'
-        AND t.competencia BETWEEN CAST(:de AS date) AND CAST(:ate AS date)
+        AND __MES__ BETWEEN CAST(:de AS date) AND CAST(:ate AS date)
         {_PESSOA}
     ),
     raizes AS (
@@ -137,11 +151,11 @@ _CATEGORIAS = f"""
 #: O mês de referência contra a média dos meses de base, por folha.
 _MUDANCAS = f"""
     WITH base AS (
-      SELECT t.categoria_id, t.categoria_nome, t.competencia, t.valor
+      SELECT t.categoria_id, t.categoria_nome, __MES__ AS competencia, t.valor
       FROM vw_transacoes_completa t
       WHERE t.tipo = 'despesa'
         AND t.categoria_id IS NOT NULL
-        AND t.competencia BETWEEN CAST(:base_de AS date) AND CAST(:ref AS date)
+        AND __MES__ BETWEEN CAST(:base_de AS date) AND CAST(:ref AS date)
         {_PESSOA}
     ),
     por_categoria AS (
@@ -165,6 +179,7 @@ _MUDANCAS = f"""
     LIMIT :limite
 """
 
+#: Orçamento fica SEMPRE por competência (D-27): não usa `__MES__`.
 _ORCAMENTO = f"""
     WITH metas AS (
       SELECT o.categoria_id, c.nome, o.valor_meta
@@ -213,7 +228,9 @@ class AnalisesService:
         self.session = session
         self.hoje = hoje or date.today()
 
-    def resumo(self, periodo: Periodo, pessoa: str | None = None) -> Analises:
+    def resumo(
+        self, periodo: Periodo, pessoa: str | None = None, base: BaseAnalise = "caixa"
+    ) -> Analises:
         fim = primeiro_dia_do_mes(self.hoje)
         quantos = MESES_DO_PERIODO[periodo]
         inicio = _somar_meses(fim, -(quantos - 1))
@@ -222,9 +239,9 @@ class AnalisesService:
 
         meses = [
             MesAnalise.model_validate(dict(linha._mapping))
-            for linha in self.session.execute(text(_MESES), params)
+            for linha in self.session.execute(text(_sql(_MESES, base)), params)
         ]
-        resumo = self.session.execute(text(_RESUMO_MESES), params).one()
+        resumo = self.session.execute(text(_sql(_RESUMO_MESES, base)), params).one()
 
         # Categorias: a média dos meses fechados, ou o próprio mês.
         if fechados > 0:
@@ -233,13 +250,14 @@ class AnalisesService:
             de, ate, n = fim, fim, 1
         categorias = self._categorias(
             self.session.execute(
-                text(_CATEGORIAS),
+                text(_sql(_CATEGORIAS, base)),
                 {**params, "de": de, "ate": ate, "n": n, "sem_categoria": SEM_CATEGORIA},
             ).all()
         )
 
         return Analises(
             periodo=periodo,
+            base=base,
             inicio=inicio,
             fim=fim,
             dia_referencia=self.hoje.day,
@@ -261,7 +279,7 @@ class AnalisesService:
                 else None
             ),
             categorias=categorias,
-            mudancas=self._mudancas(params, inicio, fim, fechados),
+            mudancas=self._mudancas(params, inicio, fim, fechados, base),
             orcamento=[
                 LinhaOrcamentoAnalise.model_validate(dict(linha._mapping))
                 for linha in self.session.execute(text(_ORCAMENTO), params)
@@ -269,7 +287,7 @@ class AnalisesService:
         )
 
     def _mudancas(
-        self, params: dict[str, Any], inicio: date, fim: date, fechados: int
+        self, params: dict[str, Any], inicio: date, fim: date, fechados: int, base_tela: str
     ) -> Mudancas | None:
         """O último mês fechado contra a média dos fechados antes dele."""
         base = fechados - 1
@@ -277,7 +295,7 @@ class AnalisesService:
             return None
         referencia = _somar_meses(fim, -1)
         linhas = self.session.execute(
-            text(_MUDANCAS),
+            text(_sql(_MUDANCAS, base_tela)),
             {
                 **params,
                 "base_de": inicio,

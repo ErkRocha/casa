@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_session
-from app.schemas.analises import Analises, Periodo
+from app.schemas.analises import Analises, BaseAnalise, Periodo
 from app.schemas.analytics import (
     AnalyticsResumo,
     Comparativo,
@@ -116,17 +116,28 @@ def analises(
         str | None,
         Query(pattern=r"^(\d+|conjunto)$", description="Id da pessoa ou `conjunto`"),
     ] = None,
+    base: Annotated[
+        BaseAnalise,
+        Query(description="caixa (o que sai da conta) ou compra (data da compra)"),
+    ] = "caixa",
 ) -> Any:
     """A tela Análises (D-24): receitas e despesas por mês, categorias pela
     média dos meses fechados, o que mais mudou contra a média e o orçamento
     do mês. Período e pessoa valem para a tela inteira.
     """
-    return AnalisesService(session).resumo(periodo, pessoa)
+    return AnalisesService(session).resumo(periodo, pessoa, base)
 
 
 @router.get("/por-banco", response_model=GastoPorBanco)
-def por_banco(session: SessionDep, filtros: FiltrosDep) -> Any:
+def por_banco(
+    session: SessionDep,
+    filtros: FiltrosDep,
+    base: Annotated[
+        BaseAnalise,
+        Query(description="caixa (o que sai da conta) ou compra (data da compra)"),
+    ] = "caixa",
+) -> Any:
     """Despesa por banco e forma, com o cartão separado do que saiu da conta
     e o que ainda está na revisão das importações no mesmo período.
     """
-    return AnalyticsService(session).por_banco(filtros)
+    return AnalyticsService(session).por_banco(filtros, base)

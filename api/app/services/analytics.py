@@ -471,15 +471,29 @@ class AnalyticsService:
     # Gasto por banco
     # ------------------------------------------------------------------
 
-    def por_banco(self, filtros: TransacaoFiltros) -> GastoPorBanco:
+    def por_banco(self, filtros: TransacaoFiltros, base_mes: str = "caixa") -> GastoPorBanco:
         """Despesa por banco (a conta da forma de pagamento) e por forma.
 
         Separa o cartão de crédito do que saiu direto da conta e mostra, ao
         lado, o que ainda está na revisão das importações: é a diferença mais
         comum entre o painel e o app do banco.
+
+        `base_mes` (D-27): `caixa` filtra o período pela competência; `compra`,
+        pelo mês da data da compra.
         """
         base = filtros.model_copy(update={"forma_pagamento_ids": []})
-        where = montar_filtros(base)
+        if base_mes == "compra":
+            sem_competencia = base.model_copy(
+                update={"competencia_inicio": None, "competencia_fim": None}
+            )
+            where = montar_filtros(sem_competencia)
+            mes = cast(func.date_trunc("month", V.c.data), Date)
+            if base.competencia_inicio is not None:
+                where.append(mes >= primeiro_dia_do_mes(base.competencia_inicio))
+            if base.competencia_fim is not None:
+                where.append(mes <= primeiro_dia_do_mes(base.competencia_fim))
+        else:
+            where = montar_filtros(base)
         banco = func.coalesce(FormaPagamento.conta_id, V.c.conta_id)
         no_cartao = FormaPagamento.tipo == TipoPagamento.CREDITO
         soma = func.sum(V.c.valor)
@@ -511,7 +525,7 @@ class AnalyticsService:
                 FormaPagamento.tipo,
             )
         ).all()
-        revisao = self._revisao_por_forma(base)
+        revisao = self._revisao_por_forma(base, base_mes)
 
         # Daqui para baixo é só encaixar linhas já somadas no banco na
         # estrutura banco -> formas; nenhum valor é somado em Python.
@@ -564,15 +578,19 @@ class AnalyticsService:
             revisao_quantidade=int(revisao[0].total_quantidade) if revisao else 0,
         )
 
-    def _revisao_por_forma(self, filtros: TransacaoFiltros) -> Sequence[Any]:
+    def _revisao_por_forma(
+        self, filtros: TransacaoFiltros, base_mes: str = "caixa"
+    ) -> Sequence[Any]:
         """Despesas pendentes na revisão, por banco e forma, no mesmo período.
 
         Só o recorte de período vale aqui: categoria e pessoa, o item na
         revisão muitas vezes ainda nem tem.
         """
-        competencia = func.coalesce(
-            ImportacaoItem.competencia_sugerida,
-            cast(func.date_trunc("month", ImportacaoItem.data), Date),
+        mes_da_compra = cast(func.date_trunc("month", ImportacaoItem.data), Date)
+        competencia = (
+            mes_da_compra
+            if base_mes == "compra"
+            else func.coalesce(ImportacaoItem.competencia_sugerida, mes_da_compra)
         )
         where: list[ColumnElement[bool]] = [
             ImportacaoItem.deleted_em.is_(None),

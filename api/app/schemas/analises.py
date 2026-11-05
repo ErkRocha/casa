@@ -14,6 +14,9 @@ from app.schemas.inicio import FaixaOrcamento
 
 #: Este mês, os últimos 3 ou os últimos 12, sempre terminando no mês corrente.
 Periodo = Literal["mes", "3m", "12m"]
+#: D-27: `caixa` = o que sai da conta (competência); `compra` = pela data da
+#: compra. Vale para os gráficos; o orçamento é sempre por competência.
+BaseAnalise = Literal["caixa", "compra"]
 
 
 class MesAnalise(BaseModel):
@@ -74,6 +77,7 @@ class LinhaOrcamentoAnalise(BaseModel):
 
 class Analises(BaseModel):
     periodo: Periodo
+    base: BaseAnalise
     #: Primeiro e último mês do período (o último é o corrente).
     inicio: date
     fim: date

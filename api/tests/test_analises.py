@@ -225,3 +225,74 @@ def test_endpoint_valida_periodo_e_pessoa(client: TestClient) -> None:
     assert client.get("/analytics/analises", params={"periodo": "6m"}).status_code == 422
     assert client.get("/analytics/analises", params={"pessoa": "erik"}).status_code == 422
     assert client.get("/analytics/analises", params={"pessoa": "conjunto"}).status_code == 200
+
+
+def _compra_de_cartao(session: Session) -> None:
+    """Cartão: compra em 28/07, fatura (competência) em agosto. Pix em agosto."""
+    categoria = Categoria(nome="Cartão", tipo=TipoTransacao.DESPESA)
+    session.add(categoria)
+    session.flush()
+    for data, competencia, valor in (
+        (date(2026, 7, 28), AGO, "70"),
+        (date(2026, 8, 10), AGO, "30"),
+    ):
+        session.add(
+            Transacao(
+                data=data,
+                competencia=competencia,
+                valor=Decimal(valor),
+                tipo=TipoTransacao.DESPESA,
+                descricao=f"cartão {valor}",
+                descricao_original=f"CARTAO {valor}",
+                categoria_id=categoria.id,
+            )
+        )
+    session.commit()
+
+
+def test_base_compra_move_o_cartao_para_o_mes_da_compra(session: Session) -> None:
+    _compra_de_cartao(session)
+    jul = date(2026, 7, 1)
+    caixa = AnalisesService(session, hoje=HOJE).resumo("3m", None, "caixa")
+    compra = AnalisesService(session, hoje=HOJE).resumo("3m", None, "compra")
+    assert (caixa.base, compra.base) == ("caixa", "compra")
+    # Janela ago-out: em "compra", o cartão de julho sai da janela.
+    assert {m.competencia: m.despesas for m in caixa.meses}[AGO] == Decimal("100")
+    assert {m.competencia: m.despesas for m in compra.meses}[AGO] == Decimal("30")
+
+    # Com 5 meses de janela os dois meses cabem e o total fecha igual.
+    larga = AnalisesService(session, hoje=date(2026, 12, 16))
+    for_caixa = larga.resumo("12m", None, "caixa")
+    for_compra = larga.resumo("12m", None, "compra")
+    por_caixa = {m.competencia: m.despesas for m in for_caixa.meses}
+    por_compra = {m.competencia: m.despesas for m in for_compra.meses}
+    assert (por_caixa[jul], por_caixa[AGO]) == (Decimal("0"), Decimal("100"))
+    assert (por_compra[jul], por_compra[AGO]) == (Decimal("70"), Decimal("30"))
+    assert sum(por_caixa.values()) == sum(por_compra.values())
+
+
+def test_base_compra_pix_igual_nas_duas(session: Session, dados: dict[str, Any]) -> None:
+    caixa = _resumo(session, "3m")
+    compra = AnalisesService(session, hoje=HOJE).resumo("3m", None, "compra")
+    assert [(m.competencia, m.despesas, m.receitas) for m in caixa.meses] == [
+        (m.competencia, m.despesas, m.receitas) for m in compra.meses
+    ]
+    assert [(c.nome, c.valor) for c in caixa.categorias] == [
+        (c.nome, c.valor) for c in compra.categorias
+    ]
+
+
+def test_base_compra_nao_muda_o_orcamento(session: Session, dados: dict[str, Any]) -> None:
+    _compra_de_cartao(session)
+    caixa = _resumo(session, "3m")
+    compra = AnalisesService(session, hoje=HOJE).resumo("3m", None, "compra")
+    assert caixa.orcamento == compra.orcamento
+
+
+def test_endpoint_valida_base(client: TestClient) -> None:
+    padrao = client.get("/analytics/analises")
+    assert padrao.status_code == 200, padrao.text
+    assert padrao.json()["base"] == "caixa"
+    compra = client.get("/analytics/analises", params={"base": "compra"})
+    assert compra.status_code == 200 and compra.json()["base"] == "compra"
+    assert client.get("/analytics/analises", params={"base": "outra"}).status_code == 422

@@ -6,6 +6,9 @@ import type { Dinheiro } from "@/features/transacoes/types";
 
 export type Periodo = "mes" | "3m" | "12m";
 
+/** D-27: o que sai da conta (competência) ou a data da compra. */
+export type BaseAnalise = "caixa" | "compra";
+
 export interface MesAnalise {
   competencia: string;
   despesas: Dinheiro;
@@ -57,6 +60,7 @@ export interface LinhaOrcamentoAnalise {
 
 export interface Analises {
   periodo: Periodo;
+  base: BaseAnalise;
   inicio: string;
   fim: string;
   dia_referencia: number;

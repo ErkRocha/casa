@@ -5,7 +5,7 @@ import { inteiro, reais, toNumero } from "@/lib/format";
 import { href } from "@/lib/rotas";
 import { cn } from "@/lib/utils";
 import { usePorBanco } from "../queries";
-import type { FormaNoBanco, GastoPorBanco, LinhaBanco } from "../types";
+import type { BaseAnalise, FormaNoBanco, GastoPorBanco, LinhaBanco } from "../types";
 
 const COR_CARTAO = "bg-cat-2";
 const COR_CONTA = "bg-cat-5";
@@ -22,14 +22,16 @@ export function PorBanco({
   inicio,
   fim,
   pessoa,
+  base,
   className,
 }: {
   inicio: string;
   fim: string;
   pessoa: BaldePessoa | null;
+  base: BaseAnalise;
   className?: string;
 }) {
-  const consulta = usePorBanco(inicio, fim, pessoa);
+  const consulta = usePorBanco(inicio, fim, pessoa, base);
   return (
     <Card className={cn("flex flex-col gap-7 px-8 py-9 md:px-11 md:py-10", className)}>
       <CabecalhoBloco titulo="Por banco" direita="no período" />

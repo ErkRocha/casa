@@ -12,13 +12,23 @@ import { GraficoMeses } from "./components/grafico-meses";
 import { PorBanco } from "./components/por-banco";
 import { useAnalises } from "./queries";
 import { mesAbreviado, mesDoAno } from "./textos";
-import type { Analises, Periodo } from "./types";
+import type { Analises, BaseAnalise, Periodo } from "./types";
 
 const PERIODOS: Array<{ id: Periodo; rotulo: string }> = [
   { id: "mes", rotulo: "Este mês" },
   { id: "3m", rotulo: "3 meses" },
   { id: "12m", rotulo: "12 meses" },
 ];
+
+const BASES: Array<{ id: BaseAnalise; rotulo: string }> = [
+  { id: "caixa", rotulo: "O que sai da conta" },
+  { id: "compra", rotulo: "Pela data da compra" },
+];
+
+const LEGENDA_BASE: Record<BaseAnalise, string> = {
+  caixa: "Fatura do cartão no mês em que é paga",
+  compra: "Cada compra no mês em que foi feita",
+};
 
 /** Chave do seletor de pessoa: o balde, ou `todos`. */
 type Quem = "todos" | "conjunto" | number;
@@ -31,9 +41,10 @@ type Quem = "todos" | "conjunto" | number;
 export function AnalisesPage() {
   const [periodo, setPeriodo] = useState<Periodo>("12m");
   const [quem, setQuem] = useState<Quem>("todos");
+  const [base, setBase] = useState<BaseAnalise>("caixa");
   const { data: pessoas = [] } = usePessoas();
   const balde: BaldePessoa | null = quem === "todos" ? null : quem;
-  const analises = useAnalises(periodo, balde);
+  const analises = useAnalises(periodo, balde, base);
 
   const opcoesQuem: Array<{ id: Quem; rotulo: string }> = [
     { id: "todos", rotulo: "Todos" },
@@ -65,6 +76,18 @@ export function AnalisesPage() {
           className="md:flex"
         />
       </header>
+
+      <div className="flex flex-col gap-2">
+        <Segmentado
+          rotulo="Base dos gráficos"
+          opcoes={BASES}
+          atual={base}
+          onMudar={setBase}
+          cheio
+          className="md:flex"
+        />
+        <p className="text-pequeno text-texto-2 m-0">{LEGENDA_BASE[base]}</p>
+      </div>
 
       {analises.isLoading ? (
         <Carregando rotulo="Carregando as análises" alturas={["h-160", "h-120"]} />
@@ -150,7 +173,7 @@ function Conteudo({
         <OQueMudou a={a} />
       </div>
 
-      <PorBanco inicio={a.inicio} fim={a.fim} pessoa={balde} />
+      <PorBanco inicio={a.inicio} fim={a.fim} pessoa={balde} base={a.base} />
 
       <OrcamentoDoMes a={a} nomePessoa={nomePessoa} />
     </>

@@ -231,3 +231,33 @@ def test_rota_propria(client: TestClient, bancos: dict[str, int]) -> None:
     assert resposta.status_code == 200, resposta.text
     dados = resposta.json()
     assert (dados["total"], dados["cartao"], dados["conta"]) == ("760.00", "650.00", "110.00")
+
+
+def test_base_compra_move_o_cartao_para_o_mes_da_compra(
+    session: Session, client: TestClient
+) -> None:
+    """D-27: compra em 28/07 com competência agosto."""
+    from app.models import Transacao
+
+    session.add(
+        Transacao(
+            data=date(2026, 7, 28),
+            competencia=date(2026, 8, 1),
+            valor=Decimal("70"),
+            tipo=TipoTransacao.DESPESA,
+            descricao="cartão",
+            descricao_original="CARTAO",
+        )
+    )
+    session.commit()
+    julho = TransacaoFiltros(competencia_inicio=date(2026, 7, 1), competencia_fim=date(2026, 7, 1))
+    agosto = TransacaoFiltros(competencia_inicio=date(2026, 8, 1), competencia_fim=date(2026, 8, 1))
+    servico = AnalyticsService(session)
+    assert servico.por_banco(agosto).total == Decimal("70")
+    assert servico.por_banco(julho).total == Decimal("0")
+    assert servico.por_banco(agosto, "compra").total == Decimal("0")
+    assert servico.por_banco(julho, "compra").total == Decimal("70")
+
+    params = {"competencia_inicio": "2026-07-01", "competencia_fim": "2026-07-01"}
+    assert client.get("/analytics/por-banco", params=params | {"base": "compra"}).status_code == 200
+    assert client.get("/analytics/por-banco", params=params | {"base": "x"}).status_code == 422
