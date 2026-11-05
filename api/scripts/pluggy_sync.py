@@ -62,7 +62,8 @@ def imprimir(resultado: ResultadoSync, session: Session) -> None:
         )
         if c.abertas or c.atualizar or c.canceladas:
             print(
-                f"   compras da fatura aberta (D-23): {c.abertas} lidas | já no staging, "
+                f"   compras pendentes do cartão (D-28): {c.abertas} lidas | "
+                f"só para exibição {len(c.pendentes)} | resto da D-23 no staging, "
                 f"a atualizar {len(c.atualizar)} | canceladas {len(c.canceladas)}"
             )
         if c.com_fatura or c.fallback_competencia:
@@ -91,6 +92,10 @@ def imprimir(resultado: ResultadoSync, session: Session) -> None:
         for f in resultado.formas_novas:
             print(f"   {verbo}: {f.apelido} ({f.tipo.value}, conta {f.conta_id})")
     print(f"\nitens novos no total: {resultado.itens_novos}")
+    verbo_p = "ficariam" if resultado.simulado else "ficam"
+    print(
+        f"pendentes do cartão que {verbo_p} só para exibição (D-28): {resultado.pendentes_exibicao}"
+    )
     verbo = "seriam promovidos" if resultado.simulado else "promovidos"
     print(f"{verbo} automaticamente (D-21): {resultado.promovidos}")
     if resultado.rejeitados:
@@ -104,7 +109,7 @@ def imprimir(resultado: ResultadoSync, session: Session) -> None:
         or resultado.abertas_canceladas
     ):
         print(
-            f"compras em aberto (D-23): {resultado.abertas_confirmadas} confirmadas pelo banco, "
+            f"resto da D-23: {resultado.abertas_confirmadas} confirmadas pelo banco, "
             f"{resultado.abertas_atualizadas} atualizadas, "
             f"{resultado.abertas_canceladas} canceladas"
         )

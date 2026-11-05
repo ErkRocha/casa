@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: test-db help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-resgates compras-role compras-migrate compras-seed compras-test compras-lint financas-role conferir
+.PHONY: test-db help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-remover-abertas pluggy-resgates compras-role compras-migrate compras-seed compras-test compras-lint financas-role conferir
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -81,6 +81,11 @@ pluggy-reprocessar: ## Reprocessa os pendentes de uma importação da Pluggy —
 # Simula por padrão; grava só com executar=1, e nunca onde o usuário editou (D-21).
 pluggy-retroativo: ## Categoria e forma retroativas nas transações da Pluggy — use: make pluggy-retroativo [executar=1]
 	$(COMPOSE) run --rm api python -m scripts.pluggy_retroativo $(if $(executar),--executar,)
+
+# D-28: tira do staging e de transacoes as compras em aberto da D-23. Simula por
+# padrão; grava só com executar=1, e deixa a transação que o usuário editou.
+pluggy-remover-abertas: ## Remove as compras em aberto da D-23 (D-28) — use: make pluggy-remover-abertas [executar=1]
+	$(COMPOSE) run --rm api python -m scripts.remover_abertas_d28 $(if $(executar),--executar,)
 
 # Só lê: aplicações e resgates da Pluggy, contraparte no mesmo dia e conclusão.
 pluggy-resgates: ## Investiga os resgates e aplicações da Pluggy (somente leitura)

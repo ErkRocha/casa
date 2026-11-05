@@ -154,6 +154,8 @@ class Execucao:
     itens_novos: int = 0
     promovidos: int = 0
     na_revisao: int = 0
+    #: Compras pendentes do cartão só para exibição (D-28).
+    pendentes: int = 0
     importacao_id: int | None = None
     erro: str | None = None
 
@@ -210,6 +212,7 @@ class EmSegundoPlano:
                 itens_novos=r.itens_novos,
                 promovidos=r.promovidos,
                 na_revisao=sum(r.na_revisao.values()),
+                pendentes=r.pendentes_exibicao,
                 importacao_id=r.importacao_id,
                 erro="; ".join(f"{c.rotulo}: {c.erro}" for c in r.contas if c.erro) or None,
             )

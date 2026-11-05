@@ -16,6 +16,8 @@ class ExecucaoSync(BaseModel):
     itens_novos: int
     promovidos: int
     na_revisao: int
+    #: Compras pendentes do cartão só para exibição (D-28).
+    pendentes: int = 0
     importacao_id: int | None
     #: Por que falhou, ou o erro de alguma conta numa execução que terminou.
     erro: str | None

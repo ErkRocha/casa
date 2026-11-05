@@ -501,6 +501,47 @@ class ContaPluggy(IdMixin, TimestampMixin, SoftDeleteMixin, Base):
     )
 
 
+class PluggyPendente(IdMixin, Base):
+    """Compra de cartão que a Pluggy ainda entrega `PENDING` (D-28).
+
+    Só para exibição: cópia descartável do que a Pluggy mostra agora, trocada
+    inteira por conta a cada sync. **Exceção à regra 2**: sem `deleted_em`,
+    sem auditoria, e a sync apaga fisicamente. Nunca vira item de staging nem
+    transação; quando o banco confirma, a compra chega `POSTED` com o mesmo id.
+    """
+
+    __tablename__ = "pluggy_pendentes"
+
+    criado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    #: Id da transação na Pluggy.
+    id_externo: Mapped[str] = mapped_column(Text, nullable=False)
+    conta_pluggy_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("contas_pluggy.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    forma_pagamento_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("formas_pagamento.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    data: Mapped[date] = mapped_column(Date, nullable=False)
+    valor: Mapped[Decimal] = mapped_column(Money, nullable=False)
+    descricao: Mapped[str] = mapped_column(Text, nullable=False)
+    #: Competência estimada pelos dias do cartão (D-27): dia 1 do mês.
+    fatura_prevista: Mapped[date | None] = mapped_column(Date)
+
+    __table_args__ = (
+        CheckConstraint("valor > 0", name="ck_pluggy_pendentes_valor_positivo"),
+        CheckConstraint(
+            "fatura_prevista IS NULL OR extract(day FROM fatura_prevista) = 1",
+            name="ck_pluggy_pendentes_fatura_dia_1",
+        ),
+        Index("uq_pluggy_pendentes_id_externo", "id_externo", unique=True),
+    )
+
+
 class CategoriaPluggy(IdMixin, TimestampMixin, SoftDeleteMixin, Base):
     """Liga uma categoria da Pluggy a uma `categoria` daqui (D-21).
 

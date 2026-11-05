@@ -15,6 +15,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.conversao_pluggy import OBS_ABERTA
 from app.enums import StatusImportacao, StatusItem, TipoConta, TipoPagamento, TipoTransacao
 from app.models import (
     Auditoria,
@@ -25,6 +26,7 @@ from app.models import (
     Importacao,
     ImportacaoItem,
     Pessoa,
+    PluggyPendente,
     RegraCategorizacao,
 )
 from app.pluggy.modelos import Conta as ContaRemota
@@ -215,12 +217,11 @@ class TestGravacao:
         assert resultado.importacao_id == imp.id
         assert (imp.origem, imp.arquivo_tipo) == ("pluggy", "application/json")
         assert imp.status is StatusImportacao.AGUARDANDO_REVISAO
-        # D-23: a compra pendente do cartão entra como compra em aberto.
-        assert [i.id_externo for i in _itens(session)] == ["c1", "k1", "k2"]
+        # D-28: a compra pendente do cartão não entra no staging; só é exibida.
+        assert [i.id_externo for i in _itens(session)] == ["c1", "k1"]
         assert _conta(resultado, cenario["mapa_cartao"]).pendentes_ignoradas == 0
         assert _conta(resultado, cenario["mapa_cartao"]).abertas == 1
-        aberta = next(i for i in _itens(session) if i.id_externo == "k2")
-        assert aberta.observacao is not None and "Compra em aberto" in aberta.observacao
+        assert set(session.scalars(select(PluggyPendente.id_externo))) == {"k2"}
 
         cartao = next(i for i in _itens(session) if i.id_externo == "k1")
         assert cartao.competencia_sugerida == date(2025, 4, 1)
@@ -984,143 +985,269 @@ class TestPromocaoAutomatica:
         }
 
 
-class TestCompraEmAberto:
-    """D-23: a compra da fatura aberta entra, e a confirmação a atualiza."""
+def _pendentes(session: Session) -> dict[str, PluggyPendente]:
+    session.expire_all()
+    return {p.id_externo: p for p in session.scalars(select(PluggyPendente))}
 
-    def _aberta(self, id_: str, dia: str, valor: str) -> Transacao:
-        return _tx(
-            id_,
-            CARTAO,
-            f"{dia}T15:00:00Z",
-            valor,
-            status="PENDING",
-            descricao=f"COMPRA {id_}",
-            categoria="Groceries",
-            categoria_id="11000000",
-        )
 
-    def _confirmada(self, id_: str, dia: str, valor: str) -> Transacao:
-        return _tx(
-            id_,
-            CARTAO,
-            f"{dia}T15:00:00Z",
-            valor,
-            descricao=f"COMPRA {id_}",
-            fatura="f2",
-            categoria="Groceries",
-            categoria_id="11000000",
-        )
+def _pendente_pluggy(id_: str, dia: str, valor: str, **extra: Any) -> Transacao:
+    return _tx(
+        id_,
+        CARTAO,
+        f"{dia}T15:00:00Z",
+        valor,
+        status="PENDING",
+        descricao=f"COMPRA {id_}",
+        categoria="Groceries",
+        categoria_id="11000000",
+        **extra,
+    )
 
-    def _transacao(self, session: Session, id_externo: str) -> Any:
-        from app.models import Transacao as TransacaoDb
 
-        item = next(i for i in _itens(session) if i.id_externo == id_externo)
-        return item, session.get(TransacaoDb, item.transacao_id)
+def _lancada_pluggy(id_: str, dia: str, valor: str) -> Transacao:
+    return _tx(
+        id_,
+        CARTAO,
+        f"{dia}T15:00:00Z",
+        valor,
+        descricao=f"COMPRA {id_}",
+        fatura="f2",
+        categoria="Groceries",
+        categoria_id="11000000",
+    )
 
-    def test_ciclo_aberta_confirmada_cancelada(
+
+class TestPendentesDoCartao:
+    """D-28: a compra pendente do cartão só é exibida, em `pluggy_pendentes`."""
+
+    def test_pendente_vai_para_a_tabela_e_nao_para_o_staging(
         self, session: Session, cenario: dict[str, Any], mercado: Categoria
     ) -> None:
-        from sqlalchemy import text
-
         leitor = LeitorFalso()
-        leitor.transacoes[CARTAO] = [
-            self._aberta("a-conf", "2025-05-10", "50.00"),
-            self._aberta("a-canc", "2025-05-11", "30.00"),
-            self._aberta("a-edit", "2025-05-12", "19.00"),
-            # Crédito pendente no cartão continua de fora.
-            self._aberta("estorno", "2025-05-12", "-5.00").model_copy(update={"type": "CREDIT"}),
-        ]
-        primeiro = _sync(session, leitor)
+        leitor.transacoes[CARTAO] = [_pendente_pluggy("p1", "2025-05-10", "50.00")]
 
-        conta = _conta(primeiro, cenario["mapa_cartao"])
-        assert (conta.abertas, conta.pendentes_ignoradas) == (3, 1)
-        # Com categoria e só a marca de aberta: promovidas como as outras.
-        assert primeiro.promovidos == 3
-        item, transacao = self._transacao(session, "a-conf")
-        assert item.observacao is not None and "Compra em aberto" in item.observacao
-        # Sem fatura ainda: estimada pelos dias da forma (fecha 3, vence 10).
-        assert transacao.competencia == date(2025, 6, 1)
+        resultado = _sync(session, leitor)
 
-        _, cancelada = self._transacao(session, "a-canc")
-        id_cancelada = cancelada.id
+        assert _itens(session) == []
+        assert _transacoes_vivas(session) == []
+        assert resultado.importacao_id is None
+        assert resultado.pendentes_exibicao == 1
+        conta = _conta(resultado, cenario["mapa_cartao"])
+        assert (conta.abertas, conta.novos) == (1, 0)
+        linhas = _pendentes(session)
+        assert set(linhas) == {"p1"}
+        p = linhas["p1"]
+        assert p.conta_pluggy_id == cenario["mapa_cartao"].id
+        assert p.forma_pagamento_id == cenario["credito"].id
+        assert (p.data, p.valor, p.descricao) == (
+            date(2025, 5, 10),
+            Decimal("50.00"),
+            "COMPRA p1",
+        )
+        # Estimada pelos dias do cartão (fecha 3, vence 10): fatura de junho.
+        assert p.fatura_prevista == date(2025, 6, 1)
 
-        # O usuário corrige o valor de uma delas na tela de transações.
-        session.execute(text("SELECT set_config('app.autor', 'usuario', false)"))
-        _, editada = self._transacao(session, "a-edit")
-        editada.valor = Decimal("18.00")
-        session.commit()
-        session.execute(text("SELECT set_config('app.autor', 'teste', false)"))
-
-        # O banco confirma duas (com outra data e outro valor) e cancela uma.
-        leitor.transacoes[CARTAO] = [
-            self._confirmada("a-conf", "2025-05-09", "50.00"),
-            self._confirmada("a-edit", "2025-05-12", "19.50"),
-        ]
-        leitor.faturas[CARTAO] = [_fatura("f2", "2025-06-03", "2025-06-10", "69.50")]
-        segundo = _sync(session, leitor)
-        session.expire_all()
-
-        assert segundo.abertas_confirmadas == 2
-        assert segundo.abertas_canceladas == 1
-        assert segundo.importacao_id is None  # nada novo: só atualização
-
-        item, transacao = self._transacao(session, "a-conf")
-        assert transacao.data == date(2025, 5, 9)
-        assert transacao.competencia == date(2025, 6, 1)
-        assert "Compra em aberto" not in (item.observacao or "")
-
-        from app.models import Transacao as TransacaoDb
-
-        item = next(i for i in _itens(session) if i.id_externo == "a-canc")
-        apagada = session.get(TransacaoDb, id_cancelada)
-        assert apagada is not None and apagada.deleted_em is not None
-        assert item.status is StatusItem.REJEITADO and item.transacao_id is None
-        assert item.motivo_rejeicao is not None and "cancelada" in item.motivo_rejeicao
-        assert f"#{id_cancelada}" in item.motivo_rejeicao
-
-        # O valor que o usuário editou fica; o item registra o do banco.
-        item, transacao = self._transacao(session, "a-edit")
-        assert transacao.valor == Decimal("18.00")
-        assert item.valor == Decimal("19.50")
-        assert transacao.deleted_em is None
-
-    def test_aberta_editada_pelo_usuario_nao_some_quando_cancelada(
-        self, session: Session, cenario: dict[str, Any], mercado: Categoria
-    ) -> None:
-        from sqlalchemy import text
-
+    def test_simulacao_conta_mas_nao_grava(self, session: Session, cenario: dict[str, Any]) -> None:
         leitor = LeitorFalso()
-        leitor.transacoes[CARTAO] = [self._aberta("a1", "2025-05-10", "40.00")]
+        leitor.transacoes[CARTAO] = [_pendente_pluggy("p1", "2025-05-10", "50.00")]
         _sync(session, leitor)
-        session.execute(text("SELECT set_config('app.autor', 'usuario', false)"))
-        _, transacao = self._transacao(session, "a1")
-        transacao.descricao = "mercado do mês"
-        session.commit()
-        session.execute(text("SELECT set_config('app.autor', 'teste', false)"))
+        leitor.transacoes[CARTAO] = [
+            _pendente_pluggy("p1", "2025-05-10", "50.00"),
+            _pendente_pluggy("p2", "2025-05-11", "20.00"),
+        ]
 
-        leitor.transacoes[CARTAO] = []
+        resultado = _sync(session, leitor, simular=True)
+
+        assert resultado.pendentes_exibicao == 2
+        assert set(_pendentes(session)) == {"p1"}  # a tabela não mudou
+
+    def test_consolidada_entra_normal_e_sai_da_tabela(
+        self, session: Session, cenario: dict[str, Any], mercado: Categoria
+    ) -> None:
+        leitor = LeitorFalso()
+        leitor.transacoes[CARTAO] = [_pendente_pluggy("p1", "2025-05-10", "50.00")]
+        _sync(session, leitor)
+        assert set(_pendentes(session)) == {"p1"}
+
+        # O banco lança com o mesmo id, uma fatura e outra data.
+        leitor.faturas[CARTAO] = [_fatura("f2", "2025-06-03", "2025-06-10", "50.00")]
+        leitor.transacoes[CARTAO] = [_lancada_pluggy("p1", "2025-05-09", "50.00")]
+        resultado = _sync(session, leitor)
+
+        assert _pendentes(session) == {}
+        assert resultado.pendentes_exibicao == 0
+        assert [i.id_externo for i in _itens(session)] == ["p1"]
+        vivas = _transacoes_vivas(session)
+        assert len(vivas) == 1 and vivas[0].data == date(2025, 5, 9)
+        assert vivas[0].competencia == date(2025, 6, 1)
+
+    def test_pendente_que_some_sai_da_tabela(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        leitor = LeitorFalso()
+        leitor.transacoes[CARTAO] = [
+            _pendente_pluggy("p1", "2025-05-10", "50.00"),
+            _pendente_pluggy("p2", "2025-05-11", "20.00"),
+        ]
+        _sync(session, leitor)
+        assert set(_pendentes(session)) == {"p1", "p2"}
+
+        leitor.transacoes[CARTAO] = [_pendente_pluggy("p2", "2025-05-11", "25.00")]
+        _sync(session, leitor)
+
+        linhas = _pendentes(session)
+        assert set(linhas) == {"p2"}
+        assert linhas["p2"].valor == Decimal("25.00")
+        assert _itens(session) == []
+
+    def test_conta_com_erro_mantem_as_linhas_e_a_outra_e_substituida(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        segundo = "acc-cartao-2"
+        credito2 = FormaPagamento(
+            apelido="Crédito Banco A •••• 2222",
+            tipo=TipoPagamento.CREDITO,
+            conta_id=cenario["mapa_cartao"].conta_id,
+            dia_fechamento=3,
+            dia_vencimento=10,
+        )
+        session.add(credito2)
+        session.flush()
+        mapa2 = ContaPluggy(
+            pluggy_item_id=ITEM,
+            pluggy_account_id=segundo,
+            conta_id=cenario["mapa_cartao"].conta_id,
+            forma_pagamento_id=credito2.id,
+            sincronizar_desde=date(2025, 3, 4),
+        )
+        session.add(mapa2)
+        session.commit()
+        leitor = LeitorFalso()
+        leitor.contas.append(
+            ContaRemota.model_validate(
+                {"id": segundo, "itemId": ITEM, "type": "CREDIT", "subtype": "CREDIT_CARD"}
+            )
+        )
+        leitor.transacoes[segundo] = [
+            _tx("q1", segundo, "2025-05-10T15:00:00Z", "11.00", status="PENDING")
+        ]
+        leitor.transacoes[CARTAO] = [_pendente_pluggy("p1", "2025-05-10", "50.00")]
+        _sync(session, leitor)
+        assert set(_pendentes(session)) == {"p1", "q1"}
+
+        leitor.falhar.add(CARTAO)
+        leitor.transacoes[segundo] = [
+            _tx("q2", segundo, "2025-05-12T15:00:00Z", "13.00", status="PENDING")
+        ]
+        _sync(session, leitor)
+
+        linhas = _pendentes(session)
+        assert set(linhas) == {"p1", "q2"}  # p1 ficou; q1 foi trocada por q2
+        assert linhas["q2"].forma_pagamento_id == credito2.id
+
+    def test_pendente_de_conta_e_credito_pendente_sao_ignorados(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        leitor = LeitorFalso()
+        leitor.transacoes[CORRENTE] = [
+            _tx("c1", CORRENTE, "2025-05-10T15:00:00Z", "-45.10", status="PENDING")
+        ]
+        leitor.transacoes[CARTAO] = [
+            _tx("e1", CARTAO, "2025-05-10T15:00:00Z", "-5.00", tipo="CREDIT", status="PENDING")
+        ]
+
+        resultado = _sync(session, leitor)
+
+        assert _pendentes(session) == {}
+        assert resultado.pendentes_exibicao == 0
+        assert _conta(resultado, cenario["mapa_corrente"]).pendentes_ignoradas == 1
+        assert _conta(resultado, cenario["mapa_cartao"]).pendentes_ignoradas == 1
+        assert _itens(session) == []
+
+    def test_mapeamento_desativado_perde_as_linhas(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        leitor = LeitorFalso()
+        leitor.transacoes[CARTAO] = [_pendente_pluggy("p1", "2025-05-10", "50.00")]
+        _sync(session, leitor)
+        assert set(_pendentes(session)) == {"p1"}
+
+        cenario["mapa_cartao"].ativo = False
+        session.commit()
+        _sync(session, leitor)
+
+        assert _pendentes(session) == {}
+
+
+class TestRestoDaD23:
+    """Itens de compra em aberto criados antes da D-28 seguem o caminho antigo."""
+
+    def _item_d23(
+        self, session: Session, cenario: dict[str, Any], id_: str, status: StatusItem
+    ) -> ImportacaoItem:
+        imp = Importacao(
+            arquivo_nome="d23.json",
+            hash_arquivo="d23",
+            arquivo_tipo="application/json",
+            origem="pluggy",
+            status=StatusImportacao.AGUARDANDO_REVISAO,
+        )
+        session.add(imp)
+        session.flush()
+        item = ImportacaoItem(
+            importacao_id=imp.id,
+            linha_bruta=f"COMPRA {id_}",
+            data=date(2025, 5, 10),
+            valor=Decimal("50.00"),
+            descricao_original=f"COMPRA {id_}",
+            tipo_sugerido=TipoTransacao.DESPESA,
+            competencia_sugerida=date(2025, 6, 1),
+            forma_pagamento_sugerida_id=cenario["credito"].id,
+            status=status,
+            observacao=OBS_ABERTA,
+            id_externo=id_,
+        )
+        session.add(item)
+        session.commit()
+        return item
+
+    def test_ainda_pendente_nao_duplica_nem_vai_para_a_tabela(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        self._item_d23(session, cenario, "a1", StatusItem.PENDENTE)
+        leitor = LeitorFalso()
+        leitor.transacoes[CARTAO] = [_pendente_pluggy("a1", "2025-05-10", "50.00")]
+
+        resultado = _sync(session, leitor)
+
+        assert [i.id_externo for i in _itens(session)] == ["a1"]
+        assert resultado.importacao_id is None
+        assert _pendentes(session) == {}
+        assert resultado.pendentes_exibicao == 0
+
+    def test_confirmada_perde_a_marca(self, session: Session, cenario: dict[str, Any]) -> None:
+        self._item_d23(session, cenario, "a1", StatusItem.PENDENTE)
+        leitor = LeitorFalso()
+        leitor.faturas[CARTAO] = [_fatura("f2", "2025-06-03", "2025-06-10", "52.00")]
+        leitor.transacoes[CARTAO] = [_lancada_pluggy("a1", "2025-05-09", "52.00")]
+
         resultado = _sync(session, leitor)
         session.expire_all()
 
-        assert resultado.abertas_canceladas == 1
-        item, transacao = self._transacao(session, "a1")
-        assert transacao.deleted_em is None
-        assert item.observacao is not None and "confira se foi cancelada" in item.observacao
+        assert resultado.abertas_confirmadas == 1
+        (item,) = _itens(session)
+        assert "Compra em aberto" not in (item.observacao or "")
+        assert (item.data, item.valor) == (date(2025, 5, 9), Decimal("52.00"))
 
-    def test_aberta_pendente_na_revisao_cancelada_e_rejeitada(
-        self, session: Session, cenario: dict[str, Any]
-    ) -> None:
-        """Sem mapeamento de categoria: a aberta fica na revisão, e some rejeitada."""
-        leitor = LeitorFalso()
-        leitor.transacoes[CARTAO] = [self._aberta("a1", "2025-05-10", "40.00")]
-        primeiro = _sync(session, leitor)
-        assert primeiro.na_revisao == {"sem_categoria": 1}
+    def test_sumida_e_rejeitada(self, session: Session, cenario: dict[str, Any]) -> None:
+        self._item_d23(session, cenario, "a1", StatusItem.PENDENTE)
 
-        leitor.transacoes[CARTAO] = []
-        _sync(session, leitor)
+        resultado = _sync(session, LeitorFalso())
         session.expire_all()
-        item = next(i for i in _itens(session) if i.id_externo == "a1")
-        assert item.status is StatusItem.REJEITADO and item.transacao_id is None
+
+        assert resultado.abertas_canceladas == 1
+        (item,) = _itens(session)
+        assert item.status is StatusItem.REJEITADO
 
 
 def test_compra_confirmada_com_data_antiga_ainda_entra(

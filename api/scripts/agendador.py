@@ -64,7 +64,8 @@ def uma_execucao(cfg: Settings, executor: Callable[[Settings], ResultadoSync] = 
     erros = [f"{c.rotulo}: {c.erro}" for c in r.contas if c.erro]
     log(
         f"sync: ok, {r.itens_novos} novo(s), {r.promovidos} promovido(s), "
-        f"{sum(r.na_revisao.values())} na revisão, importação "
+        f"{sum(r.na_revisao.values())} na revisão, {r.pendentes_exibicao} pendente(s) do cartão, "
+        f"importação "
         f"{'#' + str(r.importacao_id) if r.importacao_id else 'nenhuma'}"
         + (f"; erros: {'; '.join(erros)}" if erros else "")
     )

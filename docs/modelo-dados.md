@@ -270,6 +270,32 @@ a revisão sem categoria — por isso `categoria_id` é obrigatória. As famíli
 de transferência da Pluggy (`Transfers`, `Same person transfer`,
 `Third-party transfers`) não podem apontar para categoria de despesa.
 
+## `pluggy_pendentes`
+Compras de cartão que a Pluggy ainda entrega `PENDING`, **só para exibição**
+(D-28, migration 0008). Cópia descartável do que a Pluggy mostra agora: a
+cada sync, as linhas de cada conta lida sem erro são apagadas e recriadas;
+conta com erro mantém as da sync anterior.
+
+| coluna | tipo | notas |
+|---|---|---|
+| id | bigint identity | |
+| criado_em | timestamptz not null default now() | |
+| id_externo | text not null | id da transação na Pluggy; único. A versão `POSTED` chega com o mesmo id |
+| conta_pluggy_id | fk contas_pluggy not null | `ON DELETE CASCADE` |
+| forma_pagamento_id | fk formas_pagamento not null | o cartão; `ON DELETE RESTRICT` |
+| data | date not null | |
+| valor | numeric(12,2) not null | `CHECK (valor > 0)` |
+| descricao | text not null | |
+| fatura_prevista | date | competência estimada pelos dias do cartão (D-27); dia 1 do mês |
+
+Índices em `conta_pluggy_id` e `forma_pagamento_id`; unique em `id_externo`.
+
+**Exceção explícita à regra 2 (sem DELETE físico):** não tem `deleted_em`,
+`atualizado_em` nem trigger de auditoria, e a sync apaga fisicamente. Nunca
+escreve em `transacoes` nem em `importacao_itens`, e não entra em gasto,
+orçamento, relatórios nem insights. Toda leitura ignora a pendente cujo
+`id_externo` já está no staging.
+
 ## Rastro do documento
 
 `importacoes` guarda o arquivo inteiro em `arquivo_conteudo` (bytea) desde a

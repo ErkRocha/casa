@@ -7,6 +7,11 @@ promovido pelo mesmo `aprovar()` da revisão, na mesma transação da
 importação; o resto fica na revisão, com o motivo contado
 (`promocao_pluggy.motivo_para_revisao`).
 
+A compra de cartão que a Pluggy entrega `PENDING` não entra em nenhum dos
+dois (D-28): vai para `pluggy_pendentes`, só para exibição, trocada inteira
+por conta a cada execução. Quando o banco confirma, ela chega `POSTED` com o
+mesmo id e segue o fluxo normal.
+
 Duas fases, de propósito:
 
 1. **Planejar** — só leitura, na Pluggy e no banco. Monta, por conta, os
@@ -30,7 +35,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Protocol
 
-from sqlalchemy import func, select, text, tuple_
+from sqlalchemy import delete, func, select, text, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -44,7 +49,14 @@ from app.conversao_pluggy import (
 )
 from app.enums import StatusItem, TipoPagamento, TipoTransacao
 from app.ingestao.base import ItemExtraido
-from app.models import Auditoria, Categoria, ContaPluggy, FormaPagamento, ImportacaoItem
+from app.models import (
+    Auditoria,
+    Categoria,
+    ContaPluggy,
+    FormaPagamento,
+    ImportacaoItem,
+    PluggyPendente,
+)
 from app.models import Transacao as TransacaoDb
 from app.pluggy.modelos import Conta, Fatura, Transacao
 from app.services.cadastros import FormaPagamentoService, normalizar_nome, primeiro_dia_do_mes
@@ -64,7 +76,8 @@ CONFIANCA_DUPLICATA = Decimal("0.50")
 CONFIANCA_ENCARGOS = Decimal("0.70")
 AUTOR = "sync_pluggy"
 
-#: Motivo gravado quando a compra em aberto some da Pluggy (D-23).
+#: Motivo gravado quando a compra em aberto some da Pluggy (D-23, só itens
+#: criados antes da D-28).
 MOTIVO_ABERTA_CANCELADA = (
     "Compra em aberto cancelada: sumiu da Pluggy antes de o banco confirmar (D-23)."
 )
@@ -174,12 +187,16 @@ class ResultadoConta:
     fallback_competencia: list[str] = field(default_factory=list)
     #: Só na simulação: cada item novo com a sugestão que receberia.
     amostra: list[dict[str, Any]] = field(default_factory=list)
-    #: Compras de cartão da fatura aberta lidas nesta execução (D-23).
+    #: Compras de cartão `PENDING` lidas nesta execução.
     abertas: int = 0
-    #: Compras em aberto já no staging, com o que a Pluggy diz delas hoje:
-    #: confirmadas ou ainda abertas, talvez com outra data ou valor.
+    #: Compras pendentes do cartão para exibição (D-28): vão para
+    #: `pluggy_pendentes` na gravação, nunca para o staging.
+    pendentes: list[ItemExtraido] = field(default_factory=list)
+    #: Resto da D-23, só para itens criados antes da D-28: compras em aberto
+    #: já no staging, com o que a Pluggy diz delas hoje (confirmadas ou ainda
+    #: abertas, talvez com outra data ou valor).
     atualizar: list[ItemExtraido] = field(default_factory=list)
-    #: Compras em aberto no staging que sumiram da Pluggy (`id_externo`).
+    #: Idem: compras em aberto no staging que sumiram da Pluggy (`id_externo`).
     canceladas: list[str] = field(default_factory=list)
 
 
@@ -198,8 +215,9 @@ class ResultadoSync:
     erros_promocao: list[dict[str, Any]] = field(default_factory=list)
     #: Motivo (`promocao_pluggy.REJEICOES`) -> quantos a sync rejeitou (D-22).
     rejeitados: Counter[str] = field(default_factory=Counter)
-    #: Compras em aberto já no staging (D-23): confirmadas pelo banco nesta
-    #: execução, atualizadas (data, valor ou competência) e canceladas.
+    #: Resto da D-23, só para itens criados antes da D-28: compras em aberto
+    #: já no staging, confirmadas pelo banco nesta execução, atualizadas (data,
+    #: valor ou competência) e canceladas.
     abertas_confirmadas: int = 0
     abertas_atualizadas: int = 0
     abertas_canceladas: int = 0
@@ -207,6 +225,11 @@ class ResultadoSync:
     @property
     def itens_novos(self) -> int:
         return sum(c.novos for c in self.contas if c.erro is None)
+
+    @property
+    def pendentes_exibicao(self) -> int:
+        """Compras pendentes do cartão que ficam (ou ficariam) em `pluggy_pendentes` (D-28)."""
+        return sum(len(c.pendentes) for c in self.contas if c.erro is None)
 
 
 class ResolvedorDeForma:
@@ -435,9 +458,10 @@ class SyncPluggyService:
         resultado.abertas = lote.abertas
         resultado.avisos.extend(lote.avisos)
 
-        # D-23: compras em aberto que já estão no staging. A Pluggy mantém o
-        # id quando confirma; o que veio agora (aberta ou confirmada) vai
-        # atualizar o item, e o que sumiu da conta foi cancelado.
+        # Resto da D-23: só serve a itens criados antes da D-28 (o script
+        # `pluggy-remover-abertas` os tira). A Pluggy mantém o id quando
+        # confirma; o que veio agora (aberta ou confirmada) atualiza o item, e
+        # o que sumiu da conta foi cancelado.
         if conta.e_cartao:
             abertas_no_staging = self._abertas_no_staging(mapa)
             lidas = {t.id for t in transacoes}
@@ -457,9 +481,16 @@ class SyncPluggyService:
         # de repetição é o id da Pluggy no staging (D-16, D-23).
         corte = mapa.sincronizar_desde if conta.e_cartao else inicio
         candidatos: list[ItemExtraido] = []
+        pendentes: list[ItemExtraido] = []
         for item in lote.itens:
             if item.data < corte:
                 resultado.fora_da_janela += 1
+                continue
+            if item.observacao and OBS_ABERTA in item.observacao:
+                # D-28: pendente só se exibe. Nunca vira candidata ao staging
+                # (o leftover da D-23 já tem o id lá e segue por `atualizar`).
+                if item.valor > 0:
+                    pendentes.append(item)
                 continue
             candidatos.append(item)
             if conta.e_cartao and item.tipo is TipoTransacao.DESPESA:
@@ -472,6 +503,11 @@ class SyncPluggyService:
             for encargo_item, encargo in self._encargos(mapa, transacoes, faturas, resultado):
                 candidatos.append(encargo_item)
                 resultado.encargos.append(encargo)
+
+        # Pendente cujo id já está no staging (resto da D-23) aparece como
+        # transação: não entra de novo na exibição.
+        no_staging = self._ids_existentes([p.id_externo for p in pendentes if p.id_externo])
+        resultado.pendentes = [p for p in pendentes if p.id_externo not in no_staging]
 
         existentes = self._ids_existentes([c.id_externo for c in candidatos if c.id_externo])
         novos = [c for c in candidatos if c.id_externo not in existentes]
@@ -668,6 +704,7 @@ class SyncPluggyService:
         self.session.execute(text("SELECT set_config('app.autor', :autor, true)"), {"autor": AUTOR})
         sem_erro = {c.mapeamento_id for c in resultado.contas if c.erro is None}
         itens = [lote for c in resultado.contas if c.erro is None for lote in c.itens]
+        self._gravar_pendentes(resultado, mapeamentos)
 
         if itens:
             self._criar_formas(itens)
@@ -690,6 +727,45 @@ class SyncPluggyService:
         for mapa in mapeamentos:
             if mapa.id in sem_erro:
                 mapa.ultimo_sync_em = agora
+        self.session.flush()
+
+    def _gravar_pendentes(
+        self, resultado: ResultadoSync, mapeamentos: Sequence[ContaPluggy]
+    ) -> None:
+        """D-28: troca, por conta lida sem erro, as pendentes de exibição.
+
+        DELETE físico de propósito (exceção à regra 2): é cópia descartável do
+        que a Pluggy mostra agora. Conta com erro mantém as linhas da sync
+        anterior; mapeamento inativo ou apagado perde as dele.
+        """
+        por_id = {m.id: m for m in mapeamentos}
+        apagar = delete(PluggyPendente)
+        if por_id:
+            apagar = apagar.where(PluggyPendente.conta_pluggy_id.not_in(list(por_id)))
+        self.session.execute(apagar)
+        for conta in resultado.contas:
+            if conta.erro is not None:
+                continue
+            mapa = por_id[conta.mapeamento_id]
+            self.session.execute(
+                delete(PluggyPendente).where(PluggyPendente.conta_pluggy_id == mapa.id)
+            )
+            vistos: set[str] = set()
+            for item in conta.pendentes:
+                if not item.id_externo or item.id_externo in vistos:
+                    continue
+                vistos.add(item.id_externo)
+                self.session.add(
+                    PluggyPendente(
+                        id_externo=item.id_externo,
+                        conta_pluggy_id=mapa.id,
+                        forma_pagamento_id=mapa.forma_pagamento_id,
+                        data=item.data,
+                        valor=item.valor,
+                        descricao=item.descricao,
+                        fatura_prevista=item.competencia,
+                    )
+                )
         self.session.flush()
 
     def _promover(
@@ -746,11 +822,14 @@ class SyncPluggyService:
             resultado.na_revisao["duplicata"] += aprovacao["duplicados"]
         resultado.erros_promocao = aprovacao["erros"]
 
-    # -- compras em aberto (D-23) -----------------------------------------
+    # -- compras em aberto (D-23; só itens anteriores à D-28) --------------
 
     def _atualizar_abertas(self, resultado: ResultadoSync) -> None:
         """Leva para o staging (e para a transação, se já aprovada) o que a
         Pluggy diz hoje das compras em aberto; cancela as que sumiram.
+
+        Desde a D-28 nenhuma compra em aberto nova entra no staging: isto só
+        serve aos itens criados antes dela, até o `pluggy-remover-abertas`.
 
         Na transação, campo que o usuário editou não é tocado: a auditoria
         diz quem mudou o quê (D-06). A compra confirmada e limpa que ainda
