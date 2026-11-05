@@ -67,8 +67,11 @@ class FaturaAberta(BaseModel):
 
     forma_pagamento_id: int
     cartao: str
-    #: Compras com data depois de `desde` e até hoje.
+    #: Compras com data depois de `desde` e até hoje, lançadas mais as
+    #: pendentes (D-28).
     valor: Decimal
+    #: Parte de `valor` que ainda é pendente (só exibição, D-28).
+    pendente: Decimal
     #: Último fechamento.
     desde: date
     #: Próximo fechamento.

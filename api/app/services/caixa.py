@@ -15,6 +15,10 @@ Tudo é SQL (regra 7): o Python só escolhe parâmetros e monta a resposta. Os
 blocos `CTES_*` são fragmentos de `WITH` (sem a palavra `WITH`) para o
 chamador compor com as suas próprias CTEs.
 
+`CTE_PENDENTES` (D-28) é a leitura única das compras pendentes do cartão: só as
+que ainda não chegaram ao staging (senão a compra já lançada contaria duas
+vezes). Pendente é só exibição: nunca entra em gasto, orçamento ou previsão.
+
 Parâmetros dos fragmentos: `:c` (competência, 1º dia do mês), `:obs_conta` e
 `:obs_cartao` (textos que marcam o pagamento de fatura, D-22). A consulta das
 faturas abertas usa `:hoje`.
@@ -110,6 +114,19 @@ _FECHAMENTO_CADASTRO = _no_mes(
     f"THEN interval '0 month' ELSE {_UM_MES} END)::date",
     "d.dia_fechamento",
 )
+
+#: Compras pendentes do cartão (D-28) que ainda não viraram item de staging:
+#: a que já chegou `POSTED` com o mesmo id conta só como lançada.
+CTE_PENDENTES = """
+    pendentes AS MATERIALIZED (
+      SELECT p.id_externo, p.forma_pagamento_id, p.data, p.valor, p.fatura_prevista
+      FROM pluggy_pendentes p
+      WHERE NOT EXISTS (
+        SELECT 1 FROM importacao_itens i
+        WHERE i.id_externo = p.id_externo AND i.deleted_em IS NULL
+      )
+    )
+"""
 
 #: Faturas e conta de crédito da Pluggy, e os cartões com as datas conhecidas.
 #: `cartao_conta`: uma linha por cartão (forma `credito`) com `fid`, `apelido`,
@@ -297,6 +314,7 @@ _PASSOS_PARA_PASSAR_HOJE = (
 #: último fechamento é hoje (sem dias para desenhar).
 _FATURAS_ABERTAS = f"""
     WITH {CTES_FATURAS},
+    {CTE_PENDENTES},
     ativos AS MATERIALIZED (
       SELECT k.*,
         (SELECT max(fa.fechamento) FROM faturas fa
@@ -305,10 +323,17 @@ _FATURAS_ABERTAS = f"""
           WHERE fa.account_id = k.account_id AND fa.fechamento IS NOT NULL
           ORDER BY fa.fechamento DESC LIMIT 1) AS prazo
       FROM cartao_conta k
-      WHERE k.ativo AND EXISTS (
-        SELECT 1 FROM vw_transacoes_completa t
-        WHERE t.forma_pagamento_id = k.fid AND t.tipo = 'despesa'
-          AND t.data >= {_HOJE} - {JANELA_ABERTAS_DIAS} AND t.data <= {_HOJE}
+      WHERE k.ativo AND (
+        EXISTS (
+          SELECT 1 FROM vw_transacoes_completa t
+          WHERE t.forma_pagamento_id = k.fid AND t.tipo = 'despesa'
+            AND t.data >= {_HOJE} - {JANELA_ABERTAS_DIAS} AND t.data <= {_HOJE}
+        )
+        OR EXISTS (
+          SELECT 1 FROM pendentes p
+          WHERE p.forma_pagamento_id = k.fid
+            AND p.data >= {_HOJE} - {JANELA_ABERTAS_DIAS} AND p.data <= {_HOJE}
+        )
       )
     ),
     desdes AS (
@@ -362,14 +387,23 @@ _FATURAS_ABERTAS = f"""
       END AS origem_datas,
       (SELECT coalesce(sum(t.valor), 0) FROM vw_transacoes_completa t
         WHERE t.forma_pagamento_id = v.fid AND t.tipo = 'despesa'
-          AND t.data > v.desde AND t.data <= {_HOJE}) AS valor,
+          AND t.data > v.desde AND t.data <= {_HOJE})
+      + (SELECT coalesce(sum(p.valor), 0) FROM pendentes p
+          WHERE p.forma_pagamento_id = v.fid
+            AND p.data > v.desde AND p.data <= {_HOJE}) AS valor,
+      (SELECT coalesce(sum(p.valor), 0) FROM pendentes p
+        WHERE p.forma_pagamento_id = v.fid
+          AND p.data > v.desde AND p.data <= {_HOJE}) AS pendente,
       e.dia, e.acumulado
     FROM vences v
     LEFT JOIN LATERAL (
       SELECT v.desde + g.n AS dia,
         (SELECT coalesce(sum(t.valor), 0) FROM vw_transacoes_completa t
           WHERE t.forma_pagamento_id = v.fid AND t.tipo = 'despesa'
-            AND t.data > v.desde AND t.data <= v.desde + g.n) AS acumulado
+            AND t.data > v.desde AND t.data <= v.desde + g.n)
+        + (SELECT coalesce(sum(p.valor), 0) FROM pendentes p
+            WHERE p.forma_pagamento_id = v.fid
+              AND p.data > v.desde AND p.data <= v.desde + g.n) AS acumulado
       FROM generate_series(1, {_HOJE} - v.desde) AS g(n)
     ) e ON true
     ORDER BY v.fecha, v.apelido, v.fid, e.dia
@@ -410,6 +444,7 @@ def faturas_abertas(session: Session, hoje: date) -> list[FaturaAberta]:
                 forma_pagamento_id=linha["fid"],
                 cartao=linha["apelido"],
                 valor=Decimal(linha["valor"]),
+                pendente=Decimal(linha["pendente"]),
                 desde=linha["desde"],
                 fecha=linha["fecha"],
                 vence=linha["vence"],

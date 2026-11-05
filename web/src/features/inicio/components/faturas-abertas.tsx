@@ -84,12 +84,13 @@ export function FaturasAbertas({ i, className }: { i: Inicio; className?: string
             <span className="text-pequeno text-texto-2">
               {`desde ${dataCurta(f.desde)} · fecha dia ${diaDoIso(f.fecha)}`}
               {f.vence ? `, vence dia ${diaDoIso(f.vence)}` : ""}
+              {toNumero(f.pendente) > 0 ? ` · ${reais(f.pendente)} pendente no banco` : ""}
             </span>
             <Evolucao fatura={f} />
           </li>
         ))}
       </ul>
-      <p className="text-pequeno text-texto-2 m-0">Compras pela data, desde o último fechamento.</p>
+      <p className="text-pequeno text-texto-2 m-0">Compras pela data, desde o último fechamento, com as pendentes no banco.</p>
     </Card>
   );
 }

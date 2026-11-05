@@ -34,7 +34,10 @@ export interface PontoEvolucao {
 export interface FaturaAberta {
   forma_pagamento_id: number;
   cartao: string;
+  /** Lançadas e pendentes (D-28). */
   valor: Dinheiro;
+  /** Parte de `valor` ainda pendente no banco. */
+  pendente: Dinheiro;
   desde: string;
   fecha: string;
   vence: string | null;
