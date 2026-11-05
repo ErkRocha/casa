@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: test-db help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-resgates compras-role compras-migrate compras-seed compras-test compras-lint financas-role
+.PHONY: test-db help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-resgates compras-role compras-migrate compras-seed compras-test compras-lint financas-role conferir
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -141,6 +141,10 @@ compras-lint: ## ruff + mypy do serviço de compras
 # receita de make). O MAKE vai junto para as etapas chamarem os alvos daqui.
 validar: ## Backup do banco, rebuild, /health, migrate, roles, lint e test — para no 1º erro
 	@MAKE="$(MAKE)" bash scripts/validar.sh
+
+# Só lê e mostra (OK/AVISO/FALHA por linha); não sobe nem para nada.
+conferir: ## Confere containers, health, agendador, MCP, ngrok e tailscale serve (só leitura)
+	@bash scripts/conferir.sh
 
 reset: ## APAGA o volume do banco e recria do zero
 	$(COMPOSE) down -v

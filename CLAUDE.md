@@ -13,6 +13,7 @@ make migrate | revision m="..."      # finanças (api/alembic)
 make compras-migrate | compras-test | compras-lint
 make test | lint | fmt               # test sobe casa_test via api-admin
 make validar                         # backup + rebuild + migrate + lint + test
+make conferir                        # só lê: containers, health, agendador, MCP, ngrok, tailscale
 make psql | shell
 web/: npm run dev | build | typecheck | lint
 ```
