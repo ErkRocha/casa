@@ -50,3 +50,23 @@ export function textoRevisar(resumo: RevisarResumo): string {
   if (outros) partes.push(plural(outros, "outro", "outros"));
   return partes.join(", ");
 }
+
+/** "Nubank •••• 1234 crédito" vira "Nubank"; sem sobrar nada, mantém o original. */
+export function nomeCurtoCartao(cartao: string): string {
+  const curto = cartao
+    .replace(/[•*·.]{2,}\s*\d+/g, "")
+    .replace(/(?<![\p{L}])(cr[eé]dito|gold|platinum|black|infinite)(?![\p{L}])/giu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return curto || cartao;
+}
+
+/** Dia do mês (sem zero à esquerda) de uma data ISO. */
+export function diaDoIso(iso: string): number {
+  return Number(iso.slice(8, 10));
+}
+
+/** "2026-11-02" vira "02/11". */
+export function dataCurta(iso: string): string {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+}

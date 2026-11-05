@@ -6,20 +6,30 @@ import { Icone } from "@/components/ui/icone";
 import type { Pessoa } from "@/features/cadastros/types";
 import { corDaChave } from "@/features/filters/baldes";
 import type { RevisarResumo } from "@/features/revisar/types";
-import { inteiro, reais, reaisAbs, sinal } from "@/lib/format";
+import { inteiro, reais, reaisAbs, sinal, toNumero } from "@/lib/format";
 import { href } from "@/lib/rotas";
 import { cn } from "@/lib/utils";
 import { COR_FAIXA, textoComparacao, textoRevisar } from "../textos";
 import type { AvisoOrcamento, AvisoReajuste, Inicio } from "../types";
 
-function textoPrevisao(i: Inicio, curto: boolean): string {
+function textoPrevisao(i: Inicio, curto: boolean): string | null {
   const diferenca = i.previsao?.diferenca_orcamento;
-  if (!diferenca) return "no ritmo atual";
+  if (!diferenca) return null;
   const s = sinal(diferenca);
-  if (s === 0) return curto ? "no limite" : "exatamente o orçamento, no ritmo atual";
+  if (s === 0) return curto ? "no limite" : "exatamente o orçamento";
   const quanto = reaisAbs(diferenca, { centavos: false });
   const lado = s > 0 ? "acima" : "abaixo";
-  return curto ? `${quanto} ${lado}` : `${quanto} ${lado} do orçamento, no ritmo atual`;
+  return curto ? `${quanto} ${lado}` : `${quanto} ${lado} do orçamento`;
+}
+
+/** "Já saiu da conta: R$ X · faturas a pagar: R$ Y" (D-27). */
+function textoSaiuDaConta(i: Inicio): string {
+  const ref = i.serie.find((p) => p.dia === i.dia_referencia);
+  const saiu = `Já saiu da conta: ${reais(ref?.acumulado ?? "0")}`;
+  const aPagar = i.faturas.filter((f) => f.situacao === "a_pagar");
+  if (aPagar.length === 0) return saiu;
+  const centavos = aPagar.reduce((soma, f) => soma + Math.round(toNumero(f.valor) * 100), 0);
+  return `${saiu} · faturas a pagar: ${reais((centavos / 100).toFixed(2))}`;
 }
 
 function BarraOrcamento({ i, grossa = false }: { i: Inicio; grossa?: boolean }) {
@@ -107,9 +117,23 @@ function CaixaFechamento({ i, compacta = false }: { i: Inicio; compacta?: boolea
     const acima = sinal(i.previsao.diferenca_orcamento) > 0;
     return (
       <Caixa
-        rotulo="Previsão de fechamento"
+        rotulo="Previsão do que sai da conta"
         valor={reais(i.previsao.valor, { centavos: false })}
-        apoio={textoPrevisao(i, compacta)}
+        apoio={
+          compacta ? (
+            <>
+              {textoPrevisao(i, true)}
+              {textoPrevisao(i, true) ? <br /> : null}
+              faturas + ritmo de Pix e débito
+            </>
+          ) : (
+            <>
+              {textoPrevisao(i, false)}
+              {textoPrevisao(i, false) ? <br /> : null}
+              faturas do mês + ritmo de Pix, débito e boleto
+            </>
+          )
+        }
         tom={acima ? "atencao" : "interno"}
         tamanho={tamanho}
       />
@@ -137,7 +161,13 @@ export function ResumoComputador({ i }: { i: Inicio }) {
       <Caixa
         rotulo={i.situacao === "corrente" ? "Gasto até hoje" : "Gasto no mês"}
         valor={reais(i.gasto)}
-        apoio={textoComparacao(i)}
+        apoio={
+          <>
+            {textoComparacao(i)}
+            <br />
+            {textoSaiuDaConta(i)}
+          </>
+        }
         tom="nenhum"
         tamanho="grande"
       />
@@ -166,6 +196,7 @@ export function ResumoCelular({ i, grafico }: { i: Inicio; grafico: ReactNode })
         <span className="text-numero-grande leading-none font-bold tracking-[-1.5px]">
           {reais(i.gasto)}
         </span>
+        <span className="text-pequeno text-texto-2">{textoSaiuDaConta(i)}</span>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <CaixaOrcamento i={i} compacta />
@@ -174,7 +205,7 @@ export function ResumoCelular({ i, grafico }: { i: Inicio; grafico: ReactNode })
       <figure className="m-0 flex flex-col gap-3">
         {grafico}
         <figcaption className="text-pequeno text-texto-2">
-          Linha azul: quanto já saiu no mês, somado dia a dia.
+          Linha cheia: o que já saiu da conta · tracejado: faturas a pagar.
         </figcaption>
       </figure>
     </section>

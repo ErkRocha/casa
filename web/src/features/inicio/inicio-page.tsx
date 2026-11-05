@@ -16,6 +16,7 @@ import {
   ResumoCelular,
   ResumoComputador,
 } from "./components/blocos";
+import { FaturasAbertas } from "./components/faturas-abertas";
 import { GraficoAcumulado } from "./components/grafico-acumulado";
 import { UltimosLancamentos } from "./components/ultimos-lancamentos";
 import { useInicio, useUltimosLancamentos } from "./queries";
@@ -113,6 +114,7 @@ function Conteudo({
   const grafico = (variante: "computador" | "celular") => (
     <GraficoAcumulado
       serie={i.serie}
+      faturas={i.faturas}
       diasNoMes={i.dias_no_mes}
       diaReferencia={i.dia_referencia}
       orcamento={i.orcamento?.total ?? null}
@@ -126,6 +128,7 @@ function Conteudo({
       {/* Celular: um bloco com o gasto, a meta, a previsão e o gráfico. */}
       <div className="flex flex-col gap-7 md:hidden">
         <ResumoCelular i={i} grafico={grafico("celular")} />
+        <FaturasAbertas i={i} />
         <CartaoRevisar resumo={revisar} />
         <QuemGastou i={i} pessoas={pessoas} />
         <PorCategoria i={i} />
@@ -138,15 +141,19 @@ function Conteudo({
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
           <Card className="flex flex-col gap-6 px-11 py-10 lg:col-span-2">
             <div className="flex items-baseline justify-between">
-              <h2 className="text-bloco font-forte m-0">Gasto acumulado no mês</h2>
+              <h2 className="text-bloco font-forte m-0">O que saiu da conta no mês</h2>
               <span className="text-apoio text-texto-2">
                 dia {i.dia_referencia} de {i.dias_no_mes}
               </span>
             </div>
             {grafico("computador")}
+            <p className="text-pequeno text-texto-2 m-0">
+              Linha cheia: o que já saiu da conta · tracejado: faturas a pagar.
+            </p>
           </Card>
           <div className="flex flex-col gap-8">
             <CartaoRevisar resumo={revisar} />
+            <FaturasAbertas i={i} />
             <Avisos avisos={i.avisos} className="flex-1" />
           </div>
         </div>

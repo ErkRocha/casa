@@ -1,11 +1,12 @@
 import { reais, toNumero } from "@/lib/format";
-import type { PontoAcumulado, SituacaoMes } from "../types";
+import { nomeCurtoCartao } from "../textos";
+import type { FaturaMes, PontoAcumulado, SituacaoMes } from "../types";
 
 /**
- * "Gasto acumulado no mês" (`InicioDesktop` / `InicioCelular`, D-24).
+ * "O que saiu da conta no mês" (`InicioDesktop` / `InicioCelular`, D-24).
  *
- * A curva é a despesa somada dia a dia, como a API manda; a linha tracejada
- * é o orçamento do mês. Os valores viram número só aqui, para virar
+ * A curva cheia é o que já saiu da conta, em degraus (a fatura sobe de uma vez
+ * no dia); o tracejado inclui as faturas a pagar; a linha guia é o orçamento. Os valores viram número só aqui, para virar
  * coordenada no SVG — nada é somado no navegador.
  */
 
@@ -16,6 +17,7 @@ const GEOMETRIA = {
 
 export function GraficoAcumulado({
   serie,
+  faturas,
   diasNoMes,
   diaReferencia,
   orcamento,
@@ -23,6 +25,7 @@ export function GraficoAcumulado({
   variante,
 }: {
   serie: PontoAcumulado[];
+  faturas: FaturaMes[];
   diasNoMes: number;
   diaReferencia: number;
   orcamento: string | null;
@@ -30,17 +33,66 @@ export function GraficoAcumulado({
   variante: keyof typeof GEOMETRIA;
 }) {
   const g = GEOMETRIA[variante];
-  const ultimo = serie.at(-1)?.acumulado ?? "0";
+  const realizada = serie.filter((p) => p.dia <= diaReferencia);
+  const ultimo = realizada.at(-1)?.acumulado ?? "0";
   const meta = orcamento ? toNumero(orcamento) : 0;
-  const escala = Math.max(meta, toNumero(ultimo), 1);
+  const maiorComAPagar = Math.max(0, ...serie.map((p) => toNumero(p.com_a_pagar)));
+  const escala = Math.max(meta, maiorComAPagar, toNumero(ultimo), 1);
   const y = (valor: number) => g.base - (valor / escala) * (g.base - g.topo);
   const x = (dia: number) => (dia / diasNoMes) * g.largura;
+  const par = (px: number, py: number) => `${px.toFixed(1)},${py.toFixed(1)}`;
 
-  const pontos = [[0, g.base], ...serie.map((p) => [x(p.dia), y(toNumero(p.acumulado))])];
-  const curva = pontos.map(([px, py]) => `${px!.toFixed(1)},${py!.toFixed(1)}`).join(" ");
-  const [hojeX, hojeY] = pontos.at(-1) as [number, number];
+  // Desenho em degraus: segue horizontal no valor anterior e sobe no dia.
+  const degraus = (pontos: Array<[number, number]>, inicio: [number, number]) => {
+    const saida = [par(...inicio)];
+    let anterior = inicio[1];
+    for (const [dia, valor] of pontos) {
+      saida.push(par(x(dia), anterior), par(x(dia), y(valor)));
+      anterior = y(valor);
+    }
+    return saida.join(" ");
+  };
+
+  const curva = degraus(
+    realizada.map((p) => [p.dia, toNumero(p.acumulado)]),
+    [0, g.base],
+  );
+  const hojeX = x(realizada.at(-1)?.dia ?? 0);
+  const hojeY = y(toNumero(ultimo));
   const area = `${curva} ${hojeX.toFixed(1)},${g.base}`;
   const linhaOrcamento = meta > 0 ? y(meta) : null;
+
+  // Tracejado: de onde `com_a_pagar` passa de `acumulado` até o fim do mês.
+  const primeiraDiferenca = serie.findIndex(
+    (p) => toNumero(p.com_a_pagar) > toNumero(p.acumulado),
+  );
+  let tracejado: string | null = null;
+  if (primeiraDiferenca >= 0) {
+    const anterior = serie[primeiraDiferenca - 1];
+    const inicioY = anterior ? y(toNumero(anterior.com_a_pagar)) : g.base;
+    tracejado = degraus(
+      serie.slice(primeiraDiferenca).map((p) => [p.dia, toNumero(p.com_a_pagar)]),
+      [x(anterior?.dia ?? 0), inicioY],
+    );
+  }
+
+  const aPagar = faturas
+    .filter((f) => f.situacao === "a_pagar")
+    .map((f) => {
+      const ponto = serie.find((p) => p.dia === f.dia);
+      const cx = x(f.dia);
+      const nome = nomeCurtoCartao(f.cartao);
+      return {
+        chave: f.forma_pagamento_id,
+        cx,
+        cy: ponto ? y(toNumero(ponto.com_a_pagar)) : g.topo,
+        texto:
+          variante === "celular"
+            ? `Fatura ${nome}, dia ${f.dia}`
+            : `Fatura ${nome}, vence dia ${f.dia}`,
+      };
+    });
+  const pagas = faturas.filter((f) => f.situacao === "paga");
 
   // O rótulo do ponto vai para a esquerda quando encostaria na borda.
   const rotuloADireita = hojeX < g.largura * 0.78;
@@ -53,9 +105,59 @@ export function GraficoAcumulado({
   const mostrarDiaDoMeio =
     serie.length > 0 && diaReferencia > 2 && diaReferencia < diasNoMes - 2;
 
+  // Caixas aproximadas dos textos, para os rótulos de fatura não se sobreporem.
+  type Caixa = { x1: number; x2: number; y1: number; y2: number };
+  const caixaDoTexto = (
+    px: number,
+    py: number,
+    ancora: "start" | "end",
+    texto: string,
+    fonte: number,
+  ): Caixa => {
+    const largura = texto.length * fonte * 0.56;
+    return {
+      x1: ancora === "start" ? px : px - largura,
+      x2: ancora === "start" ? px + largura : px,
+      y1: py - fonte,
+      y2: py + 3,
+    };
+  };
+  const bate = (a: Caixa, b: Caixa) => a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2;
+  const fonteHoje = variante === "computador" ? 14 : 12;
+  const ocupadas: Caixa[] =
+    realizada.length > 0
+      ? [
+          caixaDoTexto(
+            rotuloADireita ? hojeX + 14 : hojeX - 14,
+            hojeY + 5,
+            rotuloADireita ? "start" : "end",
+            rotulo,
+            fonteHoje,
+          ),
+        ]
+      : [];
+  const rotulosFatura = aPagar.map((f) => {
+    const fonte = g.fonte - 1;
+    const aDireita = f.cx + 4 + f.texto.length * fonte * 0.56 <= g.largura;
+    const ancora = aDireita ? ("start" as const) : ("end" as const);
+    const px = aDireita ? f.cx + 4 : f.cx - 4;
+    let py = f.cy - 6;
+    let caixa = caixaDoTexto(px, py, ancora, f.texto, fonte);
+    for (let n = 0; n < 8 && ocupadas.some((o) => bate(o, caixa)); n++) {
+      py -= 14;
+      caixa = caixaDoTexto(px, py, ancora, f.texto, fonte);
+    }
+    ocupadas.push(caixa);
+    return { chave: f.chave, x: px, y: py, ancora, fonte, texto: f.texto };
+  });
+
   const descricao =
-    `Gasto acumulado até o dia ${diaReferencia}: ${reais(ultimo)}` +
-    (orcamento ? `, comparado ao orçamento de ${reais(orcamento, { centavos: false })}` : "");
+    `Saiu da conta até o dia ${diaReferencia}: ${reais(ultimo)}` +
+    (orcamento ? `, comparado ao orçamento de ${reais(orcamento, { centavos: false })}` : "") +
+    (aPagar.length ? `. Faturas a pagar: ${aPagar.map((f) => f.texto).join("; ")}` : "") +
+    (pagas.length
+      ? `. Faturas pagas: ${pagas.map((f) => `${nomeCurtoCartao(f.cartao)}, dia ${f.dia}`).join("; ")}`
+      : "");
 
   return (
     <svg
@@ -99,7 +201,33 @@ export function GraficoAcumulado({
         </>
       ) : null}
 
-      {serie.length > 0 ? (
+      {tracejado ? (
+        <polyline
+          points={tracejado}
+          fill="none"
+          className="stroke-destaque"
+          strokeWidth={variante === "computador" ? 2.5 : 2}
+          strokeDasharray={variante === "computador" ? "6 6" : "5 5"}
+          strokeLinejoin="round"
+        />
+      ) : null}
+      {rotulosFatura.map((r) => (
+        <text
+          key={r.chave}
+          x={r.x}
+          y={r.y}
+          textAnchor={r.ancora}
+          fontSize={r.fonte}
+          className="fill-texto-2 stroke-superficie"
+          strokeWidth="3"
+          strokeLinejoin="round"
+          style={{ paintOrder: "stroke" }}
+        >
+          {r.texto}
+        </text>
+      ))}
+
+      {realizada.length > 0 ? (
         <>
           {g.area ? <polyline points={area} className="fill-destaque-fundo" stroke="none" /> : null}
           <polyline
@@ -123,7 +251,10 @@ export function GraficoAcumulado({
             textAnchor={rotuloADireita ? "start" : "end"}
             fontSize={variante === "computador" ? 14 : 12}
             fontWeight={variante === "computador" ? 650 : 600}
-            className="fill-texto"
+            className="fill-texto stroke-superficie"
+            strokeWidth="3"
+            strokeLinejoin="round"
+            style={{ paintOrder: "stroke" }}
           >
             {rotulo}
           </text>
