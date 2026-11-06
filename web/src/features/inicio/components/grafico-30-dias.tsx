@@ -404,45 +404,49 @@ export function Grafico30Dias({
 
       <Legenda />
 
-      <table className="sr-only">
-        <caption>Gasto por dia, de {dataCurta(janela.inicio)} a {dataCurta(janela.fim)}</caption>
-        <thead>
-          <tr>
-            <th>Dia</th>
-            <th>Cartão lançado</th>
-            <th>Cartão pendente</th>
-            <th>Pix, débito e boleto</th>
-            <th>Total</th>
-            <th>Fatura</th>
-          </tr>
-        </thead>
-        <tbody>
-          {dias.map((d) => (
-            <tr key={d.data}>
-              <th>{dataCurta(d.data)}</th>
-              <td>{d.a_pagar ? "-" : reais(d.cartao)}</td>
-              <td>{d.a_pagar ? "-" : reais(d.cartao_pendente)}</td>
-              <td>{d.a_pagar ? "-" : reais(d.conta)}</td>
-              <td>{d.a_pagar ? "-" : reais(d.total)}</td>
-              <td>
-                {[
-                  ...janela.pagamentos
-                    .filter((p) => p.data === d.data)
-                    .map(
-                      (p) =>
-                        `pagamento ${p.cartao ? nomeCurtoCartao(p.cartao) : ""} ${reais(p.valor)}`,
-                    ),
-                  ...janela.vencimentos
-                    .filter((v) => v.data === d.data)
-                    .map(
-                      (v) => `vence ${nomeCurtoCartao(v.cartao)} ${reais(somar(v.valor, v.pendente))}`,
-                    ),
-                ].join("; ")}
-              </td>
+      {/* sr-only no div: numa table a largura de 1px é ignorada e a tabela
+          escondida alarga a página no celular. */}
+      <div className="sr-only">
+        <table>
+          <caption>Gasto por dia, de {dataCurta(janela.inicio)} a {dataCurta(janela.fim)}</caption>
+          <thead>
+            <tr>
+              <th>Dia</th>
+              <th>Cartão lançado</th>
+              <th>Cartão pendente</th>
+              <th>Pix, débito e boleto</th>
+              <th>Total</th>
+              <th>Fatura</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {dias.map((d) => (
+              <tr key={d.data}>
+                <th>{dataCurta(d.data)}</th>
+                <td>{d.a_pagar ? "-" : reais(d.cartao)}</td>
+                <td>{d.a_pagar ? "-" : reais(d.cartao_pendente)}</td>
+                <td>{d.a_pagar ? "-" : reais(d.conta)}</td>
+                <td>{d.a_pagar ? "-" : reais(d.total)}</td>
+                <td>
+                  {[
+                    ...janela.pagamentos
+                      .filter((p) => p.data === d.data)
+                      .map(
+                        (p) =>
+                          `pagamento ${p.cartao ? nomeCurtoCartao(p.cartao) : ""} ${reais(p.valor)}`,
+                      ),
+                    ...janela.vencimentos
+                      .filter((v) => v.data === d.data)
+                      .map(
+                        (v) => `vence ${nomeCurtoCartao(v.cartao)} ${reais(somar(v.valor, v.pendente))}`,
+                      ),
+                  ].join("; ")}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

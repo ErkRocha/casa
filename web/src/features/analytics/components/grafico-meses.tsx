@@ -88,28 +88,32 @@ export function GraficoMeses({
         </div>
       </div>
 
-      <table className="sr-only">
-        <caption>{descricao}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Mês</th>
-            <th scope="col">Despesas</th>
-            {comReceitas ? <th scope="col">Receitas</th> : null}
-          </tr>
-        </thead>
-        <tbody>
-          {meses.map((m) => (
-            <tr key={m.competencia}>
-              <th scope="row">
-                {mesPorExtenso(m.competencia)}
-                {m.em_curso ? " (em andamento)" : ""}
-              </th>
-              <td>{reais(m.despesas)}</td>
-              {comReceitas ? <td>{reais(m.receitas)}</td> : null}
+      {/* sr-only no div: numa table a largura de 1px é ignorada e a tabela
+          escondida alarga a página no celular. */}
+      <div className="sr-only">
+        <table>
+          <caption>{descricao}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Mês</th>
+              <th scope="col">Despesas</th>
+              {comReceitas ? <th scope="col">Receitas</th> : null}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {meses.map((m) => (
+              <tr key={m.competencia}>
+                <th scope="row">
+                  {mesPorExtenso(m.competencia)}
+                  {m.em_curso ? " (em andamento)" : ""}
+                </th>
+                <td>{reais(m.despesas)}</td>
+                {comReceitas ? <td>{reais(m.receitas)}</td> : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }
