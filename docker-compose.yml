@@ -33,6 +33,7 @@ services:
     container_name: casa_api
     restart: unless-stopped
     environment:
+      TZ: America/Sao_Paulo
       # D-26: a role casa_financas, sem superusuário. A senha vai literal na
       # URL: só letras, dígitos, - e _ nela. A credencial de administração
       # não entra aqui; fica no `api-admin`.
@@ -134,6 +135,7 @@ services:
     profiles: ["ferramentas"]
     restart: "no"
     environment:
+      TZ: America/Sao_Paulo
       DATABASE_ADMIN_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       DATABASE_URL: postgresql+psycopg://casa_financas:${FINANCAS_DB_PASSWORD:-}@db:5432/${POSTGRES_DB}
       FINANCAS_DB_PASSWORD: ${FINANCAS_DB_PASSWORD:-}
@@ -158,6 +160,7 @@ services:
     container_name: casa_compras
     restart: unless-stopped
     environment:
+      TZ: America/Sao_Paulo
       # A senha vai literal na URL: use só letras, dígitos, - e _ nela.
       COMPRAS_DATABASE_URL: postgresql+psycopg://casa_compras:${COMPRAS_DB_PASSWORD:-}@db:5432/${POSTGRES_DB}
       # Atrás do nginx em /api/compras; com isto o /docs funciona por lá.
