@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { api, buildQuery } from "@/lib/api";
 import type { TransacaoListagem } from "@/features/transacoes/types";
-import type { GastosJanela, Inicio } from "./types";
+import type { FaturasCiclos, GastosJanela, Inicio } from "./types";
 
 /**
  * Debaixo de `analytics` e `transacoes` de propósito: as mutações que já
@@ -13,6 +13,7 @@ export const inicioKeys = {
   resumo: (competencia: string) => ["analytics", "inicio", competencia] as const,
   gastos30Dias: (params: ParamsGastos30Dias) =>
     ["analytics", "inicio", "gastos-30-dias", params] as const,
+  faturasCiclos: () => ["analytics", "inicio", "faturas-ciclos"] as const,
   ultimos: (competencia: string) => ["transacoes", "ultimos", competencia] as const,
 };
 
@@ -43,6 +44,15 @@ export function useGastos30Dias(params: ParamsGastos30Dias) {
           somar: params.somar ? "true" : undefined,
         })}`,
       ),
+    placeholderData: (anterior) => anterior,
+  });
+}
+
+/** Ciclos de fatura de cada cartão, dos últimos 30 dias ao último vencimento próximo. */
+export function useFaturasCiclos() {
+  return useQuery({
+    queryKey: inicioKeys.faturasCiclos(),
+    queryFn: () => api.get<FaturasCiclos>("/analytics/inicio/faturas-ciclos"),
     placeholderData: (anterior) => anterior,
   });
 }

@@ -84,6 +84,11 @@ def _mais_recente_ate(data: str, dia: str) -> str:
     return f"(CASE WHEN {neste} <= {data} THEN {neste} ELSE {no_anterior} END)"
 
 
+#: Os helpers de data, para quem monta outras consultas com as mesmas regras.
+no_mes = _no_mes
+proxima_apos = _proxima_apos
+
+
 def _forca(origem: str) -> str:
     """Confiança da origem das datas: quanto maior, mais firme."""
     return (
@@ -310,11 +315,15 @@ _PASSOS_PARA_PASSAR_HOJE = (
     f"> {_HOJE} THEN 0 ELSE 1 END)"
 )
 
-#: Uma linha por (cartão, dia) das faturas abertas; `dia` é nulo quando o
-#: último fechamento é hoje (sem dias para desenhar).
-_FATURAS_ABERTAS = f"""
-    WITH {CTES_FATURAS},
-    {CTE_PENDENTES},
+#: Ciclo aberto de cada cartão ativo com compra nos últimos 90 dias, com as
+#: datas calculadas (precisa de `:hoje`, de `CTES_FATURAS` e `CTE_PENDENTES`
+#: antes). Cadeia ativos -> desdes -> ajustados -> fechas -> vences; `vences`:
+#: uma linha por cartão com `fid`, `apelido`, `conta_id`, `dia_fechamento`,
+#: `dia_vencimento`, `account_id`, `desde` (último fechamento), `fecha`,
+#: `o_fecha` e `vence`/`o_vence` (nulos sem fonte de vencimento), as origens
+#: sendo 'pluggy_conta'|'cadastro'|'pluggy_fatura'. Cartão sem nenhuma fonte de
+#: fechamento não tem linha. Serve às faturas abertas e ao gráfico de ciclos.
+CTES_CICLO_ABERTO = f"""
     ativos AS MATERIALIZED (
       SELECT k.*,
         (SELECT max(fa.fechamento) FROM faturas fa
@@ -379,6 +388,14 @@ _FATURAS_ABERTAS = f"""
         END AS o_vence
       FROM fechas f
     )
+"""
+
+#: Uma linha por (cartão, dia) das faturas abertas; `dia` é nulo quando o
+#: último fechamento é hoje (sem dias para desenhar).
+_FATURAS_ABERTAS = f"""
+    WITH {CTES_FATURAS},
+    {CTE_PENDENTES},
+    {CTES_CICLO_ABERTO}
     SELECT
       v.fid, v.apelido, v.desde, v.fecha, v.vence,
       CASE

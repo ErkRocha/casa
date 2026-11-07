@@ -17,6 +17,7 @@ import {
   ResumoComputador,
 } from "./components/blocos";
 import { FaturasAbertas } from "./components/faturas-abertas";
+import { GraficoFaturas } from "./components/grafico-faturas";
 import { GraficoGastos30Dias } from "./components/grafico-gastos-30-dias";
 import { UltimosLancamentos } from "./components/ultimos-lancamentos";
 import { useInicio, useUltimosLancamentos } from "./queries";
@@ -112,7 +113,12 @@ function Conteudo({
   carregandoUltimos: boolean;
 }) {
   // Os últimos 30 dias até hoje: iguais em qualquer mês escolhido (D-28).
-  const graficoCelular = <GraficoGastos30Dias variante="celular" />;
+  const graficoCelular = (
+    <div className="flex min-w-0 flex-col gap-9">
+      <GraficoGastos30Dias variante="celular" />
+      <GraficoFaturas variante="celular" />
+    </div>
+  );
 
   return (
     <>
@@ -130,7 +136,10 @@ function Conteudo({
       <div className="hidden flex-col gap-8 md:flex">
         <ResumoComputador i={i} />
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-          <GraficoGastos30Dias variante="computador" className="lg:col-span-2" />
+          <div className="flex min-w-0 flex-col gap-8 lg:col-span-2">
+            <GraficoGastos30Dias variante="computador" />
+            <GraficoFaturas variante="computador" />
+          </div>
           <div className="flex flex-col gap-8">
             <CartaoRevisar resumo={revisar} />
             <FaturasAbertas i={i} />

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { classesDaCor } from "./cores";
 import { distribuirRotulos, encurtar, guiasDoEixo, rotuloEixo, rotulosDoEixoX } from "./escala";
 import { PainelDoDia } from "./painel-do-dia";
-import type { LinhaGrafico } from "./tipos";
+import type { LinhaGrafico, PontoDaLinha } from "./tipos";
 import { useLargura } from "./use-largura";
 
 /**
@@ -17,7 +17,9 @@ import { useLargura } from "./use-largura";
  *
  * - Linhas de 2px na cor do token da série; texto sempre em cor de texto.
  * - Ponto vazado (miolo branco) nos dias com compra pendente no banco.
- * - Até `MAX_ROTULOS_DIRETOS` linhas, cada uma leva o nome e o valor no fim.
+ * - Até `maxRotulos` linhas (padrão 4), cada uma leva o nome e o valor no fim.
+ * - Linhas esparsas (faturas): `pontos` com dias repetidos (queda vertical) e
+ *   trechos tracejados; o eixo pode passar de hoje, que ganha uma guia.
  * - Mouse, toque (arrastar) ou setas do teclado escolhem o dia; o painel sob o
  *   gráfico lista o valor de todas as linhas naquele dia.
  * - A largura é a do contêiner (1 unidade = 1px): nada estoura no celular.
@@ -25,6 +27,36 @@ import { useLargura } from "./use-largura";
 
 /** Até quantas linhas recebem o rótulo no fim; com mais, a legenda basta. */
 const MAX_ROTULOS_DIRETOS = 4;
+/** Padrão do trecho que ainda vai acontecer. */
+const TRACEJADO = "5 4";
+
+/** Caminhos SVG de uma linha esparsa, um por trecho contínuo de mesmo estilo. */
+function trechos(
+  pontos: PontoDaLinha[],
+  x: (i: number) => number,
+  y: (v: number) => number,
+): Array<{ d: string; tracejado: boolean }> {
+  const saida: Array<{ d: string; tracejado: boolean }> = [];
+  let atual: { d: string; tracejado: boolean } | null = null;
+  pontos.forEach((p, k) => {
+    const anterior = pontos[k - 1];
+    if (!anterior) return;
+    if (!atual || atual.tracejado !== p.tracejado) {
+      atual = {
+        d: `M${x(anterior.i).toFixed(1)} ${y(anterior.valor).toFixed(1)}`,
+        tracejado: p.tracejado,
+      };
+      saida.push(atual);
+    }
+    atual.d += ` L${x(p.i).toFixed(1)} ${y(p.valor).toFixed(1)}`;
+  });
+  const unico = pontos[0];
+  if (pontos.length === 1 && unico) {
+    const ponto = `${x(unico.i).toFixed(1)} ${y(unico.valor).toFixed(1)}`;
+    saida.push({ d: `M${ponto} L${ponto}`, tracejado: false });
+  }
+  return saida;
+}
 /** Abaixo desta largura (px) vale a altura e a fonte do celular. */
 const LARGURA_CELULAR = 600;
 
@@ -33,6 +65,8 @@ export function GraficoLinhas({
   linhas,
   hoje,
   rotuloAcessivel,
+  maxRotulos = MAX_ROTULOS_DIRETOS,
+  vazioNoDia,
   className,
 }: {
   /** Datas ISO, em ordem; o último dia é o fim da janela. */
@@ -40,6 +74,10 @@ export function GraficoLinhas({
   linhas: LinhaGrafico[];
   hoje: string;
   rotuloAcessivel: string;
+  /** Até quantas linhas recebem o rótulo no fim. */
+  maxRotulos?: number;
+  /** Texto do painel quando nenhuma linha existe no dia escolhido. */
+  vazioNoDia?: string;
   className?: string;
 }) {
   const { ref, largura } = useLargura<HTMLDivElement>();
@@ -50,17 +88,23 @@ export function GraficoLinhas({
   const fonteRotulo = celular ? 11 : 12;
 
   const [escolhido, setEscolhido] = useState<number | null>(null);
-  const selecionado = Math.min(escolhido ?? n - 1, Math.max(n - 1, 0));
+  // Hoje é o último dia, a menos que o eixo siga além (faturas até o vencimento).
+  const achado = dias.indexOf(hoje);
+  const indiceHoje = achado >= 0 ? achado : n - 1;
+  const selecionado = Math.min(escolhido ?? indiceHoje, Math.max(n - 1, 0));
 
   const esq = celular ? 50 : 58;
   const topo = 12;
   const base = altura - 24;
   const rotuloX = base + 16;
 
-  const comRotulos = linhas.length > 0 && linhas.length <= MAX_ROTULOS_DIRETOS;
-  const textos = linhas.map((l) => ({
+  const rotuladas = linhas.filter((l) => !l.semRotulo);
+  const comRotulos = rotuladas.length > 0 && rotuladas.length <= maxRotulos;
+  const textos = rotuladas.map((l) => ({
     nome: l.rotuloCurto,
-    valor: reais(l.acumulado[n - 1] ?? "0", { centavos: false }),
+    valor: l.fim?.texto ?? reais(l.acumulado[n - 1] ?? "0", { centavos: false }),
+    i: l.fim?.i ?? n - 1,
+    v: l.fim?.valor ?? l.valores[n - 1] ?? 0,
   }));
   const larguraTexto = (t: { nome: string; valor: string }) =>
     (Math.min(t.nome.length, 12) + 1 + t.valor.length) * fonteRotulo * 0.6;
@@ -77,10 +121,10 @@ export function GraficoLinhas({
   const { guias, teto } = guiasDoEixo(maximo);
   const y = (v: number) => base - (v / teto) * (base - topo);
 
-  const yFinais = linhas.map((l) => y(l.valores[n - 1] ?? 0));
+  const yFinais = textos.map((t) => y(t.v));
   const yRotulos = distribuirRotulos(yFinais, fonteRotulo + 3, topo + 4, base);
 
-  const rotulosX = rotulosDoEixoX(dias, passoX);
+  const rotulosX = rotulosDoEixoX(dias, passoX, undefined, indiceHoje);
 
   const dia = dias[selecionado];
 
@@ -154,12 +198,33 @@ export function GraficoLinhas({
               y={rotuloX}
               textAnchor={i === n - 1 ? "end" : "middle"}
               fontSize={fonteEixo}
-              fontWeight={i === n - 1 ? 650 : 400}
-              className={i === n - 1 ? "fill-texto" : "fill-texto-2"}
+              fontWeight={i === indiceHoje ? 650 : 400}
+              className={i === indiceHoje ? "fill-texto" : "fill-texto-2"}
             >
               {texto}
             </text>
           ))}
+
+          {indiceHoje < n - 1 ? (
+            <>
+              <rect
+                x={x(indiceHoje)}
+                y={topo}
+                width={x(n - 1) - x(indiceHoje)}
+                height={base - topo}
+                className="fill-superficie-2"
+                opacity="0.6"
+              />
+              <line
+                x1={x(indiceHoje)}
+                y1={topo}
+                x2={x(indiceHoje)}
+                y2={base}
+                className="stroke-contorno"
+                strokeWidth="1.5"
+              />
+            </>
+          ) : null}
 
           <line
             x1={x(selecionado)}
@@ -170,19 +235,36 @@ export function GraficoLinhas({
             strokeWidth="1"
           />
 
-          {linhas.map((linha) => (
-            <path
-              key={linha.chave}
-              d={linha.valores
-                .map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`)
-                .join(" ")}
-              fill="none"
-              strokeWidth="2"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              className={classesDaCor(linha.cor).traco}
-            />
-          ))}
+          {linhas.map((linha) =>
+            linha.pontos ? (
+              <g key={linha.chave} opacity={linha.opacidade}>
+                {trechos(linha.pontos, x, y).map((t) => (
+                  <path
+                    key={t.d}
+                    d={t.d}
+                    fill="none"
+                    strokeWidth="2"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    strokeDasharray={t.tracejado ? TRACEJADO : undefined}
+                    className={classesDaCor(linha.cor).traco}
+                  />
+                ))}
+              </g>
+            ) : (
+              <path
+                key={linha.chave}
+                d={linha.valores
+                  .map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`)
+                  .join(" ")}
+                fill="none"
+                strokeWidth="2"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                className={classesDaCor(linha.cor).traco}
+              />
+            ),
+          )}
 
           {linhas.map((linha) =>
             linha.temPendente.map((tem, i) =>
@@ -199,7 +281,8 @@ export function GraficoLinhas({
             ),
           )}
 
-          {linhas.map((linha) => (
+          {linhas.map((linha) =>
+            linha.existe?.[selecionado] === false ? null : (
             <circle
               key={`sel-${linha.chave}`}
               cx={x(selecionado)}
@@ -208,10 +291,11 @@ export function GraficoLinhas({
               strokeWidth="2"
               className={cn("stroke-superficie", classesDaCor(linha.cor).preenchimento)}
             />
-          ))}
+            ),
+          )}
 
           {comRotulos
-            ? linhas.map((linha, k) => {
+            ? rotuladas.map((linha, k) => {
                 const texto = textos[k];
                 const yr = yRotulos[k] ?? 0;
                 if (!texto) return null;
@@ -221,8 +305,30 @@ export function GraficoLinhas({
                 );
                 return (
                   <g key={`rot-${linha.chave}`}>
+                    {/* Linha que acaba antes do fim: marca no ponto e guia até o rótulo. */}
+                    {texto.i < n - 1 ? (
+                      <>
+                        <line
+                          x1={x(texto.i)}
+                          y1={y(texto.v)}
+                          x2={esq + larguraPlot + 8}
+                          y2={yr}
+                          strokeWidth="1"
+                          strokeDasharray="1 3"
+                          opacity="0.6"
+                          className={classesDaCor(linha.cor).traco}
+                        />
+                        <circle
+                          cx={x(texto.i)}
+                          cy={y(texto.v)}
+                          r="2.5"
+                          opacity={linha.opacidade}
+                          className={classesDaCor(linha.cor).preenchimento}
+                        />
+                      </>
+                    ) : null}
                     {/* Com hoje escolhido, a marca da linha já está ao lado. */}
-                    {selecionado === n - 1 ? null : (
+                    {selecionado === n - 1 && texto.i === n - 1 ? null : (
                       <circle
                         cx={esq + larguraPlot + 8}
                         cy={yr}
@@ -247,7 +353,13 @@ export function GraficoLinhas({
       </div>
 
       {dia ? (
-        <PainelDoDia data={dia} ehHoje={dia === hoje} indice={selecionado} linhas={linhas} />
+        <PainelDoDia
+          data={dia}
+          ehHoje={dia === hoje}
+          indice={selecionado}
+          linhas={linhas}
+          vazio={vazioNoDia}
+        />
       ) : null}
     </div>
   );

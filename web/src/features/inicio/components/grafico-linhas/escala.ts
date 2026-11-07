@@ -29,23 +29,32 @@ export function guiasDoEixo(maximo: number): { guias: number[]; teto: number } {
 }
 
 /**
- * Rótulos do eixo X: o último dia ("Hoje") e, para trás, um a cada 7 dias (ou
- * 14, 21… quando 7 dias medem menos que `minimoPx` e as datas se encostariam).
+ * Rótulos do eixo X: "Hoje" (por padrão o último dia) e, para trás, um a cada
+ * 7 dias (ou 14, 21… quando 7 dias medem menos que `minimoPx` e as datas se
+ * encostariam). Se hoje não é o último dia, os dias à frente também ganham
+ * rótulo, no mesmo passo.
  */
 export function rotulosDoEixoX(
   dias: string[],
   passoX = Infinity,
   minimoPx = 56,
+  indiceHoje = dias.length - 1,
 ): Array<{ i: number; texto: string }> {
   const ultimo = dias.length - 1;
   const salto = 7 * Math.max(1, Math.ceil(minimoPx / (7 * passoX)));
   const saida: Array<{ i: number; texto: string }> = [];
-  for (let i = ultimo; i >= 0; i -= salto) {
+  for (let i = indiceHoje; i >= 0; i -= salto) {
     const data = dias[i];
     if (data === undefined) continue;
-    saida.push({ i, texto: i === ultimo ? "Hoje" : dataCurta(data) });
+    saida.push({ i, texto: i === indiceHoje ? "Hoje" : dataCurta(data) });
   }
-  return saida.reverse();
+  saida.reverse();
+  for (let i = indiceHoje + salto; i <= ultimo; i += salto) {
+    const data = dias[i];
+    if (data === undefined) continue;
+    saida.push({ i, texto: dataCurta(data) });
+  }
+  return saida;
 }
 
 /**
@@ -78,8 +87,18 @@ export function distribuirRotulos(
   return saida;
 }
 
-/** Corta o texto com reticências para caber em `max` caracteres. */
+/**
+ * Corta o texto com reticências para caber em `max` caracteres. Em "nome ·
+ * detalhe" (ex. "Nubank · nov") corta o nome e mantém o detalhe, que é o que
+ * distingue duas linhas do mesmo cartão.
+ */
 export function encurtar(texto: string, max: number): string {
   if (texto.length <= max) return texto;
+  const corte = texto.lastIndexOf(" · ");
+  if (corte > 0) {
+    const detalhe = texto.slice(corte);
+    const resto = max - detalhe.length;
+    if (resto >= 2) return `${texto.slice(0, resto - 1).trimEnd()}…${detalhe}`;
+  }
   return `${texto.slice(0, Math.max(max - 1, 1)).trimEnd()}…`;
 }

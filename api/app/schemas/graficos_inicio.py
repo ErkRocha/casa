@@ -65,3 +65,58 @@ class GastosJanela(BaseModel):
     pessoas_conectadas: list[PessoaConectada]
     #: Eco do filtro pedido.
     pessoa_id: int | None
+
+
+#: De onde veio cada data de um ciclo de fatura. `derivada`: sem fechamento
+#: anterior conhecido, a abertura sai de um mês antes do fechamento (ou o
+#: vencimento sai de 10 dias depois do fechamento).
+OrigemData = Literal["pluggy_fatura", "pluggy_conta", "cadastro", "derivada"]
+
+
+class PontoCiclo(BaseModel):
+    data: date
+    #: Compras do ciclo até este dia (nunca passa do fechamento nem de hoje).
+    #: No dia do pagamento há dois pontos: o valor antes e depois zero.
+    valor: Decimal
+    #: Dia depois de hoje: o que ainda vai acontecer.
+    tracejado: bool
+
+
+class CicloFatura(BaseModel):
+    #: Estável: `ciclo:<forma_pagamento_id>:<AAAA-MM-DD do fechamento>`.
+    chave: str
+    forma_pagamento_id: int
+    cartao: str
+    #: Token de cor do cartão, o mesmo do gráfico de gastos.
+    cor: str
+    #: Primeiro dia do mês do vencimento.
+    mes_fatura: date
+    abertura: date
+    fechamento: date
+    vencimento: date
+    #: Dia do pagamento identificado (D-22), se houver.
+    pago_em: date | None
+    #: Compras de `abertura` até o fechamento (ou hoje), com as pendentes.
+    valor: Decimal
+    #: Parte de `valor` que ainda é pendente.
+    pendente: Decimal
+    #: Ciclo de maior fechamento do cartão; os outros são anteriores.
+    atual: bool
+    #: `aberta` (ainda não fechou), `fechada` (sem pagamento) ou `paga`.
+    situacao: Literal["aberta", "fechada", "paga"]
+    origem_abertura: OrigemData
+    origem_fechamento: OrigemData
+    origem_vencimento: OrigemData
+    origem_pagamento: Literal["identificado"] | None
+    pontos: list[PontoCiclo]
+
+
+class FaturasCiclos(BaseModel):
+    """Uma linha por ciclo de fatura, dos últimos 30 dias até o último
+    vencimento dos próximos 15."""
+
+    inicio: date
+    hoje: date
+    fim: date
+    #: Por cartão e fechamento.
+    ciclos: list[CicloFatura]

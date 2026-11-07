@@ -161,3 +161,47 @@ export interface Inicio {
   categorias: LinhaCategoriaInicio[];
   avisos: Array<AvisoOrcamento | AvisoReajuste>;
 }
+
+/** Espelho de `CicloFatura` em `app/schemas/graficos_inicio.py` (gráfico das faturas). */
+export type OrigemData = "pluggy_fatura" | "pluggy_conta" | "cadastro" | "derivada";
+
+export interface PontoCiclo {
+  data: string;
+  /** Compras do ciclo até o dia; no dia do pagamento há dois pontos (antes e zero). */
+  valor: Dinheiro;
+  /** Dia depois de hoje: o que ainda vai acontecer. */
+  tracejado: boolean;
+}
+
+export interface CicloFatura {
+  /** `ciclo:<forma_pagamento_id>:<AAAA-MM-DD do fechamento>`. */
+  chave: string;
+  forma_pagamento_id: number;
+  cartao: string;
+  /** Token de cor do cartão (o mesmo do gráfico de gastos). */
+  cor: string;
+  /** Primeiro dia do mês do vencimento. */
+  mes_fatura: string;
+  abertura: string;
+  fechamento: string;
+  vencimento: string;
+  pago_em: string | null;
+  valor: Dinheiro;
+  pendente: Dinheiro;
+  /** Ciclo de maior fechamento do cartão; os outros são anteriores. */
+  atual: boolean;
+  situacao: "aberta" | "fechada" | "paga";
+  origem_abertura: OrigemData;
+  origem_fechamento: OrigemData;
+  origem_vencimento: OrigemData;
+  origem_pagamento: "identificado" | null;
+  pontos: PontoCiclo[];
+}
+
+/** Os ciclos de fatura dos últimos 30 dias até o último vencimento dos próximos 15. */
+export interface FaturasCiclos {
+  inicio: string;
+  hoje: string;
+  fim: string;
+  ciclos: CicloFatura[];
+}

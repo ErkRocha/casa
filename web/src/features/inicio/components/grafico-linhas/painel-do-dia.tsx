@@ -14,14 +14,18 @@ export function PainelDoDia({
   ehHoje,
   indice,
   linhas,
+  vazio = "Nenhuma linha neste dia.",
   className,
 }: {
   data: string;
   ehHoje: boolean;
   indice: number;
   linhas: LinhaGrafico[];
+  /** Texto quando nenhuma linha existe no dia (só linhas com `existe`). */
+  vazio?: string;
   className?: string;
 }) {
+  const doDia = linhas.filter((l) => l.existe?.[indice] !== false);
   return (
     <div
       aria-live="polite"
@@ -35,7 +39,8 @@ export function PainelDoDia({
         {ehHoje ? " · hoje" : ""}
       </span>
       <ul className="m-0 flex list-none flex-col gap-2 p-0">
-        {linhas.map((linha) => {
+        {doDia.length === 0 ? <li className="text-texto-2">{vazio}</li> : null}
+        {doDia.map((linha) => {
           const pendente = linha.pendenteAcumulado[indice] ?? "0";
           return (
             <li key={linha.chave} className="flex items-center gap-3">
@@ -51,6 +56,7 @@ export function PainelDoDia({
                 {linha.temPendente[indice] ? (
                   <span className="text-texto-2"> · compra pendente neste dia</span>
                 ) : null}
+                {linha.nota ? <span className="text-texto-2 block">{linha.nota}</span> : null}
               </span>
               <span className="text-right">
                 <span className="font-forte">{reais(linha.acumulado[indice] ?? "0")}</span>

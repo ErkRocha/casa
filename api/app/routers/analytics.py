@@ -22,7 +22,7 @@ from app.schemas.analytics import (
     GastoPorBanco,
     ProgressoOrcamento,
 )
-from app.schemas.graficos_inicio import GastosJanela
+from app.schemas.graficos_inicio import FaturasCiclos, GastosJanela
 from app.schemas.inicio import Inicio
 from app.schemas.transacoes import TransacaoFiltros, transacao_filtros
 from app.services.analises import AnalisesService
@@ -127,6 +127,15 @@ def gastos_30_dias(
     cartão entram marcados; tudo somado no banco.
     """
     return GraficosInicioService(session).gastos_30_dias(pessoa_id, series, somar)
+
+
+@router.get("/inicio/faturas-ciclos", response_model=FaturasCiclos)
+def faturas_ciclos(session: SessionDep) -> Any:
+    """Gráfico de linhas das faturas do Início: um ciclo por linha, dos últimos
+    30 dias até o último vencimento dos próximos 15 (D-29). Datas e pagamento
+    vêm do banco; cada data informa a origem.
+    """
+    return GraficosInicioService(session).faturas_ciclos()
 
 
 @router.get("/analises", response_model=Analises)
