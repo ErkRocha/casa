@@ -208,12 +208,12 @@ _CICLOS = f"""
     {caixa.CTES_CICLO_ABERTO},
     {CTE_CORES_CARTOES},
     movs AS MATERIALIZED (
-      SELECT t.forma_pagamento_id AS fid, t.data, t.valor, 0::numeric AS pendente
+      SELECT t.forma_pagamento_id AS fid, t.data, t.competencia, t.valor, 0::numeric AS pendente
       FROM vw_transacoes_completa t
       WHERE t.tipo = 'despesa' AND t.data <= {_HOJE}
         AND t.forma_pagamento_id IN (SELECT fid FROM vences)
       UNION ALL
-      SELECT p.forma_pagamento_id, p.data, p.valor, p.valor
+      SELECT p.forma_pagamento_id, p.data, NULL::date, p.valor, p.valor
       FROM pendentes p
       WHERE p.data <= {_HOJE} AND p.forma_pagamento_id IN (SELECT fid FROM vences)
     ),
@@ -273,14 +273,33 @@ _CICLOS = f"""
         o.fecha = o.ultimo AS atual
       FROM ordenados o
     ),
+    -- Cada compra vai para um ciclo só. A lançada vai para a fatura em que o
+    -- banco a pôs (a competência vem do billId, D-02), mesmo com data fora do
+    -- intervalo do ciclo: o Nubank joga na fatura nova compras do dia do
+    -- fechamento e da véspera. A pendente (sem fatura ainda) e a lançada sem
+    -- ciclo daquele mês vão pela data. `efetiva` é a data presa ao ciclo: a
+    -- compra anterior à abertura conta desde a abertura.
+    atribuidas AS MATERIALIZED (
+      SELECT m.fid, m.valor, m.pendente, c.fecha AS ciclo,
+        least(greatest(m.data, c.abertura), c.fecha) AS efetiva
+      FROM movs m
+      CROSS JOIN LATERAL (
+        SELECT c.fecha, c.abertura
+        FROM ciclos c
+        WHERE c.fid = m.fid AND (
+          date_trunc('month', c.vence)::date = m.competencia
+          OR m.data BETWEEN c.abertura AND c.fecha
+        )
+        ORDER BY (date_trunc('month', c.vence)::date = m.competencia) IS TRUE DESC, c.fecha
+        LIMIT 1
+      ) c
+    ),
     valorados AS (
       SELECT c.*,
-        (SELECT coalesce(sum(m.valor), 0) FROM movs m
-          WHERE m.fid = c.fid AND m.data >= c.abertura
-            AND m.data <= least(c.fecha, {_HOJE})) AS valor,
-        (SELECT coalesce(sum(m.pendente), 0) FROM movs m
-          WHERE m.fid = c.fid AND m.data >= c.abertura
-            AND m.data <= least(c.fecha, {_HOJE})) AS pendente
+        (SELECT coalesce(sum(a.valor), 0) FROM atribuidas a
+          WHERE a.fid = c.fid AND a.ciclo = c.fecha) AS valor,
+        (SELECT coalesce(sum(a.pendente), 0) FROM atribuidas a
+          WHERE a.fid = c.fid AND a.ciclo = c.fecha) AS pendente
       FROM ciclos c
     ),
     com_pg AS (
@@ -356,9 +375,8 @@ _CICLOS = f"""
       LEFT JOIN cores_cartoes cc ON cc.fid = e.fid
       CROSS JOIN LATERAL (
         SELECT d.dia,
-          (SELECT coalesce(sum(m.valor), 0) FROM movs m
-            WHERE m.fid = e.fid AND m.data >= e.abertura
-              AND m.data <= least(d.dia, e.fecha, {_HOJE})) AS valor_dia,
+          (SELECT coalesce(sum(a.valor), 0) FROM atribuidas a
+            WHERE a.fid = e.fid AND a.ciclo = e.fecha AND a.efetiva <= d.dia) AS valor_dia,
           d.dia > {_HOJE} AS tracejado, 0 AS ordem
         FROM (
           SELECT e.comeco + g.n AS dia FROM generate_series(0, e.fim_linha - e.comeco) AS g(n)

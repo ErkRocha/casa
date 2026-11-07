@@ -198,6 +198,45 @@ def test_fatura_antiga_sem_pagamento_identificado_fica_fora(session: Session) ->
     assert ciclos[date(2026, 9, 10)].valor == Decimal("80.00")
 
 
+def test_compra_vai_para_a_fatura_em_que_o_banco_a_pos(session: Session) -> None:
+    """O Nubank põe na fatura nova compras do dia do fechamento e da véspera.
+
+    A competência (do billId) manda; a data só decide para a pendente.
+    """
+    banco = _conta(session, "Banco")
+    a = _forma(session, "Cartão A", TipoPagamento.CREDITO, banco, fecha=2, vence=9)
+    ligacao = _liga_pluggy(session, a, banco, "acc-a")
+    _comprovante(
+        session,
+        [
+            _bills(
+                "acc-a",
+                ("set", "2026-09-09", "2026-09-02"),
+                ("out", "2026-10-09", "2026-10-02"),
+            )
+        ],
+    )
+    _gasto(session, a, date(2026, 9, 20), "100.00", OUTUBRO)
+    # Véspera e dia do fechamento (01 e 02/10), mas o banco pôs na de novembro.
+    _gasto(session, a, date(2026, 10, 1), "30.00", NOVEMBRO)
+    _gasto(session, a, date(2026, 10, 2), "12.00", NOVEMBRO)
+    _gasto(session, a, date(2026, 10, 10), "8.00", NOVEMBRO)
+    # Pendente sem fatura ainda: vai pela data.
+    _pendente(session, ligacao, "p1", date(2026, 10, 2), "5.00", NOVEMBRO)
+
+    ciclos = _por_fechamento(_ciclos(session), "Cartão A")
+    outubro = ciclos[date(2026, 10, 2)]
+    assert (outubro.valor, outubro.pendente) == (Decimal("105.00"), Decimal("5.00"))
+    novembro = ciclos[date(2026, 11, 2)]
+    assert novembro.abertura == date(2026, 10, 3)
+    assert (novembro.valor, novembro.pendente) == (Decimal("50.00"), Decimal("0"))
+    valores = {p.data: p.valor for p in novembro.pontos}
+    # As compras de antes da abertura contam desde o primeiro dia do ciclo.
+    assert novembro.pontos[0].data == date(2026, 10, 3)
+    assert valores[date(2026, 10, 3)] == Decimal("42.00")
+    assert valores[HOJE] == Decimal("50.00")
+
+
 def test_datas_da_pluggy_valem_mais_que_o_cadastro(session: Session) -> None:
     banco = _conta(session, "Banco")
     a = _forma(session, "Cartão A", TipoPagamento.CREDITO, banco, fecha=5, vence=12)
@@ -245,7 +284,7 @@ def test_pendente_que_virou_lancada_nao_duplica_no_ciclo(session: Session) -> No
     banco = _conta(session, "Banco")
     a = _forma(session, "Cartão A", TipoPagamento.CREDITO, banco, fecha=2, vence=9)
     ligacao = _liga_pluggy(session, a, banco, "acc-a")
-    _gasto(session, a, date(2026, 10, 14), "20.00", OUTUBRO)  # a p1 já lançada
+    _gasto(session, a, date(2026, 10, 14), "20.00", NOVEMBRO)  # a p1 já lançada
     item = _item_staging(session, "p1", date(2026, 10, 14), "20.00")
     _pendente(session, ligacao, "p1", date(2026, 10, 14), "20.00", NOVEMBRO)
     _pendente(session, ligacao, "p2", date(2026, 10, 15), "5.00", NOVEMBRO)
