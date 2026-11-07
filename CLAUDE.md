@@ -1,7 +1,7 @@
 # controle-casa — finanças e compras da casa
 
 Sistema local (Docker, uso de um casal, sem internet nem multi-tenant).
-Decisões já tomadas estão em docs/decisoes.md (D-01..D-28): se algo parecer
+Decisões já tomadas estão em docs/decisoes.md (D-01..D-29): se algo parecer
 faltando, pergunte, não invente. Containers, portas e mcp-servidor:
 docs/ecossistema.md.
 

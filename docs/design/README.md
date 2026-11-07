@@ -32,6 +32,21 @@ Cores:
 - orçamento: até 90% azul `#1F4FBF`; 90–100% `#C98A12`; estourado `#B4540A`
 - pessoas (diferem por claridade, não só tom): Erik `#1E3A8A`, Laura `#6F93E6`, Juntos `#B9C2D0`
 
+Séries de gráfico (D-29): Okabe-Ito adaptada para o fundo branco. Validada com
+o validador de paleta da skill `dataviz` (`--pairs all`, superfície `#FFFFFF`):
+todas com contraste de pelo menos 3:1, separação em deuteranopia, protanopia e
+tritanopia de ΔE ≥ 8 e, em visão normal, ΔE ≥ 15 entre qualquer par.
+- cartões, por ordem estável (ligados à Pluggy primeiro, depois por id; o 5º
+  repete a 1ª): `serie-1` azul `#0068A8`, `serie-2` vermelhão `#D55E00`,
+  `serie-3` violeta `#8040F0`, `serie-4` magenta `#C2185B`
+- Pix `serie-pix` verde-água `#1B998B`; Débito `serie-debito` `#3A4456`;
+  Boleto e Outros `serie-boleto`/`serie-outros` `#7A8699`. Os cinzas não
+  disputam cor: o rótulo direto no fim da linha os distingue
+- soma das selecionadas `serie-soma` `#172033`
+- linha 2px; pendente = ponto vazado; futuro (até o vencimento) = tracejado;
+  ciclo de fatura anterior = mesma cor com opacidade menor
+- texto nunca na cor da série: a cor fica na marca (linha, bolinha do chip)
+
 Tipografia: **Bricolage Grotesque** (pesos 400–700) em tudo, com
 `font-variant-numeric: tabular-nums` na raiz. Hierarquia: título de página 26px/700
 (celular 24px), título de bloco 17–18px/650, corpo 15–16px, apoio 13–14px.

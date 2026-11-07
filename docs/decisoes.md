@@ -33,6 +33,7 @@ leia o motivo — ele costuma ser a parte que não é óbvia.
 - D-26 — API de finanças sem superusuário
 - D-27 — Visão de caixa: o que sai da conta, com a fatura no vencimento
 - D-28 — Compras pendentes do cartão só para exibição
+- D-29 — Início com gráficos de linha: gastos acumulados e ciclos de fatura
 
 ---
 
@@ -973,7 +974,7 @@ no dia em que saiu da conta, com o valor, **sem somar nas barras**: o gasto
 já está nas compras. À direita, uma faixa "a pagar" até o último vencimento
 dos próximos 15 dias, com cartão e valor de cada fatura. Acima, o total dos
 30 dias, quanto no cartão e quanto em Pix, débito e boleto, e quanto disso é
-pendente. O gráfico não depende do mês escolhido na tela.
+pendente. O gráfico não depende do mês escolhido na tela. **Revisto em 06/11/2026 pela D-29:** as barras deram lugar a dois gráficos de linha.
 
 **Cartões do topo.** Continuam mensais. "Gasto até hoje" passa a ser o
 gasto do mês **pela data da compra**, só com o que foi lançado; o que já
@@ -986,3 +987,75 @@ quanto é pendente.
 **Fica de fora.** Pendente de conta corrente e crédito pendente no cartão
 (estorno) continuam ignorados. A pendente não pode ser editada nem
 categorizada: ela só existe até o banco lançar.
+
+---
+
+## D-29 — Início com gráficos de linha: gastos acumulados e ciclos de fatura
+
+Decisão do usuário, 06/11/2026. Substitui o gráfico de barras da D-28.
+
+As barras diárias da D-28 mostravam quanto saiu em cada dia, mas não
+respondiam o que o usuário quer ver de relance: quanto já foi gasto em cada
+forma de pagamento no período e em que pé está cada fatura. O gráfico de
+barras sai do Início e entram dois gráficos de linha. O bloco "Faturas
+abertas" (D-27, D-28) continua.
+
+**Gráfico 1, "Gastos nos últimos 30 dias".** Janela dos 30 dias até hoje.
+Uma linha por forma de pagamento: cada cartão pela data da compra (lançadas
+e pendentes da D-28), e Pix, Débito e Boleto, cada um somando as formas do
+mesmo tipo. Dinheiro e despesa sem forma de pagamento vão para "Outros",
+que só aparece quando tem valor. Cada linha é **acumulada** desde o início
+da janela: começa em zero e só sobe. Ficam de fora receitas, transferências
+e pagamentos de fatura, porque o gasto do cartão já entra na data de cada
+compra.
+
+- Legenda clicável: cada série liga e desliga, e todas começam ligadas.
+- "Somar selecionadas" troca as linhas ligadas por uma só, com o acumulado
+  da soma delas.
+- A compra pendente aparece como ponto vazado na linha do cartão. Acima do
+  gráfico ficam o total das séries visíveis e quanto disso ainda está
+  pendente.
+- Filtro por pessoa: a pessoa é o titular da conta (`contas.titular_id`) da
+  forma de pagamento. Ele existe no cálculo e na API, mas o controle só
+  aparece na tela quando mais de uma pessoa tem conta ligada à Pluggy.
+  Hoje só o Erik tem; a Laura vai conectar depois.
+
+**Gráfico 2, "Faturas".** Uma linha por ciclo de fatura de cada cartão,
+na janela dos últimos 30 dias até o último vencimento dos próximos 15 dias.
+A linha começa em zero no dia seguinte ao fechamento anterior, sobe com as
+compras pela data (lançadas e pendentes) e fica reta depois do fechamento.
+Cai para zero no dia do pagamento identificado (D-22). Sem pagamento, segue
+reta até hoje e, de hoje até o vencimento, tracejada. Os ciclos se
+sobrepõem: a fatura nova começa no fechamento enquanto a anterior ainda
+espera o pagamento. O ciclo anterior fica com opacidade menor. No fim de
+cada linha vai um rótulo com o cartão, o mês da fatura e o valor.
+
+**De onde vêm as datas do gráfico 2.** Os dados reais têm prioridade:
+
+1. Fechamento e vencimento das faturas da Pluggy (`/bills`).
+2. Para a fatura aberta, as datas da conta de crédito da Pluggy, como na
+   D-27.
+3. Na falta delas, o dia de fechamento e o de vencimento cadastrados no
+   cartão (D-27).
+
+O pagamento é o identificado pela sync (D-22, critério da D-27). A API
+informa a origem de cada data. Cartão sem nenhuma dessas datas fica fora
+do gráfico 2.
+
+**Cores.** Há uma paleta de séries nova, legível para daltonismo e com
+contraste de pelo menos 3:1 sobre o branco, registrada em
+`docs/design/README.md`. Cada cartão tem cor fixa, escolhida no banco por
+uma ordem estável (cartões ligados à Pluggy primeiro, depois por id). Ela
+não muda entre recarregamentos nem entre os dois gráficos.
+
+**Comum.** Passar o mouse ou tocar num dia mostra o valor de todas as
+linhas visíveis naquele dia. No celular, a legenda vira chips com rolagem
+própria, e a página não rola para os lados. Todo o cálculo é feito no banco
+(regra 7) e o front só desenha. O projeto não tem biblioteca de gráficos:
+seguem em SVG feito à mão, como os anteriores.
+
+**Sem schema novo.** As datas da Pluggy continuam sendo lidas dos
+comprovantes da sync, como na D-27.
+
+**Fica de fora.** Os cartões do topo, pessoas, categorias e orçamento não
+mudam (D-02, D-28). Pendente de conta corrente continua ignorada.
