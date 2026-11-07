@@ -490,25 +490,6 @@ def _em(session: Session, hoje: date, competencia: date | None = None) -> Any:
     return InicioService(session, hoje=hoje).resumo(competencia or date(hoje.year, hoje.month, 1))
 
 
-def test_janela_nao_soma_o_pagamento_da_fatura(session: Session) -> None:
-    banco = _conta(session, "Banco")
-    a = _forma(session, "Cartão A", TipoPagamento.CREDITO, banco, fecha=2, vence=7)
-    pix = _forma(session, "Pix", TipoPagamento.PIX, banco)
-    _gasto(session, a, date(2026, 10, 10), "100.00", OUTUBRO)
-    _gasto(session, pix, date(2026, 10, 12), "30.00", OUTUBRO)
-    _pagamento(session, pix, date(2026, 10, 8), "500.00", OBS_PAGAMENTO_NA_CONTA)
-    # O lado do cartão é o mesmo pagamento visto de lá: não aparece.
-    _pagamento(session, a, date(2026, 10, 8), "500.00", OBS_PAGAMENTO_NO_CARTAO)
-    session.commit()
-
-    j = _resumo(session).janela
-    assert (j.cartao, j.conta, j.total) == (Decimal("100.00"), Decimal("30.00"), Decimal("130.00"))
-    assert sum(d.total for d in j.dias) == Decimal("130.00")
-    assert [(p.data, p.valor, p.cartao, p.forma_pagamento_id) for p in j.pagamentos] == [
-        (date(2026, 10, 8), Decimal("500.00"), "Cartão A", a.id)
-    ]
-
-
 def test_pendente_que_virou_lancada_nao_conta_duas_vezes(session: Session) -> None:
     banco = _conta(session, "Banco")
     a = _forma(session, "Cartão A", TipoPagamento.CREDITO, banco, fecha=2, vence=7)
@@ -520,75 +501,15 @@ def test_pendente_que_virou_lancada_nao_conta_duas_vezes(session: Session) -> No
     session.commit()
 
     r = _resumo(session)
-    assert (r.janela.cartao_pendente, r.janela.cartao) == (Decimal("5.00"), Decimal("25.00"))
     aberta = r.faturas_abertas[0]
     assert (aberta.valor, aberta.pendente) == (Decimal("25.00"), Decimal("5.00"))
 
     item.deleted_em = datetime.now(UTC)
     session.commit()
     r = _resumo(session)
-    assert (r.janela.cartao_pendente, r.janela.cartao) == (Decimal("25.00"), Decimal("45.00"))
     aberta = r.faturas_abertas[0]
     assert (aberta.valor, aberta.pendente) == (Decimal("45.00"), Decimal("25.00"))
     assert r.gasto == Decimal("20.00")  # pendente nunca entra no gasto
-
-
-def test_janela_de_30_dias_atravessa_a_virada_do_mes(session: Session) -> None:
-    banco = _conta(session, "Banco")
-    pix = _forma(session, "Pix", TipoPagamento.PIX, banco)
-    _gasto(session, pix, date(2026, 10, 6), "1.00", OUTUBRO)  # um dia antes: fora
-    _gasto(session, pix, date(2026, 10, 7), "10.00", OUTUBRO)
-    _gasto(session, pix, date(2026, 11, 5), "100.00", NOVEMBRO)
-    session.commit()
-
-    j = _em(session, date(2026, 11, 5)).janela
-    assert j.inicio == date(2026, 10, 7) and j.hoje == date(2026, 11, 5)
-    assert j.fim == j.hoje and not j.vencimentos
-    assert len(j.dias) == 30 and not any(d.a_pagar for d in j.dias)
-    assert (j.dias[0].data, j.dias[0].conta) == (date(2026, 10, 7), Decimal("10.00"))
-    assert (j.dias[-1].data, j.dias[-1].conta) == (date(2026, 11, 5), Decimal("100.00"))
-    assert j.total == j.conta == Decimal("110.00")
-
-
-def test_vencimentos_na_faixa_a_pagar(session: Session) -> None:
-    banco = _conta(session, "Banco")
-    a = _forma(session, "Cartão A", TipoPagamento.CREDITO, banco, fecha=10, vence=20)
-    b = _forma(session, "Cartão B", TipoPagamento.CREDITO, banco, fecha=12, vence=25)
-    e = _forma(session, "Cartão E", TipoPagamento.CREDITO, banco, fecha=20, vence=1)
-    g = _forma(session, "Cartão G", TipoPagamento.CREDITO, banco, fecha=5, vence=18)
-    ligacao = _liga_pluggy(session, a, banco, "acc-a")
-    _gasto(session, a, date(2026, 10, 5), "100.00", OUTUBRO)
-    _gasto(session, b, date(2026, 10, 6), "200.00", OUTUBRO)
-    _gasto(session, e, date(2026, 10, 10), "70.00", NOVEMBRO)  # vence 01/11 = hoje + 16
-    _gasto(session, g, date(2026, 10, 7), "50.00", OUTUBRO)
-    _pagamento(session, g, date(2026, 10, 12), "50.00", OBS_PAGAMENTO_NO_CARTAO)  # já paga
-    _pendente(session, ligacao, "pa1", date(2026, 10, 14), "15.00", OUTUBRO)
-    _pendente(session, ligacao, "pa2", date(2026, 10, 15), "9.00", NOVEMBRO)  # outra fatura
-    session.commit()
-
-    j = _resumo(session).janela
-    assert [(v.data, v.cartao, v.valor, v.pendente) for v in j.vencimentos] == [
-        (date(2026, 10, 20), "Cartão A", Decimal("100.00"), Decimal("15.00")),
-        (date(2026, 10, 25), "Cartão B", Decimal("200.00"), Decimal("0")),
-    ]
-    assert j.vencimentos[0].origem_vencimento == "cadastro"
-    assert j.fim == date(2026, 10, 25)
-    assert len(j.dias) == 30 + 9
-    assert [d.a_pagar for d in j.dias].count(True) == 9
-    assert all(d.total == 0 for d in j.dias if d.a_pagar)
-
-
-def test_vencimentos_atravessam_o_mes(session: Session) -> None:
-    banco = _conta(session, "Banco")
-    x = _forma(session, "Cartão X", TipoPagamento.CREDITO, banco, fecha=20, vence=3)
-    _gasto(session, x, date(2026, 10, 22), "80.00", NOVEMBRO)
-    session.commit()
-
-    j = _em(session, date(2026, 10, 25), OUTUBRO).janela
-    assert [(v.data, v.cartao, v.valor) for v in j.vencimentos] == [
-        (date(2026, 11, 3), "Cartão X", Decimal("80.00"))
-    ]
-    assert j.fim == date(2026, 11, 3)
 
 
 def test_fatura_aberta_com_pendentes(session: Session) -> None:

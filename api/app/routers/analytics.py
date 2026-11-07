@@ -22,10 +22,12 @@ from app.schemas.analytics import (
     GastoPorBanco,
     ProgressoOrcamento,
 )
+from app.schemas.graficos_inicio import GastosJanela
 from app.schemas.inicio import Inicio
 from app.schemas.transacoes import TransacaoFiltros, transacao_filtros
 from app.services.analises import AnalisesService
 from app.services.analytics import AnalyticsService
+from app.services.graficos_inicio import GraficosInicioService
 from app.services.inicio import InicioService
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -106,6 +108,25 @@ def inicio(
     `situacao = "futuro"`.
     """
     return InicioService(session).resumo(competencia)
+
+
+@router.get("/inicio/gastos-30-dias", response_model=GastosJanela)
+def gastos_30_dias(
+    session: SessionDep,
+    pessoa_id: Annotated[
+        int | None, Query(description="Só as despesas das contas desta pessoa")
+    ] = None,
+    series: Annotated[
+        list[str] | None,
+        Query(description="Chaves das séries visíveis (`cartao:13`, `pix`...); padrão: todas"),
+    ] = None,
+    somar: Annotated[bool, Query(description="Traz a linha da soma das visíveis")] = False,
+) -> Any:
+    """Gráfico de linhas do Início: gasto acumulado dos últimos 30 dias, uma
+    linha por cartão, Pix, débito, boleto e outros (D-28). Pendentes do
+    cartão entram marcados; tudo somado no banco.
+    """
+    return GraficosInicioService(session).gastos_30_dias(pessoa_id, series, somar)
 
 
 @router.get("/analises", response_model=Analises)

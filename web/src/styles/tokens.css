@@ -124,6 +124,22 @@
   --color-pessoa-2: #1e3a8a;
   --color-juntos: #b9c2d0;
 
+  /* --- Cor: séries dos gráficos de linhas do Início (D-28) -----------------
+   * Um cartão tem sempre a mesma cor (`serie-1`..`serie-4`, escolhida pela
+   * API). As séries fixas e a soma têm token próprio. Os cinzas de débito,
+   * boleto e outros também se distinguem pelo rótulo no fim da linha. Cor de
+   * série nunca é cor de texto.
+   */
+  --color-serie-1: #0068a8;
+  --color-serie-2: #d55e00;
+  --color-serie-3: #8040f0;
+  --color-serie-4: #c2185b;
+  --color-serie-pix: #1b998b;
+  --color-serie-debito: #3a4456;
+  --color-serie-boleto: #7a8699;
+  --color-serie-outros: #7a8699;
+  --color-serie-soma: #172033;
+
   /* --- Cor: barra de ação em lote (fundo escuro) ------------------------- */
   --color-escuro: #172033;
   --color-escuro-botao: #2c3a57;

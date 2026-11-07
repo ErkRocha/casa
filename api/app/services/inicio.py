@@ -304,7 +304,6 @@ class InicioService:
             diferenca_compra_mes_anterior=Decimal(compra["atual"]) - Decimal(compra["anterior"]),
             saiu_da_conta=saiu,
             a_pagar_mes=Decimal(t["a_pagar_mes"]),
-            janela=caixa.janela(self.session, self.hoje),
             orcamento=orcamento,
             previsao=previsao,
             serie=serie,

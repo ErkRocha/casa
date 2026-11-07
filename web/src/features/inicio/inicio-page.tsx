@@ -17,7 +17,7 @@ import {
   ResumoComputador,
 } from "./components/blocos";
 import { FaturasAbertas } from "./components/faturas-abertas";
-import { Grafico30Dias, ResumoJanela } from "./components/grafico-30-dias";
+import { GraficoGastos30Dias } from "./components/grafico-gastos-30-dias";
 import { UltimosLancamentos } from "./components/ultimos-lancamentos";
 import { useInicio, useUltimosLancamentos } from "./queries";
 import type { Inicio } from "./types";
@@ -112,12 +112,7 @@ function Conteudo({
   carregandoUltimos: boolean;
 }) {
   // Os últimos 30 dias até hoje: iguais em qualquer mês escolhido (D-28).
-  const graficoCelular = (
-    <>
-      <ResumoJanela janela={i.janela} />
-      <Grafico30Dias janela={i.janela} variante="celular" />
-    </>
-  );
+  const graficoCelular = <GraficoGastos30Dias variante="celular" />;
 
   return (
     <>
@@ -135,11 +130,7 @@ function Conteudo({
       <div className="hidden flex-col gap-8 md:flex">
         <ResumoComputador i={i} />
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-          <Card className="flex flex-col gap-6 px-11 py-10 lg:col-span-2">
-            <h2 className="text-bloco font-forte m-0">Últimos 30 dias</h2>
-            <ResumoJanela janela={i.janela} comTitulo={false} />
-            <Grafico30Dias janela={i.janela} variante="computador" />
-          </Card>
+          <GraficoGastos30Dias variante="computador" className="lg:col-span-2" />
           <div className="flex flex-col gap-8">
             <CartaoRevisar resumo={revisar} />
             <FaturasAbertas i={i} />

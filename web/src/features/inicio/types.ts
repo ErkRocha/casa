@@ -90,50 +90,47 @@ export interface AvisoReajuste {
   valor_atual: Dinheiro;
 }
 
-export interface DiaJanela {
+/** Espelho de `app/schemas/graficos_inicio.py`. */
+export type TipoSerie = "cartao" | "pix" | "debito" | "boleto" | "outros" | "soma";
+
+export interface PontoGasto {
   data: string;
-  /** Compras no cartão lançadas, pela data da compra. */
-  cartao: Dinheiro;
-  /** Compras no cartão ainda pendentes no banco (só exibição, D-28). */
-  cartao_pendente: Dinheiro;
-  /** Pix, débito, boleto e outras despesas fora do cartão. */
-  conta: Dinheiro;
-  total: Dinheiro;
-  /** Dia depois de hoje (faixa "a pagar"); os valores são zero. */
-  a_pagar: boolean;
+  /** Gasto desde o início da janela, com as pendentes; nunca desce. */
+  acumulado: Dinheiro;
+  pendente_acumulado: Dinheiro;
+  /** Houve compra pendente neste dia. */
+  tem_pendente: boolean;
 }
 
-/** Pagamento de fatura que saiu da conta: uma marca, nunca somada às barras. */
-export interface PagamentoJanela {
-  data: string;
-  valor: Dinheiro;
-  cartao: string | null;
+export interface SerieGasto {
+  /** `cartao:<id>`, `pix`, `debito`, `boleto`, `outros` ou `soma`. */
+  chave: string;
+  rotulo: string;
+  tipo: TipoSerie;
   forma_pagamento_id: number | null;
-}
-
-export interface VencimentoJanela {
-  data: string;
-  forma_pagamento_id: number;
-  cartao: string;
-  /** Compras lançadas da fatura. */
-  valor: Dinheiro;
-  /** Compras pendentes esperadas na fatura (além de `valor`). */
+  /** Nome do token de cor: `serie-1`..`serie-4`, `serie-pix`... */
+  cor: string;
+  visivel: boolean;
+  total: Dinheiro;
   pendente: Dinheiro;
-  origem_vencimento: OrigemDatas;
+  pontos: PontoGasto[];
 }
 
-/** Últimos 30 dias até hoje (D-28); não depende do mês escolhido. */
-export interface Janela {
+export interface PessoaConectada {
+  id: number;
+  nome: string;
+}
+
+/** Gasto acumulado dos últimos 30 dias até hoje, uma linha por forma de pagar. */
+export interface GastosJanela {
   inicio: string;
   hoje: string;
-  fim: string;
-  dias: DiaJanela[];
-  pagamentos: PagamentoJanela[];
-  vencimentos: VencimentoJanela[];
+  series: SerieGasto[];
+  soma: SerieGasto | null;
   total: Dinheiro;
-  cartao: Dinheiro;
-  cartao_pendente: Dinheiro;
-  conta: Dinheiro;
+  pendente: Dinheiro;
+  pessoas_conectadas: PessoaConectada[];
+  pessoa_id: number | null;
 }
 
 export interface Inicio {
@@ -153,7 +150,6 @@ export interface Inicio {
   saiu_da_conta: Dinheiro;
   /** Faturas com vencimento no mês ainda não pagas. */
   a_pagar_mes: Dinheiro;
-  janela: Janela;
   receitas: Dinheiro;
   sobra: Dinheiro;
   orcamento: OrcamentoInicio | null;

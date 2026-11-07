@@ -105,8 +105,8 @@ dossie: ## Imprime os números do mês em JSON, sem gerar relatório
 test-db:
 	@$(COMPOSE) exec -T db sh -c 'psql -U "$$POSTGRES_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '"'"'casa_test'"'"'" | grep -q 1 || createdb -U "$$POSTGRES_USER" casa_test'
 
-test: test-db ## Roda o pytest (no banco casa_test)
-	$(COMPOSE) run --rm api-admin sh -c 'TEST_DATABASE_URL="$${DATABASE_ADMIN_URL%/*}/casa_test" pytest'
+test: test-db ## Roda o pytest (no banco casa_test) — use: make test [alvo=tests/test_x.py]
+	$(COMPOSE) run --rm api-admin sh -c 'TEST_DATABASE_URL="$${DATABASE_ADMIN_URL%/*}/casa_test" pytest $(alvo)'
 
 lint: ## ruff + mypy
 	$(COMPOSE) run --rm api ruff check .
