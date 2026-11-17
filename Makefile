@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: test-db help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-remover-abertas pluggy-resgates compras-role compras-migrate compras-seed compras-test compras-lint financas-role conferir
+.PHONY: test-db help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-remover-abertas pluggy-resgates compras-role compras-migrate compras-seed compras-carga-cardapio compras-test compras-lint financas-role conferir
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -133,6 +133,9 @@ compras-migrate: ## Aplica as migrations do serviço de compras
 
 compras-seed: ## Seções do mercado e produtos comuns (idempotente)
 	$(COMPOSE) run --rm compras python -m compras.seed
+
+compras-carga-cardapio: ## Pessoas, produtos com medida e 15 receitas do cardápio, a revisar (idempotente, D-30)
+	$(COMPOSE) run --rm compras python -m compras.carga_cardapio
 
 compras-test: test-db ## Roda o pytest do serviço de compras (no banco casa_test)
 	$(COMPOSE) run --rm compras-role sh -c 'TEST_DATABASE_URL="$${COMPRAS_DONO_DATABASE_URL%/*}/casa_test" pytest'
