@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query, Response, status
 
 from compras.deps import QuemDep, SessionDep
 from compras.schemas import ProdutoAtualizar, ProdutoCriar, ProdutoLeitura
+from compras.schemas_cardapio import ProdutoSemMedida
 from compras.services.produtos import ProdutoService
 
 router = APIRouter(prefix="/produtos", tags=["produtos"])
@@ -20,6 +21,19 @@ def buscar(
     """Para o campo de adicionar: contém o texto (sem caixa nem acento); quem
     começa com ele primeiro, depois os mais comprados."""
     return [ProdutoLeitura.de(p) for p in ProdutoService(session).buscar(busca, limite)]
+
+
+@router.get("/sem-medida", response_model=list[ProdutoSemMedida])
+def sem_medida(
+    session: SessionDep,
+    usados_em_receita: bool = True,
+    limite: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Any:
+    """A fila de "cadastre a medida" (D-30): produtos de ingrediente cuja
+    quantidade não chega à lista porque falta `medida_base` ou
+    `medida_por_unidade`."""
+    return ProdutoService(session).sem_medida(usados_em_receita, limite, offset)
 
 
 @router.post(

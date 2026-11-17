@@ -8,10 +8,12 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from compras.enums import SituacaoItem
-from compras.models import Despensa, ItemLista, Produto
+from compras.enums import SituacaoItem, UnidadeMedida
+from compras.models import Despensa, ItemLista, Produto, Receita, ReceitaIngrediente
 from compras.normalizar import normalizar
 from compras.schemas import ProdutoLeitura
+from compras.schemas_cardapio import ProdutoSemMedida
+from compras.services import conversao
 from compras.services.base import Conflito, NaoEncontrado, RegraViolada
 from compras.services.secoes import SecaoService
 
@@ -157,6 +159,74 @@ class ProdutoService:
         self.session.flush()
         self.session.refresh(produto)
         return produto
+
+    def sem_medida(
+        self, usados_em_receita: bool, limite: int, deslocamento: int
+    ) -> list[ProdutoSemMedida]:
+        """A fila de "cadastre a medida".
+
+        Com `usados_em_receita`, os produtos de ingrediente vivo de receita
+        viva cuja linha não converte (falta `medida_base`, ou
+        `medida_por_unidade` onde a conversão a pede). Sem, os produtos sem
+        `medida_base`.
+        """
+        if not usados_em_receita:
+            produtos = self.session.scalars(
+                select(Produto)
+                .where(Produto.deleted_em.is_(None), Produto.medida_base.is_(None))
+                .order_by(Produto.nome_normalizado)
+                .limit(limite)
+                .offset(deslocamento)
+            )
+            return [self._sem_medida(p, ["sem medida_base"], []) for p in produtos]
+
+        linhas = self.session.execute(
+            select(Produto, ReceitaIngrediente.quantidade, ReceitaIngrediente.unidade, Receita.nome)
+            .join(ReceitaIngrediente, ReceitaIngrediente.produto_id == Produto.id)
+            .join(Receita, Receita.id == ReceitaIngrediente.receita_id)
+            .where(
+                Produto.deleted_em.is_(None),
+                ReceitaIngrediente.deleted_em.is_(None),
+                Receita.deleted_em.is_(None),
+                ReceitaIngrediente.unidade != UnidadeMedida.A_GOSTO,
+            )
+            .order_by(Produto.nome_normalizado, Receita.nome_normalizado)
+        )
+        motivos: dict[int, list[str]] = {}
+        receitas: dict[int, list[str]] = {}
+        achados: dict[int, Produto] = {}
+        for produto, quantidade, unidade, nome_receita in linhas:
+            if conversao.converte(
+                quantidade or conversao.UM,
+                unidade,
+                produto.medida_base,
+                produto.medida_por_unidade,
+                produto.unidade_padrao,
+            ):
+                continue
+            achados[produto.id] = produto
+            motivo = conversao.motivo_sem_conversao(
+                unidade, produto.medida_base, produto.medida_por_unidade
+            )
+            if motivo not in motivos.setdefault(produto.id, []):
+                motivos[produto.id].append(motivo)
+            if nome_receita not in receitas.setdefault(produto.id, []):
+                receitas[produto.id].append(nome_receita)
+        fila = [self._sem_medida(p, motivos[i], receitas[i]) for i, p in achados.items()]
+        return fila[deslocamento : deslocamento + limite]
+
+    @staticmethod
+    def _sem_medida(p: Produto, motivos: list[str], receitas: list[str]) -> ProdutoSemMedida:
+        return ProdutoSemMedida(
+            id=p.id,
+            nome=p.nome,
+            secao_nome=p.secao.nome,
+            unidade_padrao=p.unidade_padrao,
+            medida_base=p.medida_base,
+            medida_por_unidade=p.medida_por_unidade,
+            motivos=motivos,
+            receitas=receitas,
+        )
 
     def por_nome(self, nome: str) -> Produto | None:
         """O produto vivo com esse nome, sem caixa nem acento."""
