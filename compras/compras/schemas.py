@@ -12,7 +12,14 @@ from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
-from compras.enums import EstadoDespensa, OrigemAssociacao, OrigemItem, SituacaoItem, StatusNota
+from compras.enums import (
+    EstadoDespensa,
+    MedidaBase,
+    OrigemAssociacao,
+    OrigemItem,
+    SituacaoItem,
+    StatusNota,
+)
 from compras.models import (
     Despensa,
     IdentidadeTailscale,
@@ -62,6 +69,8 @@ class ProdutoLeitura(Linha):
     secao_nome: str
     unidade_padrao: str | None
     id_cliente: uuid.UUID | None
+    medida_base: MedidaBase | None
+    medida_por_unidade: Decimal | None
 
     @classmethod
     def de(cls, p: Produto) -> Self:
@@ -72,6 +81,8 @@ class ProdutoLeitura(Linha):
             secao_nome=p.secao.nome,
             unidade_padrao=p.unidade_padrao,
             id_cliente=p.id_cliente,
+            medida_base=p.medida_base,
+            medida_por_unidade=p.medida_por_unidade,
             criado_em=p.criado_em,
             atualizado_em=p.atualizado_em,
             deleted_em=p.deleted_em,
@@ -212,6 +223,9 @@ class ProdutoAtualizar(BaseModel):
     nome: Nome | None = None
     secao_id: int | None = None
     unidade_padrao: TextoCurto | None = None
+    #: Conversão do cardápio (D-30). `null` limpa; `medida_por_unidade` exige `medida_base`.
+    medida_base: MedidaBase | None = None
+    medida_por_unidade: Quantidade | None = None
 
 
 class ItemCriar(BaseModel):

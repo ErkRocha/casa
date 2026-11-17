@@ -6,11 +6,13 @@ do service.
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -24,10 +26,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from compras.db import Base, Comum, pg_enum
 from compras.enums import (
     EstadoDespensa,
+    MedidaBase,
     OrigemAssociacao,
     OrigemItem,
     SituacaoItem,
     StatusNota,
+    TipoRefeicao,
+    UnidadeMedida,
 )
 
 #: Para onde vai o produto criado às pressas; sempre a última do percurso.
@@ -49,6 +54,10 @@ class Produto(Comum, Base):
     secao_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("secoes.id"), nullable=False)
     unidade_padrao: Mapped[str | None] = mapped_column(Text)
     id_cliente: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    #: Em que o produto é medido (migration 0004). Nulo: sem conversão.
+    medida_base: Mapped[MedidaBase | None] = mapped_column(pg_enum(MedidaBase, "medida_base"))
+    #: Quanto de `medida_base` tem uma unidade do produto (uma embalagem ou uma peça).
+    medida_por_unidade: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
 
     secao: Mapped[Secao] = relationship(lazy="joined", innerjoin=True)
 
@@ -167,3 +176,106 @@ class IdentidadeTailscale(Comum, Base):
     login: Mapped[str] = mapped_column(Text, nullable=False)
     #: Como aparece em "adicionou" e "pegou": "Erik", "Laura".
     nome: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+# --- Cardápio (migration 0004, D-30) --------------------------------------------
+
+
+class Pessoa(Comum, Base):
+    """Quem come. Não é a `pessoa_id` de finanças (D-25)."""
+
+    __tablename__ = "pessoas"
+
+    nome: Mapped[str] = mapped_column(Text, nullable=False)
+    identidade_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("identidades_tailscale.id")
+    )
+    porcao_padrao: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=False, default=1)
+
+    identidade: Mapped[IdentidadeTailscale | None] = relationship(lazy="joined")
+
+
+class Receita(Comum, Base):
+    __tablename__ = "receitas"
+
+    nome: Mapped[str] = mapped_column(Text, nullable=False)
+    nome_normalizado: Mapped[str] = mapped_column(Text, nullable=False)
+    tipo: Mapped[TipoRefeicao] = mapped_column(
+        pg_enum(TipoRefeicao, "tipo_refeicao"), nullable=False
+    )
+    rendimento_porcoes: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False)
+    tempo_preparo_min: Mapped[int | None] = mapped_column(Integer)
+    modo_preparo: Mapped[str | None] = mapped_column(Text)
+    pode_antecipar: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    dura_dias: Mapped[int | None] = mapped_column(Integer)
+    pode_congelar: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    id_cliente: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+
+
+class ReceitaIngrediente(Comum, Base):
+    __tablename__ = "receita_ingredientes"
+
+    receita_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("receitas.id"), nullable=False)
+    produto_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("produtos.id"), nullable=False)
+    quantidade: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    unidade: Mapped[UnidadeMedida] = mapped_column(
+        pg_enum(UnidadeMedida, "unidade_medida"), nullable=False
+    )
+    observacao: Mapped[str | None] = mapped_column(Text)
+    ordem: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    produto: Mapped[Produto] = relationship(lazy="joined", innerjoin=True)
+
+
+class Semana(Comum, Base):
+    __tablename__ = "semanas"
+
+    #: Sempre segunda-feira.
+    inicio: Mapped[date] = mapped_column(Date, nullable=False)
+    observacao: Mapped[str | None] = mapped_column(Text)
+
+
+class Refeicao(Comum, Base):
+    """Um prato num dia e tipo de refeição."""
+
+    __tablename__ = "refeicoes"
+
+    semana_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("semanas.id"), nullable=False)
+    dia: Mapped[date] = mapped_column(Date, nullable=False)
+    tipo: Mapped[TipoRefeicao] = mapped_column(
+        pg_enum(TipoRefeicao, "tipo_refeicao"), nullable=False
+    )
+    receita_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("receitas.id"))
+    observacao: Mapped[str | None] = mapped_column(Text)
+    ordem: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class RefeicaoPessoa(Comum, Base):
+    __tablename__ = "refeicao_pessoas"
+
+    refeicao_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("refeicoes.id"), nullable=False)
+    pessoa_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("pessoas.id"), nullable=False)
+    #: Nulo: vale a `porcao_padrao` da pessoa.
+    porcoes: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+
+
+class SessaoPreparo(Comum, Base):
+    __tablename__ = "sessoes_preparo"
+
+    semana_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("semanas.id"), nullable=False)
+    data: Mapped[date] = mapped_column(Date, nullable=False)
+    rotulo: Mapped[str | None] = mapped_column(Text)
+
+
+class ItemListaCardapio(Comum, Base):
+    """O quanto cada semana pediu de cada item da lista."""
+
+    __tablename__ = "itens_lista_cardapio"
+
+    item_lista_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("itens_lista.id"), nullable=False
+    )
+    semana_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("semanas.id"), nullable=False)
+    quantidade: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    unidade: Mapped[str | None] = mapped_column(Text)
+    gerado_por: Mapped[str] = mapped_column(Text, nullable=False)

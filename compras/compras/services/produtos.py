@@ -12,7 +12,7 @@ from compras.enums import SituacaoItem
 from compras.models import Despensa, ItemLista, Produto
 from compras.normalizar import normalizar
 from compras.schemas import ProdutoLeitura
-from compras.services.base import Conflito, NaoEncontrado
+from compras.services.base import Conflito, NaoEncontrado, RegraViolada
 from compras.services.secoes import SecaoService
 
 
@@ -122,6 +122,12 @@ class ProdutoService:
             produto.nome_normalizado = normalizar(dados["nome"])
         if "unidade_padrao" in dados:
             produto.unidade_padrao = dados["unidade_padrao"]
+        if "medida_base" in dados:
+            produto.medida_base = dados["medida_base"]
+        if "medida_por_unidade" in dados:
+            produto.medida_por_unidade = dados["medida_por_unidade"]
+        if produto.medida_por_unidade is not None and produto.medida_base is None:
+            raise RegraViolada("medida_por_unidade exige medida_base")
         try:
             with self.session.begin_nested():
                 self.session.flush()
@@ -151,6 +157,10 @@ class ProdutoService:
         self.session.flush()
         self.session.refresh(produto)
         return produto
+
+    def por_nome(self, nome: str) -> Produto | None:
+        """O produto vivo com esse nome, sem caixa nem acento."""
+        return self._por_nome(normalizar(nome))
 
     def _por_nome(self, normalizado: str) -> Produto | None:
         return self.session.scalar(
