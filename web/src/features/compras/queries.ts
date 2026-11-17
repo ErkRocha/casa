@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiCompras, buildQuery } from "@/lib/api";
+import { aplicarPassosFeitos, CHAVE_ROTEIRO } from "@/features/cardapio/passos-feitos";
 import { novoIdCliente } from "./id-cliente";
 import type {
   EstadoDespensa,
@@ -71,6 +72,8 @@ export type EstadoConexao = "ok" | "falha";
  * (api.md, "Polling com desde"). Aba oculta: para. Volta: pergunta na hora
  * o que mudou desde o último cursor. Itens mudados entram direto na lista;
  * mudança na despensa, nos produtos ou nas seções relê as telas de compras.
+ * Os passos do roteiro do cardápio marcados no outro celular (`passos_feitos`,
+ * D-30) chegam pelo mesmo polling: um mecanismo só.
  */
 export function useSincronizacaoCompras(): EstadoConexao {
   const queryClient = useQueryClient();
@@ -91,7 +94,12 @@ export function useSincronizacaoCompras(): EstadoConexao {
         if (parado) return;
         if (m.recarregar) {
           await queryClient.invalidateQueries({ queryKey: comprasKeys.todas });
+          await queryClient.invalidateQueries({ queryKey: CHAVE_ROTEIRO });
         } else {
+          // Passos do roteiro marcados no outro celular (D-30): o mesmo polling.
+          if (m.passos_feitos && m.passos_feitos.length > 0) {
+            aplicarPassosFeitos(queryClient, m.passos_feitos);
+          }
           queryClient.setQueryData<Lista>(comprasKeys.lista, (atual) =>
             atual ? aplicar(atual, m.itens, m.cursor) : atual,
           );

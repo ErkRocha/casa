@@ -1,16 +1,27 @@
 import { useState } from "react";
 
 import { Carregando, Falha } from "@/components/ui/estados";
+import { Icone } from "@/components/ui/icone";
 import { CabecalhoCompras } from "@/features/compras/abas-compras";
 import { ComTela } from "@/features/compras/compras-page";
 import { useLista } from "@/features/compras/queries";
 import { mudarParams, useParamsDaRota } from "@/lib/rotas";
 import { AvisosRoteiro } from "./avisos-roteiro";
 import { CopiarSemana } from "./copiar-semana";
-import { diasDaSemana, hojeSP, segundaDe, semanaEncerrada, somarDias } from "./datas";
+import {
+  diaEMesBR,
+  diasDaSemana,
+  hojeSP,
+  nomeDoDia,
+  segundaDe,
+  semanaEncerrada,
+  somarDias,
+} from "./datas";
 import { EditarRefeicao, type AlvoDaRefeicao } from "./editar-refeicao";
 import { usePessoasDoCardapio, useRoteiro, useSemana } from "./queries";
 import { ReceitaPainel } from "./receita-painel";
+import { RoteiroPainel } from "./roteiro-painel";
+import { SessaoDialogo } from "./sessao-dialogo";
 import { ReceitasPainel } from "./receitas-painel";
 import { SemanaCelular } from "./semana-celular";
 import { SemanaVazia } from "./semana-vazia";
@@ -45,6 +56,7 @@ function Cardapio({ quem }: { quem: string | null }) {
   const roteiro = useRoteiro(semana.data?.id);
   const [editando, setEditando] = useState<AlvoDaRefeicao | null>(null);
   const [copiando, setCopiando] = useState(false);
+  const [novaSessao, setNovaSessao] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
   const irParaSemana = (destino: string) =>
@@ -89,6 +101,8 @@ function Cardapio({ quem }: { quem: string | null }) {
       ? dados.dias.reduce((n, d) => n + d.refeicoes.filter((r) => r.receita?.id === id).length, 0)
       : null;
 
+  const proximaSessao = dados?.sessoes.find((s) => s.data >= hoje) ?? null;
+
   const pratos = dados ? dados.dias.reduce((n, d) => n + d.refeicoes.length, 0) : 0;
   const nomes = (pessoas.data ?? []).map((p) => p.nome).join(" e ");
 
@@ -122,7 +136,10 @@ function Cardapio({ quem }: { quem: string | null }) {
         <SemanaVazia inicio={inicio} quem={quem} onCriada={aoCopiar} />
       ) : v ? (
         <>
-          <AvisosRoteiro avisos={roteiro.data?.avisos ?? []} />
+          <AvisosRoteiro
+            avisos={roteiro.data?.avisos ?? []}
+            onVerRoteiro={() => mudarParams({ roteiro: "1" })}
+          />
           <SemanaCelular
             v={v}
             dia={dia}
@@ -130,6 +147,23 @@ function Cardapio({ quem }: { quem: string | null }) {
           >
             <section className="bg-superficie rounded-bloco flex flex-col gap-4 p-8">
               <h2 className="text-bloco-celular font-forte m-0">A semana inteira</h2>
+              <button
+                type="button"
+                onClick={() => mudarParams({ roteiro: "1" })}
+                className="bg-superficie-2 text-texto rounded-interno flex min-h-26 cursor-pointer items-center justify-between gap-5 border-none px-7 text-left"
+              >
+                <span className="flex flex-col gap-1">
+                  <span className="text-corpo font-forte">Roteiro de preparo</span>
+                  <span className="text-pequeno text-texto-2">
+                    {proximaSessao
+                      ? `Próxima sessão: ${nomeDoDia(proximaSessao.data)} ${diaEMesBR(proximaSessao.data)}`
+                      : "Nenhuma sessão daqui para a frente"}
+                  </span>
+                </span>
+                <span className="text-texto-2 flex">
+                  <Icone nome="direita" />
+                </span>
+              </button>
               <button
                 type="button"
                 disabled={!quem}
@@ -166,6 +200,26 @@ function Cardapio({ quem }: { quem: string | null }) {
         </>
       ) : null}
 
+      {dados ? (
+        <>
+          <RoteiroPainel
+            aberto={params.get("roteiro") !== null}
+            semanaId={dados.id}
+            hoje={hoje}
+            quem={quem}
+            sessaoInicial={params.get("sessao")}
+            onNovaSessao={() => setNovaSessao(true)}
+          />
+          <SessaoDialogo
+            aberto={novaSessao}
+            onFechar={() => setNovaSessao(false)}
+            semanaId={dados.id}
+            inicio={inicio}
+            hoje={hoje}
+            quem={quem}
+          />
+        </>
+      ) : null}
       <ReceitasPainel aberto={params.get("receitas") !== null} quem={quem} />
       <ReceitaPainel
         receita={params.get("receita")}

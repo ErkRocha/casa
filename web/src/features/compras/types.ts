@@ -1,3 +1,5 @@
+import type { PassoFeitoLinha } from "@/features/cardapio/types";
+
 /** Espelho de `compras/compras/schemas.py` (D-25). Decimais chegam como texto. */
 
 export type Situacao = "pendente" | "comprado";
@@ -76,6 +78,8 @@ export interface Mudancas {
   despensa: LinhaDespensa[];
   produtos: Produto[];
   secoes: Secao[];
+  /** Passos do roteiro do cardápio marcados ou desfeitos (D-30); `deleted_em` = desfeito. */
+  passos_feitos?: PassoFeitoLinha[];
 }
 
 export interface RespostaDespensa {
