@@ -16,7 +16,7 @@ export interface ItemNavegacao {
   icone: NomeIcone;
 }
 
-const ITENS: Record<Exclude<Rota, "mais" | "despensa">, ItemNavegacao> = {
+const ITENS: Record<Exclude<Rota, "mais" | "despensa" | "cardapio">, ItemNavegacao> = {
   inicio: { rota: "inicio", rotulo: "Início", icone: "inicio" },
   lancamentos: { rota: "lancamentos", rotulo: "Lançamentos", icone: "lancamentos" },
   compras: { rota: "compras", rotulo: "Compras", icone: "compras" },
@@ -50,7 +50,7 @@ export const ITENS_MAIS: ItemNavegacao[] = [
   ITENS.sincronizacao,
 ];
 
-/** A despensa é parte de Compras: o item ativo é o de Compras. */
+/** A despensa e o cardápio são abas de Compras: o item ativo é o de Compras. */
 export function rotaAtiva(rota: Rota): Rota {
-  return rota === "despensa" ? "compras" : rota;
+  return rota === "despensa" || rota === "cardapio" ? "compras" : rota;
 }

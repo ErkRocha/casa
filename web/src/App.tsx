@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { AnalisesPage } from "@/features/analytics/analises-page";
+import { CardapioPage } from "@/features/cardapio/cardapio-page";
 import { ComprasPage, DespensaPage } from "@/features/compras/compras-page";
 import { CategoriasPage } from "@/features/configuracoes/categorias-page";
 import { ContasPage } from "@/features/configuracoes/contas-page";
@@ -31,6 +32,8 @@ function Tela({ rota }: { rota: Rota }) {
       return <ComprasPage />;
     case "despensa":
       return <DespensaPage />;
+    case "cardapio":
+      return <CardapioPage />;
     case "revisar":
       return <RevisarPage />;
     case "analises":

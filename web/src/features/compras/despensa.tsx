@@ -2,9 +2,7 @@ import { useMemo, useState } from "react";
 
 import { Segmentado } from "@/components/ui/segmentado";
 import { Carregando, Falha } from "@/components/ui/estados";
-import { Icone } from "@/components/ui/icone";
 import { ApiError } from "@/lib/api";
-import { href } from "@/lib/rotas";
 import { cn } from "@/lib/utils";
 import { useDefinirDespensa, useDespensa, useLista, useProdutos, useSecoes } from "./queries";
 import { haQuantoTempo, porSecao } from "./textos";
@@ -107,23 +105,7 @@ export function Despensa({ quem, lateral = false }: { quem: string | null; later
 
   return (
     <div className="flex flex-col gap-6">
-      {lateral ? (
-        <h2 className="text-bloco font-forte m-0 px-1">Despensa</h2>
-      ) : (
-        <header className="flex items-center gap-4 px-1">
-          <a
-            href={href("compras")}
-            aria-label="Voltar para a lista"
-            className="bg-superficie text-texto rounded-interno flex size-22 items-center justify-center"
-          >
-            <Icone nome="esquerda" />
-          </a>
-          <div className="flex flex-col gap-1">
-            <h1 className="m-0 text-[22px] font-bold tracking-[-0.3px]">Despensa</h1>
-            <span className="text-apoio text-texto-2">O que tem em casa</span>
-          </div>
-        </header>
-      )}
+      {lateral ? <h2 className="text-bloco font-forte m-0 px-1">Despensa</h2> : null}
 
       <p className="text-apoio text-texto-2 m-0 px-1 leading-normal">
         Toque no estado de cada produto. "Acabou" coloca na lista na hora; "Acabando" só sugere.

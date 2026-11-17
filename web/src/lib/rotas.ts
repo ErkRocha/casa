@@ -14,6 +14,7 @@ export type Rota =
   | "lancamentos"
   | "compras"
   | "despensa"
+  | "cardapio"
   | "revisar"
   | "analises"
   | "relatorios"
@@ -29,6 +30,7 @@ const ROTAS = new Set<Rota>([
   "lancamentos",
   "compras",
   "despensa",
+  "cardapio",
   "revisar",
   "analises",
   "relatorios",
@@ -43,6 +45,7 @@ export const TITULO_DA_ROTA: Record<Rota, string> = {
   lancamentos: "Lançamentos",
   compras: "Lista de compras",
   despensa: "Despensa",
+  cardapio: "Cardápio",
   revisar: "Revisar",
   analises: "Análises",
   relatorios: "Relatórios do mês",

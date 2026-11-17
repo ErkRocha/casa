@@ -3,8 +3,8 @@ import { useState, type ReactNode } from "react";
 import { Carregando, Falha } from "@/components/ui/estados";
 import { Icone } from "@/components/ui/icone";
 import { ApiError } from "@/lib/api";
-import { href } from "@/lib/rotas";
 import { cn } from "@/lib/utils";
+import { CabecalhoCompras } from "./abas-compras";
 import { AdicionarPainel } from "./adicionar-painel";
 import { Despensa } from "./despensa";
 import {
@@ -33,17 +33,20 @@ export function ComprasPage() {
   return (
     <ComTela>
       {(quem, perguntar, conexao, pelaTailnet) => (
-        <div className="mx-auto flex w-full max-w-[1120px] gap-12">
-          <div className="mx-auto w-full max-w-[640px] min-w-0 xl:mx-0">
-            <ListaDeCompras
-              quem={quem}
-              conexao={conexao}
-              onTrocarQuem={pelaTailnet ? null : perguntar}
-            />
+        <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-6">
+          <CabecalhoCompras atual="compras" />
+          <div className="flex gap-12">
+            <div className="mx-auto w-full max-w-[640px] min-w-0 xl:mx-0">
+              <ListaDeCompras
+                quem={quem}
+                conexao={conexao}
+                onTrocarQuem={pelaTailnet ? null : perguntar}
+              />
+            </div>
+            <aside aria-label="Despensa" className="hidden min-w-0 flex-1 xl:block">
+              <Despensa quem={quem} lateral />
+            </aside>
           </div>
-          <aside aria-label="Despensa" className="hidden min-w-0 flex-1 xl:block">
-            <Despensa quem={quem} lateral />
-          </aside>
         </div>
       )}
     </ComTela>
@@ -55,7 +58,8 @@ export function DespensaPage() {
   return (
     <ComTela>
       {(quem) => (
-        <div className="mx-auto w-full max-w-[640px]">
+        <div className="mx-auto flex w-full max-w-[640px] flex-col gap-6">
+          <CabecalhoCompras atual="despensa" />
           <Despensa quem={quem} />
         </div>
       )}
@@ -68,7 +72,7 @@ export function DespensaPage() {
  * "quem". Pelo Tailscale, o nome vem da tailnet (o proxy o põe no `X-Quem`)
  * e nada é perguntado; sem ele, "quem é você?" uma vez por aparelho.
  */
-function ComTela({
+export function ComTela({
   children,
 }: {
   children: (
@@ -153,23 +157,9 @@ function ListaDeCompras({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex items-end justify-between gap-5 px-1">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-pagina-celular md:text-pagina m-0 font-bold tracking-[-0.4px]">
-            Lista de compras
-          </h1>
-          <span className="text-apoio text-texto-2">
-            {pendentes.length} para pegar, {carrinho.length} no carrinho
-          </span>
-        </div>
-        <a
-          href={href("despensa")}
-          className="bg-superficie text-texto hover:text-texto rounded-interno text-apoio flex h-20 items-center gap-3 px-6 font-semibold no-underline xl:hidden"
-        >
-          <Icone nome="despensa" tamanho={16} />
-          Despensa
-        </a>
-      </header>
+      <p className="text-apoio text-texto-2 m-0 px-1">
+        {pendentes.length} para pegar, {carrinho.length} no carrinho
+      </p>
 
       <button
         type="button"
