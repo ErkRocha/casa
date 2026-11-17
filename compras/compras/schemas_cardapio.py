@@ -301,6 +301,11 @@ class DestinoPasso(BaseModel):
     descongelar_em: date | None = None
 
 
+class PassoFeitoPor(BaseModel):
+    por: str
+    em: datetime
+
+
 class Passo(BaseModel):
     receita: ReceitaNoRoteiro
     #: Soma das porções de todas as refeições do passo.
@@ -311,9 +316,12 @@ class Passo(BaseModel):
     porcoes_congelador: Decimal
     destinos: list[DestinoPasso]
     avisos: list[str]
+    #: Quem marcou o passo como feito e quando; nulo se ainda não foi.
+    feito: PassoFeitoPor | None = None
 
 
 class SessaoNoRoteiro(BaseModel):
+    sessao_id: int
     data: date
     rotulo: str | None
     passos: list[Passo]

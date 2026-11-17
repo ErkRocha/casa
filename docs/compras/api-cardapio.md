@@ -1,6 +1,6 @@
 # API — `compras`, módulo de cardápio (D-30)
 
-**Implementado (migration 0004).** Diferenças em relação ao plano no fim
+**Implementado (migrations 0004 e 0005).** Diferenças em relação ao plano no fim
 deste arquivo. Mesmo serviço, mesmo endereço
 (`/api/compras/...`) e mesmas convenções de `api.md`: `X-Quem` em toda
 escrita (substituído pela identidade do Tailscale quando há), `id_cliente`
@@ -13,7 +13,9 @@ Listas paginadas (regra do `CLAUDE.md`): receitas e semanas, com
 são pequenos e vêm inteiros.
 
 O cardápio não entra no `/mudancas`: é planejado com calma, não com os dois
-no mercado. A tela busca de novo ao abrir e depois de cada escrita. O que a
+no mercado. A tela busca de novo ao abrir e depois de cada escrita. A
+exceção são os passos do roteiro marcados como feitos (`passos_feitos`),
+que os dois celulares veem ao mesmo tempo na cozinha. O que a
 geração da lista cria ou ajusta em `itens_lista` chega aos celulares pelo
 `/mudancas` de sempre.
 
@@ -37,11 +39,12 @@ geração da lista cria ou ajusta em `itens_lista` chega aos celulares pelo
 
 | Método | Caminho | O que faz |
 |---|---|---|
-| GET | `/receitas?busca=&tipo=&pode_antecipar=&limite=20&offset=0` | Busca no `nome_normalizado` (contém; quem começa com o texto vem antes), com `total` |
+| GET | `/receitas?busca=&tipo=&pode_antecipar=&revisadas=&limite=20&offset=0` | Busca no `nome_normalizado` (contém; quem começa com o texto vem antes), com `total`. `revisadas=true|false` filtra pelas quantidades conferidas |
 | GET | `/receitas/{id}` | A receita com os ingredientes na ordem, o nome do produto e se cada um converte |
-| POST | `/receitas` | `{id_cliente, nome, tipo, rendimento_porcoes, tempo_preparo_min?, modo_preparo?, pode_antecipar, dura_dias?, pode_congelar, ingredientes: [{produto_id ou produto_nome, quantidade?, unidade, observacao?}]}`. Ingrediente com `produto_nome` sem produto cria o produto em "Sem seção", na mesma transação. `id_cliente` repetido: 200 com a que existe |
-| PUT | `/receitas/{id}` | Mesmo corpo, sem `id_cliente`: substitui os campos e a lista de ingredientes numa transação. Todo ingrediente antigo leva soft delete e o novo é criado (nunca UPDATE no lugar), para a semana passada continuar lendo os seus (D-30). Aqui é `PUT` porque a receita é editada como um formulário inteiro, não por ação |
-| POST | `/receitas/{id}/duplicar` | Cópia com o nome "<nome> (cópia)", para variar uma receita |
+| POST | `/receitas` | `{id_cliente, nome, tipo, rendimento_porcoes, tempo_preparo_min?, modo_preparo?, pode_antecipar, dura_dias?, pode_congelar, ingredientes: [{produto_id ou produto_nome, quantidade?, unidade, observacao?}]}`. Ingrediente com `produto_nome` sem produto cria o produto em "Sem seção", na mesma transação. `id_cliente` repetido: 200 com a que existe. Criada por pessoa, nasce com `quantidades_revisadas = true`, `revisadas_por` = quem e `revisadas_em` = agora |
+| POST | `/receitas/{id}/conferir` | "Conferi, está certa": marca `quantidades_revisadas = true` com quem e agora e devolve a receita. Já conferida: 200 com a receita como está (vale a primeira conferência) |
+| PUT | `/receitas/{id}` | Mesmo corpo, sem `id_cliente`: substitui os campos e a lista de ingredientes numa transação. Todo ingrediente antigo leva soft delete e o novo é criado (nunca UPDATE no lugar), para a semana passada continuar lendo os seus (D-30). Não mexe em `quantidades_revisadas`, `revisadas_por` nem `revisadas_em`. Aqui é `PUT` porque a receita é editada como um formulário inteiro, não por ação |
+| POST | `/receitas/{id}/duplicar` | Cópia com o nome "<nome> (cópia)", para variar uma receita; leva a conferência da origem |
 | DELETE | `/receitas/{id}` | Soft delete. Usada em semana que ainda não acabou: 409, com as semanas |
 
 ## Semanas e refeições
@@ -65,17 +68,20 @@ geração da lista cria ou ajusta em `itens_lista` chega aos celulares pelo
 | POST | `/semanas/{id}/sessoes` | `{data, rotulo?}` (de sábado anterior a domingo da semana) |
 | PATCH | `/sessoes/{id}` | Data, rótulo |
 | DELETE | `/sessoes/{id}` | Soft delete; as refeições dela vão para a sessão anterior ou para "no dia" |
-| GET | `/semanas/{id}/preparo` | O roteiro, calculado na hora (regras em `modelo-cardapio.md`, "Preparo") |
+| GET | `/semanas/{id}/preparo` | O roteiro, calculado na hora (regras em `modelo-cardapio.md`, "Preparo"). Cada sessão traz `sessao_id` e cada passo traz `feito` |
+| PUT | `/sessoes/{sessao_id}/passos/{receita_id}/feito` | `{id_cliente}`: marca o passo como feito, por quem pede e agora. 201 com a linha de `passos_feitos`. Já feito (por qualquer um): 200 com o que existe, vale o primeiro. Mesmo `id_cliente` repetido: 200. `id_cliente` de outro passo: 409. Sessão ou receita inexistente ou apagada: 404 |
+| DELETE | `/sessoes/{sessao_id}/passos/{receita_id}/feito` | Desfaz (soft delete) e devolve a linha com `deleted_em`. Não estava feito: 200 com `null`, sem mudança |
 
 ```json
 {
   "sessoes": [
     {
-      "data": "2026-11-22", "rotulo": "domingo",
+      "sessao_id": 7, "data": "2026-11-22", "rotulo": "domingo",
       "passos": [
         {
           "receita": {"id": 4, "nome": "Frango assado", "tempo_preparo_min": 90},
           "porcoes": "6.00", "fator": "1.500",
+          "feito": {"por": "Laura", "em": "2026-11-22T14:05:31.482913Z"},
           "destinos": [
             {"refeicao_id": 31, "dia": "2026-11-23", "tipo": "almoco", "porcoes": "2.00", "onde": "geladeira"},
             {"refeicao_id": 40, "dia": "2026-11-27", "tipo": "janta", "porcoes": "2.00", "onde": "congelador", "descongelar_em": "2026-11-26"}
@@ -90,6 +96,38 @@ geração da lista cria ou ajusta em `itens_lista` chega aos celulares pelo
   ],
   "avisos": [
     {"refeicao_id": 44, "texto": "Salada de folhas não dura até sábado (dura 2 dias) e não congela"}
+  ]
+}
+```
+
+`feito` é `{"por", "em"}` quando o passo foi marcado e `null` quando não. A
+marcação (`PUT .../feito`) responde a linha inteira:
+
+```json
+{
+  "id": 12, "sessao_id": 7, "receita_id": 4,
+  "feito_por": "Laura", "feito_em": "2026-11-22T14:05:31.482913Z",
+  "id_cliente": "6f1c2a9e-8f3a-4c35-9d7e-2b0f4b6a1c11",
+  "criado_em": "2026-11-22T14:05:31.482913Z",
+  "atualizado_em": "2026-11-22T14:05:31.482913Z",
+  "deleted_em": null
+}
+```
+
+No `GET /mudancas`, a chave `passos_feitos` traz essas mesmas linhas, as
+que mudaram desde o cursor, e a desfeita volta com `deleted_em`
+preenchido (a tela troca a cópia local pela mais nova, como nas outras
+chaves):
+
+```json
+{
+  "cursor": "2026-11-22T14:06:00.000000Z", "recarregar": false,
+  "itens": [], "despensa": [], "produtos": [], "secoes": [],
+  "passos_feitos": [
+    {"id": 12, "sessao_id": 7, "receita_id": 4, "feito_por": "Laura",
+     "feito_em": "2026-11-22T14:05:31.482913Z", "id_cliente": "6f1c2a9e-8f3a-4c35-9d7e-2b0f4b6a1c11",
+     "criado_em": "2026-11-22T14:05:31.482913Z", "atualizado_em": "2026-11-22T14:05:58.100000Z",
+     "deleted_em": "2026-11-22T14:05:58.100000Z"}
   ]
 }
 ```
@@ -193,3 +231,13 @@ resolveu:
 - **`DELETE /semanas/{id}`** responde a semana com `deleted_em`.
 - **`POST /semanas/{id}/copiar`** responde a semana inteira (como
   `GET /semanas/{inicio}`) mais `avisos: [{refeicao_id, texto}]`.
+
+# Revisão e passos feitos (migration 0005, 17/11/2026)
+
+- **Receitas** trazem `quantidades_revisadas`, `revisadas_por` e
+  `revisadas_em` em toda resposta (resumo e detalhe).
+- **`PUT .../feito`** responde 201 quando marca e 200 quando já estava
+  feito; o mesmo `id_cliente` de um passo já desfeito marca de novo (a
+  linha antiga volta, com o autor e a hora novos).
+- **`DELETE .../feito`** não valida sessão nem receita: o que não está
+  feito responde 200 e `null`, existindo ou não.

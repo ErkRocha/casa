@@ -10,6 +10,7 @@ from compras.schemas import (
     DespensaLeitura,
     ItemLeitura,
     MudancasResposta,
+    PassoFeitoLeitura,
     ProdutoLeitura,
     SecaoLeitura,
 )
@@ -41,4 +42,5 @@ def listar(
         despensa=[DespensaLeitura.de(d) for d in m.despensa],
         produtos=[ProdutoLeitura.de(p) for p in m.produtos],
         secoes=[SecaoLeitura.de(s) for s in m.secoes],
+        passos_feitos=[PassoFeitoLeitura.de(p) for p in m.passos_feitos],
     )

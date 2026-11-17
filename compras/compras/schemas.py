@@ -27,6 +27,7 @@ from compras.models import (
     Mercado,
     NotaFiscal,
     NotaItem,
+    PassoFeito,
     Produto,
     Secao,
 )
@@ -178,6 +179,30 @@ class DespensaResposta(BaseModel):
     item_criado: ItemLeitura | None
 
 
+class PassoFeitoLeitura(Linha):
+    """Um passo do roteiro marcado como feito; apagado, é o passo desfeito."""
+
+    sessao_id: int
+    receita_id: int
+    feito_por: str
+    feito_em: datetime
+    id_cliente: uuid.UUID | None
+
+    @classmethod
+    def de(cls, p: PassoFeito) -> Self:
+        return cls(
+            id=p.id,
+            sessao_id=p.sessao_id,
+            receita_id=p.receita_id,
+            feito_por=p.feito_por,
+            feito_em=p.feito_em,
+            id_cliente=p.id_cliente,
+            criado_em=p.criado_em,
+            atualizado_em=p.atualizado_em,
+            deleted_em=p.deleted_em,
+        )
+
+
 class MudancasResposta(BaseModel):
     cursor: datetime
     #: Cursor ausente ou velho demais: busque `/lista` e `/despensa` inteiras.
@@ -186,6 +211,8 @@ class MudancasResposta(BaseModel):
     despensa: list[DespensaLeitura]
     produtos: list[ProdutoLeitura]
     secoes: list[SecaoLeitura]
+    #: Passos do roteiro feitos ou desfeitos (o desfeito vem com `deleted_em`).
+    passos_feitos: list[PassoFeitoLeitura]
 
 
 class HistoricoPagina(BaseModel):

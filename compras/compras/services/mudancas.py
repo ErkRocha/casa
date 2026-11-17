@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from compras.config import get_settings
-from compras.models import Despensa, ItemLista, Produto, Secao
+from compras.models import Despensa, ItemLista, PassoFeito, Produto, Secao
 
 
 @dataclass
@@ -27,6 +27,7 @@ class Mudancas:
     despensa: list[Despensa] = field(default_factory=list)
     produtos: list[Produto] = field(default_factory=list)
     secoes: list[Secao] = field(default_factory=list)
+    passos_feitos: list[PassoFeito] = field(default_factory=list)
 
 
 def agora(session: Session) -> datetime:
@@ -45,7 +46,7 @@ def mudancas(session: Session, desde: datetime | None) -> Mudancas:
 
     limite = desde - timedelta(seconds=cfg.folga_mudancas_s)
 
-    def depois(modelo: type[ItemLista | Despensa | Produto | Secao]) -> list:  # type: ignore[type-arg]
+    def depois(modelo: type[ItemLista | Despensa | Produto | Secao | PassoFeito]) -> list:  # type: ignore[type-arg]
         return list(
             session.scalars(
                 select(modelo)
@@ -61,4 +62,5 @@ def mudancas(session: Session, desde: datetime | None) -> Mudancas:
         despensa=depois(Despensa),
         produtos=depois(Produto),
         secoes=depois(Secao),
+        passos_feitos=depois(PassoFeito),
     )

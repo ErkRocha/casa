@@ -18,11 +18,13 @@ from compras.schemas_cardapio import (
     DestinoPasso,
     NoDia,
     Passo,
+    PassoFeitoPor,
     ReceitaNoRoteiro,
     Roteiro,
     SessaoNoRoteiro,
 )
 from compras.services.conversao import tres_casas
+from compras.services.passos_feitos import PassoFeitoService
 from compras.services.refeicoes import RefeicaoService
 
 _DIAS_DA_SEMANA = ("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")
@@ -101,13 +103,22 @@ class RoteiroService:
             passos_da_sessao[sessao_id].append(passo)
             avisos.extend(avisos_do_passo)
 
+        feitos = PassoFeitoService(self.session).vivos([s.id for s in sessoes])
         saida = []
         for sessao in sessoes:
+            for passo in passos_da_sessao[sessao.id]:
+                feito = feitos.get((sessao.id, passo.receita.id))
+                if feito is not None:
+                    passo.feito = PassoFeitoPor(por=feito.feito_por, em=feito.feito_em)
             passos = sorted(
                 passos_da_sessao[sessao.id],
                 key=lambda p: (-(p.receita.tempo_preparo_min or 0), normalizar(p.receita.nome)),
             )
-            saida.append(SessaoNoRoteiro(data=sessao.data, rotulo=sessao.rotulo, passos=passos))
+            saida.append(
+                SessaoNoRoteiro(
+                    sessao_id=sessao.id, data=sessao.data, rotulo=sessao.rotulo, passos=passos
+                )
+            )
         return Roteiro(sessoes=saida, no_dia=no_dia, avisos=avisos)
 
     # -- apoio -----------------------------------------------------------
