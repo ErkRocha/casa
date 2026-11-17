@@ -26,9 +26,14 @@ export function haQuantoTempo(iso: string, agora: Date = new Date()): string {
   return `há ${dias} ${dias === 1 ? "dia" : "dias"}`;
 }
 
-/** A linha de baixo de um item pendente: quem pôs, ou "Voltou da despensa". */
+/** A linha de baixo de um item pendente: quem pôs, "Voltou da despensa" ou "Do cardápio". */
 export function detalheDoPendente(item: Item): string {
-  const base = item.origem === "despensa" ? "Voltou da despensa" : `${item.adicionado_por} adicionou`;
+  const base =
+    item.origem === "despensa"
+      ? "Voltou da despensa"
+      : item.origem === "cardapio"
+        ? "Do cardápio"
+        : `${item.adicionado_por} adicionou`;
   return item.observacao ? `${base}, "${item.observacao}"` : base;
 }
 

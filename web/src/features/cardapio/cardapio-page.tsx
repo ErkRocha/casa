@@ -18,6 +18,7 @@ import {
   somarDias,
 } from "./datas";
 import { EditarRefeicao, type AlvoDaRefeicao } from "./editar-refeicao";
+import { ListaPrevia } from "./lista-previa";
 import { usePessoasDoCardapio, useRoteiro, useSemana } from "./queries";
 import { ReceitaPainel } from "./receita-painel";
 import { RoteiroPainel } from "./roteiro-painel";
@@ -164,6 +165,12 @@ function Cardapio({ quem }: { quem: string | null }) {
                   <Icone nome="direita" />
                 </span>
               </button>
+              <ListaPrevia
+                semanaId={v.semana.id}
+                encerrada={v.encerrada}
+                quem={quem}
+                variante="celular"
+              />
               <button
                 type="button"
                 disabled={!quem}

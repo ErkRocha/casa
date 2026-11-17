@@ -4,7 +4,7 @@ import type { PassoFeitoLinha } from "@/features/cardapio/types";
 
 export type Situacao = "pendente" | "comprado";
 export type EstadoDespensa = "tem" | "acabando" | "acabou";
-export type OrigemItem = "manual" | "despensa" | "voz";
+export type OrigemItem = "manual" | "despensa" | "voz" | "cardapio";
 
 interface Linha {
   id: number;
