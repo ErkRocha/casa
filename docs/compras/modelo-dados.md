@@ -6,7 +6,7 @@ fiscal e preços) e `0003` (identidade pelo Tailscale: `identidades_tailscale`,
 mesmo banco de finanças. Convenções gerais em `CLAUDE.md` (raiz); aqui ficam
 as do serviço e o que muda em relação a `docs/modelo-dados.md`.
 
-O módulo de cardápio (D-30, planejado) fica em `modelo-cardapio.md`; ele
+O módulo de cardápio (D-30, implementado na migration 0004) fica em `modelo-cardapio.md`; ele
 acrescenta duas colunas a `produtos` e o valor `cardapio` a `origem_item`.
 
 ## Convenções

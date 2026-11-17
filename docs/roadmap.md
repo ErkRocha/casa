@@ -612,6 +612,26 @@ Nesta ordem, sem pular:
    já estava na lista à mão é ajustado, não duplicado; um produto em `tem`
    aparece em "confira" e não na lista. Os casos de teste de
    `api-cardapio.md` passam.
+
+   **Feito (17/11/2026).** Migration `0004` (aplica e reverte no
+   `casa_test`; ainda não aplicada no banco real: `make compras-migrate`
+   depois do `make validar`), todos os endpoints de `api-cardapio.md`, a
+   conversão de unidades, o roteiro e a geração da lista em services, e a
+   carga inicial (`make compras-carga-cardapio`: Erik, Laura e 15 receitas
+   de 1 porção com quantidades estimadas, marcadas na primeira linha do
+   `modo_preparo`). 94 testes novos: o compras passa de 111 (1 pulado) para
+   205 (1 pulado), com ruff e mypy limpos. Diferenças em relação ao plano
+   (detalhes no fim de `modelo-cardapio.md` e de `api-cardapio.md`):
+   - nenhuma tabela ou coluna além do plano; `refeicoes.dia` e
+     `sessoes_preparo.data` são conferidos por trigger, e o downgrade
+     recria o enum `origem_item` sem `cardapio`;
+   - `hoje()` mora em `compras/tempo.py` e os testes o trocam; a semana
+     passa quando `inicio + 6 < hoje()` (São Paulo);
+   - `GET /semanas/{inicio}?ingredientes=true` mostra os ingredientes
+     (os de então, na semana passada); roteiro e lista trazem campos a mais
+     (`porcoes_geladeira`, `pedido`, `de`, `removido`);
+   - produto acompanhado em `tem` aparece em `confira` mesmo depois de uma
+     compra feita pelo cardápio, se o pedido aumentar sem pendente.
 2. **Telas.** Desenhadas no Claude Design antes de qualquer código (D-15):
    receitas (lista e edição), semana (dias por tipo de refeição, quem come
    e a porção), roteiro de preparo e a prévia da lista antes de gerar.

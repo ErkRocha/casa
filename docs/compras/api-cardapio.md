@@ -1,6 +1,7 @@
 # API — `compras`, módulo de cardápio (D-30)
 
-**Planejado, não implementado.** Mesmo serviço, mesmo endereço
+**Implementado (migration 0004).** Diferenças em relação ao plano no fim
+deste arquivo. Mesmo serviço, mesmo endereço
 (`/api/compras/...`) e mesmas convenções de `api.md`: `X-Quem` em toda
 escrita (substituído pela identidade do Tailscale quando há), `id_cliente`
 no `POST` que cria receita, resposta de escrita com a linha inteira,
@@ -149,3 +150,46 @@ acréscimo ("e +2 un do cardápio").
 - Registro do que foi comido e baixa na despensa.
 - Nutrientes por refeição e por pessoa.
 - Gerar a lista de só parte da semana (`de`/`ate`).
+
+---
+
+# Diferenças em relação ao plano (17/11/2026)
+
+Todos os endpoints acima existem. O que a implementação acrescentou ou
+resolveu:
+
+- **Paginação.** `GET /receitas` e `GET /semanas` respondem
+  `{items, total, limite, offset}` (a lista de histórico de `api.md` usa
+  `limit`; aqui o nome é o do plano, `limite`).
+- **`GET /semanas/{inicio}?ingredientes=true`** traz os ingredientes de cada
+  receita; na semana passada, os vivos no fim do domingo dela (é por onde a
+  regra de D-30 aparece na leitura). Sem o parâmetro, a receita vem sem
+  `ingredientes`. A resposta tem `dias` (os 7, cada um com as refeições por
+  tipo e ordem), `sessoes` e `passada`.
+- **`GET /produtos/sem-medida`** responde uma lista (com `limite` e
+  `offset`) de `{id, nome, ..., motivos, receitas}`; `usados_em_receita` é
+  verdadeiro por padrão. Com `false`, todo produto sem `medida_base`.
+- **Roteiro.** Cada passo traz também `porcoes_geladeira` e
+  `porcoes_congelador` (regra 6), `avisos` (os mesmos textos do `avisos` de
+  cima) e cada destino leva `descongelar_em` (nulo na geladeira). O texto do
+  aviso termina com "; faça uma sessão mais perto ou prepare no dia".
+- **Lista pelo cardápio.** `ajustados`, `sem_mudanca` e `confira` trazem
+  também `pedido` e `de` (as receitas); `ajustados` traz `removido: true`
+  quando a semana deixou de pedir e o item saiu da lista (`depois` zero); na
+  prévia, `criados[].item_id` é nulo; `avisos[].produto` é nulo no aviso de
+  receita apagada. A prévia e a gravação usam o mesmo plano; só a gravação
+  trava a semana (`FOR UPDATE`). Semana inexistente: 404; semana passada:
+  409, com a semana no corpo.
+- **Receitas.** Nome repetido (sem caixa nem acento): 409 com a receita que
+  existe. `duplicar` numera a cópia se o nome já existe ("(cópia 2)").
+  Em `GET /receitas/{id}`, `converte` de um ingrediente `a_gosto` é
+  verdadeiro (não há o que converter).
+- **Pessoas.** Nome repetido ou login já ligado a outra pessoa: 409;
+  `identidade_id` inexistente: 404.
+- **Refeições.** `PATCH` de `receita_id: null` sem `observacao` é 422;
+  dia fora da semana é 422 (e o trigger do banco é a segunda barreira).
+  `PUT /refeicoes/{id}/pessoas` aceita lista vazia (ninguém come) e recusa
+  pessoa repetida.
+- **`DELETE /semanas/{id}`** responde a semana com `deleted_em`.
+- **`POST /semanas/{id}/copiar`** responde a semana inteira (como
+  `GET /semanas/{inicio}`) mais `avisos: [{refeicao_id, texto}]`.

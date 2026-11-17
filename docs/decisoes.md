@@ -1065,7 +1065,7 @@ mudam (D-02, D-28). Pendente de conta corrente continua ignorada.
 
 ## D-30 — Cardápio como módulo do serviço `compras`
 
-Decisão do usuário, 17/11/2026. Planejado, ainda sem código.
+Decisão do usuário, 17/11/2026. Backend implementado em 17/11/2026 (migration 0004); as telas seguem pendentes (D-15).
 
 O casal quer planejar o que come na semana e chegar à lista de compras sem
 montá-la à mão: **receitas -> cardápio da semana -> roteiro de preparo do

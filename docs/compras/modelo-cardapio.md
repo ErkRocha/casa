@@ -1,6 +1,7 @@
 # Modelo de dados — cardápio (D-30)
 
-**Planejado, não implementado.** Módulo do serviço `compras`, no mesmo
+**Implementado (migration 0004).** Diferenças em relação ao plano no fim
+deste arquivo. Módulo do serviço `compras`, no mesmo
 schema e com as mesmas convenções de `modelo-dados.md` (role
 `casa_compras`, trigger que recusa outras roles, `criado_em`/`atualizado_em`
 por trigger, `deleted_em`, auditoria, `*_normalizado`, `numeric`). Aqui fica
@@ -399,3 +400,64 @@ cobre os industrializados (que provavelmente pedem o rótulo).
 - **Histórico dos campos da receita** (rendimento, validade). Só os
   ingredientes têm, pelo soft delete.
 - **Metas e nutrientes como colunas.** Entram com a subfase que as usa.
+
+---
+
+# Diferenças em relação ao plano (17/11/2026)
+
+A migration `0004_cardapio.py` tem o que está acima, sem tabela nem coluna a
+mais. O que a implementação decidiu onde o modelo deixava aberto:
+
+- **Triggers de data.** `refeicoes.dia` dentro da semana e
+  `sessoes_preparo.data` de `inicio - 2` a `inicio + 6` são conferidos por
+  trigger (`fn_refeicao_dia_na_semana`, `fn_sessao_data_na_semana`), com
+  `check_violation` (23514). O service confere antes e responde 422.
+- **Nome único** de `pessoas` é `lower(nome)` entre linhas vivas;
+  `receitas.id_cliente` é único em qualquer estado, como o de `produtos`.
+- **Downgrade.** O Postgres não remove valor de enum: a `0004` recria
+  `origem_item` sem `cardapio` (item que veio do cardápio vira `manual`).
+- **Unidade do que a semana pôs.** `itens_lista_cardapio.unidade` guarda a
+  unidade do **pedido**, e é com ela que se compara na próxima geração e se
+  decide se uma subtração mexe na quantidade do item. Item de outra unidade
+  (a mão, "3 un" de cebola que o cardápio pede em kg) não é somado; só a
+  linha da semana guarda o pedido.
+- **A soma é do banco só nas porções.** As porções da refeição
+  (`coalesce(porcoes, porcao_padrao)`) são somadas em SQL (`numeric`); a
+  conversão de cada ingrediente e o arredondamento da embalagem são em
+  Python, com `Decimal`, porque a tabela de unidades mora no código.
+  Divisão de fração (1/3 de receita) é arredondada a 6 casas antes do
+  "para cima", para um resíduo de 1e-28 não custar uma embalagem.
+- **Pedido misto.** Se parte das linhas de um produto converte e parte não
+  (2 cebolas e 1 colher de sopa de cebola em pó num produto em `g`), o
+  pedido leva a parte que converte e o resto vai para a observação
+  ("cardápio: 1 colher_sopa") e para os avisos. `a_gosto` sozinho cria o
+  item sem quantidade, com a observação "cardápio: a gosto".
+- **Item que o cardápio zera.** Só sai da lista (soft delete) o item de
+  `origem = cardapio` cuja quantidade chega a zero (ou, sem quantidade, que
+  não tem mais linha de nenhuma semana). Item de outra origem que chegaria a
+  zero fica sem quantidade ("o de sempre"). A linha da semana em
+  `itens_lista_cardapio` leva soft delete quando zera.
+- **`tem` depois de comprar.** Produto acompanhado na despensa volta a `tem`
+  ao ser comprado. Se o pedido da semana aumentar depois, e não houver
+  pendente, ele aparece em `confira`, não como item novo: a regra da
+  despensa vale antes da diferença.
+- **Cópia de semana.** Destino novo nasce sem a sessão padrão (leva as da
+  origem, deslocadas); destino vazio que já existe mantém as suas e só
+  recebe as sessões de datas livres. A observação da refeição de receita
+  apagada é "receita apagada: <nome>", seguida de "; <observação original>"
+  se havia.
+- **Refeição nova** entra no fim da ordem do mesmo dia e tipo
+  (`ordem = max + 1`).
+- **Apagar pessoa** apaga também as linhas dela em `refeicao_pessoas` das
+  refeições de hoje em diante (as passadas mantêm); apagar semana apaga as
+  refeições, as linhas de pessoas e as sessões dela.
+- **Hoje e a semana passada.** `compras/tempo.py`: `hoje()` em São Paulo é
+  a única fonte da data (trocável nos testes); `passou(inicio)` é
+  `inicio + 6 < hoje()`.
+- **Carga inicial.** `python -m compras.carga_cardapio` (`make
+  compras-carga-cardapio`): Erik (1,5) e Laura (1,0), 25 produtos com
+  medidas e 15 receitas de 1 porção, estimadas. Não há coluna "revisar": a
+  marca `[REVISAR QUANTIDADES] Quantidades estimadas pela carga inicial.` é
+  a primeira linha do `modo_preparo`. Os ovos usam o "Ovos 12 un" do seed,
+  com `medida_base = un` e `medida_por_unidade = 12` (a unidade de compra é a
+  caixa).
