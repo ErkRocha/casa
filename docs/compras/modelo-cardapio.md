@@ -1,7 +1,7 @@
 # Modelo de dados — cardápio (D-30)
 
-**Implementado (migration 0004).** Diferenças em relação ao plano no fim
-deste arquivo. Módulo do serviço `compras`, no mesmo
+**Implementado (migrations 0004 e 0005).** Diferenças em relação ao plano no
+fim deste arquivo. Módulo do serviço `compras`, no mesmo
 schema e com as mesmas convenções de `modelo-dados.md` (role
 `casa_compras`, trigger que recusa outras roles, `criado_em`/`atualizado_em`
 por trigger, `deleted_em`, auditoria, `*_normalizado`, `numeric`). Aqui fica
@@ -130,10 +130,24 @@ Ver "Nutrientes", abaixo.
 | dura_dias | int | dias que dura pronta, na geladeira; exigido se `pode_antecipar` |
 | pode_congelar | boolean not null default false | |
 | id_cliente | uuid | único; criada pelo celular |
+| quantidades_revisadas | boolean not null default false | "Conferi, está certa" (migration 0005) |
+| revisadas_por | text | quem conferiu; nulo se `quantidades_revisadas` é falso |
+| revisadas_em | timestamptz | quando; nulo se `quantidades_revisadas` é falso |
 | deleted_em | timestamptz | |
 
 **Checks:** `rendimento_porcoes > 0`; `pode_antecipar` exige
-`dura_dias >= 1`; `tempo_preparo_min >= 0`.
+`dura_dias >= 1`; `tempo_preparo_min >= 0`; `quantidades_revisadas` exige
+`revisadas_por` e `revisadas_em`, e falso exige os dois nulos.
+
+**Quantidades revisadas.** A receita criada por uma pessoa (`POST /receitas`)
+nasce revisada, por quem a criou: quem a escreve conhece as quantidades. A
+carga inicial cria com `false` (as quantidades são estimadas), e o botão
+"Conferi, está certa" (`POST /receitas/{id}/conferir`) marca `true` com
+quem e quando; conferida, vale a primeira conferência. Editar a receita
+(`PUT`) não mexe nesses campos. Antes da 0005 a marca era a linha
+`[REVISAR QUANTIDADES]` no começo do `modo_preparo`; a migration a tirou do
+texto: quem a tinha ficou `false`, as demais receitas vivas ficaram `true`,
+por `migracao`.
 
 Uma receita de lanche pode ir no café da manhã: o tipo da receita é o
 habitual, o da refeição é onde ela foi posta.
@@ -250,8 +264,8 @@ Unique parcial em `(semana_id, data)` para linha viva.
 `GET /semanas/{id}/preparo` monta o roteiro na hora, a partir das
 refeições, das receitas e das sessões. Não há tabela de roteiro: tudo o que
 ele diz sai do que já está gravado, e guardar uma cópia só criaria o
-trabalho de mantê-la igual. Se um dia o casal quiser marcar "feito" em cada
-passo, entra uma tabela própria.
+trabalho de mantê-la igual. O que o casal conclui ("feito" em cada passo)
+fica na tabela `passos_feitos`, abaixo; o roteiro só a lê.
 
 Regras, em ordem:
 
@@ -278,6 +292,26 @@ Regras, em ordem:
 
 O roteiro não arredonda para receitas inteiras: 1,5 receita é 1,5 receita.
 A lista soma os ingredientes pela mesma conta, então os dois batem.
+
+## `passos_feitos`
+Marca o passo do roteiro (uma receita numa sessão de preparo) como
+concluído. Linha viva é passo feito; desfazer é soft delete. O roteiro
+continua calculado: a tabela só diz o que foi concluído.
+
+| coluna | tipo | notas |
+|---|---|---|
+| sessao_id | fk sessoes_preparo not null | |
+| receita_id | fk receitas not null | |
+| feito_por | text not null | quem marcou |
+| feito_em | timestamptz not null default now() | |
+| id_cliente | uuid | único em qualquer estado; reenviar não duplica |
+| criado_em, atualizado_em, deleted_em | timestamptz | `atualizado_em` indexado, para o `/mudancas` |
+
+Unique parcial em `(sessao_id, receita_id)` para linha viva: marcar de
+novo depois de desfazer cria outra linha. A tabela segue o padrão das
+outras (triggers de `atualizado_em`, auditoria e somente `casa_compras`).
+A marcação chega ao outro celular pelo `GET /mudancas`, chave
+`passos_feitos`.
 
 ---
 
@@ -456,8 +490,8 @@ mais. O que a implementação decidiu onde o modelo deixava aberto:
   `inicio + 6 < hoje()`.
 - **Carga inicial.** `python -m compras.carga_cardapio` (`make
   compras-carga-cardapio`): Erik (1,5) e Laura (1,0), 25 produtos com
-  medidas e 15 receitas de 1 porção, estimadas. Não há coluna "revisar": a
-  marca `[REVISAR QUANTIDADES] Quantidades estimadas pela carga inicial.` é
-  a primeira linha do `modo_preparo`. Os ovos usam o "Ovos 12 un" do seed,
+  medidas e 15 receitas de 1 porção, estimadas: nascem com
+  `quantidades_revisadas = false` (migration 0005; antes, a marca
+  `[REVISAR QUANTIDADES]` ia na primeira linha do `modo_preparo`). Os ovos usam o "Ovos 12 un" do seed,
   com `medida_base = un` e `medida_por_unidade = 12` (a unidade de compra é a
   caixa).

@@ -12,9 +12,8 @@ e rodar de novo não muda nada. Usa os services, com o autor `carga_cardapio`.
   `medida_base` e `medida_por_unidade` só entram onde estão nulos, e só se a
   `unidade_padrao` do produto for a que a medida pressupõe: edição do casal
   não é sobrescrita.
-* Receitas: 1 porção cada, com quantidades **estimadas**. A coluna para
-  "revisar" não existe (e não é para criar): a marca vai na primeira linha do
-  `modo_preparo`.
+* Receitas: 1 porção cada, com quantidades **estimadas**: nascem com
+  `quantidades_revisadas = false`, até alguém apertar "Conferi, está certa".
 """
 
 import uuid
@@ -34,9 +33,6 @@ from compras.services.receitas import ReceitaService
 from compras.services.secoes import SecaoService
 
 AUTOR = "carga_cardapio"
-
-#: Primeira linha do `modo_preparo` das receitas criadas por esta carga.
-MARCA_REVISAR = "[REVISAR QUANTIDADES] Quantidades estimadas pela carga inicial."
 
 D = Decimal
 G, ML, UN = MedidaBase.G, MedidaBase.ML, MedidaBase.UN
@@ -440,7 +436,7 @@ def _receitas(session: Session, quem: str, resumo: Resumo, produtos: dict[str, i
                 tipo=item.tipo,
                 rendimento_porcoes=D(1),
                 tempo_preparo_min=item.tempo_preparo_min,
-                modo_preparo=f"{MARCA_REVISAR}\n{item.modo_preparo}",
+                modo_preparo=item.modo_preparo,
                 pode_antecipar=item.pode_antecipar,
                 dura_dias=item.dura_dias,
                 pode_congelar=item.pode_congelar,
@@ -450,7 +446,8 @@ def _receitas(session: Session, quem: str, resumo: Resumo, produtos: dict[str, i
                     )
                     for produto, quantidade, unidade in item.ingredientes
                 ],
-            )
+            ),
+            revisada=False,
         )
         resumo.receitas_criadas += 1
 

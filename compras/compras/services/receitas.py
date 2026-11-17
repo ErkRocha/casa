@@ -44,6 +44,7 @@ class ReceitaService:
         pode_antecipar: bool | None,
         limite: int,
         deslocamento: int,
+        revisadas: bool | None = None,
     ) -> tuple[list[Receita], int]:
         filtro: list[ColumnElement[bool]] = [Receita.deleted_em.is_(None)]
         ordem: list[ColumnElement[int]] = []
@@ -57,6 +58,8 @@ class ReceitaService:
             filtro.append(Receita.tipo == tipo)
         if pode_antecipar is not None:
             filtro.append(Receita.pode_antecipar == pode_antecipar)
+        if revisadas is not None:
+            filtro.append(Receita.quantidades_revisadas == revisadas)
         total = self.session.scalar(select(func.count()).select_from(Receita).where(*filtro))
         receitas = self.session.scalars(
             select(Receita)
@@ -150,8 +153,12 @@ class ReceitaService:
 
     # -- escrita ---------------------------------------------------------
 
-    def criar(self, dados: ReceitaCriar) -> tuple[Receita, bool]:
-        """(receita, criada agora). O mesmo `id_cliente` devolve a que existe."""
+    def criar(self, dados: ReceitaCriar, revisada: bool = True) -> tuple[Receita, bool]:
+        """(receita, criada agora). O mesmo `id_cliente` devolve a que existe.
+
+        Quem cria a receita à mão a conhece: nasce com as quantidades revisadas
+        por ele. A carga inicial passa `revisada=False` (quantidades estimadas).
+        """
         anterior = self.session.scalar(
             select(Receita)
             .where(Receita.id_cliente == dados.id_cliente)
@@ -159,7 +166,7 @@ class ReceitaService:
         )
         if anterior is not None:
             return anterior, False
-        receita = self._nova(dados, dados.id_cliente)
+        receita = self._nova(dados, dados.id_cliente, revisada)
         return receita, True
 
     def substituir(self, id_: int, dados: ReceitaCorpo) -> Receita:
@@ -180,6 +187,23 @@ class ReceitaService:
         self.session.flush()
         return self.get(id_)
 
+    def conferir(self, id_: int) -> Receita:
+        """ "Conferi, está certa". Já conferida: devolve como está, com o primeiro autor."""
+        receita = self.session.scalar(
+            select(Receita)
+            .where(Receita.id == id_, Receita.deleted_em.is_(None))
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if receita is None:
+            raise NaoEncontrado("receita", id_)
+        if not receita.quantidades_revisadas:
+            receita.quantidades_revisadas = True
+            receita.revisadas_por = self.quem
+            receita.revisadas_em = func.now()
+            self.session.flush()
+        return self.get(id_)
+
     def duplicar(self, id_: int) -> Receita:
         origem = self.get(id_)
         ingredientes = self.ingredientes_vivos([id_])[id_]
@@ -198,6 +222,10 @@ class ReceitaService:
             pode_antecipar=origem.pode_antecipar,
             dura_dias=origem.dura_dias,
             pode_congelar=origem.pode_congelar,
+            # Os mesmos ingredientes e quantidades: a conferência acompanha.
+            quantidades_revisadas=origem.quantidades_revisadas,
+            revisadas_por=origem.revisadas_por,
+            revisadas_em=origem.revisadas_em,
         )
         self._salvar(receita, nome, novo=True)
         for ordem, i in enumerate(ingredientes):
@@ -247,9 +275,13 @@ class ReceitaService:
 
     # -- apoio -----------------------------------------------------------
 
-    def _nova(self, dados: ReceitaCorpo, id_cliente: uuid.UUID | None) -> Receita:
+    def _nova(self, dados: ReceitaCorpo, id_cliente: uuid.UUID | None, revisada: bool) -> Receita:
         self._exigir_nome_livre(dados.nome)
         receita = Receita(id_cliente=id_cliente)
+        if revisada:
+            receita.quantidades_revisadas = True
+            receita.revisadas_por = self.quem
+            receita.revisadas_em = func.now()
         self._campos(receita, dados)
         self._salvar(receita, dados.nome, novo=True)
         self._ingredientes(receita.id, dados.ingredientes)

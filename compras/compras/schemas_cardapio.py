@@ -5,7 +5,7 @@ serviço. Resposta de escrita traz a linha inteira.
 """
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal, Self
 
@@ -114,6 +114,10 @@ class ReceitaResumo(Linha):
     dura_dias: int | None
     pode_congelar: bool
     id_cliente: uuid.UUID | None
+    #: "Conferi, está certa": as quantidades foram conferidas por alguém.
+    quantidades_revisadas: bool
+    revisadas_por: str | None
+    revisadas_em: datetime | None
 
 
 class ReceitaDetalhe(ReceitaResumo):

@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from compras.carga_cardapio import AUTOR, MARCA_REVISAR, PRODUTOS, RECEITAS, run
+from compras.carga_cardapio import AUTOR, PRODUTOS, RECEITAS, run
 from compras.services.identidades import IdentidadeService
 from tests.apoio import LAURA, pessoa, produto, receita, refeicao, semana
 
@@ -120,13 +120,15 @@ def test_produto_em_outra_unidade_nao_recebe_medida(client: TestClient) -> None:
     assert arroz["medida_base"] is None
 
 
-def test_receitas_marcadas_para_revisar_e_com_tudo_convertendo(client: TestClient) -> None:
+def test_receitas_nascem_nao_revisadas_e_com_tudo_convertendo(client: TestClient) -> None:
     run()
     todas = client.get("/receitas", params={"limite": 50}).json()
     assert todas["total"] == 15
     for resumo in todas["items"]:
         detalhe = client.get(f"/receitas/{resumo['id']}").json()
-        assert detalhe["modo_preparo"].startswith(MARCA_REVISAR + "\n"), resumo["nome"]
+        assert detalhe["quantidades_revisadas"] is False, resumo["nome"]
+        assert detalhe["revisadas_por"] is None and detalhe["revisadas_em"] is None
+        assert "REVISAR" not in detalhe["modo_preparo"], resumo["nome"]
         assert detalhe["rendimento_porcoes"] == "1.00"
         assert detalhe["tempo_preparo_min"] is not None and detalhe["ingredientes"]
         assert all(i["converte"] for i in detalhe["ingredientes"]), resumo["nome"]

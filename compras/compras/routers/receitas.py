@@ -24,11 +24,16 @@ def listar(
     busca: Annotated[str | None, Query(max_length=120)] = None,
     tipo: TipoRefeicao | None = None,
     pode_antecipar: bool | None = None,
+    revisadas: Annotated[
+        bool | None, Query(description="Só as com (true) ou sem (false) as quantidades conferidas")
+    ] = None,
     limite: Annotated[int, Query(ge=1, le=200)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Any:
     """Contém o texto no nome (sem caixa nem acento); quem começa com ele vem antes."""
-    receitas, total = ReceitaService(session).listar(busca, tipo, pode_antecipar, limite, offset)
+    receitas, total = ReceitaService(session).listar(
+        busca, tipo, pode_antecipar, limite, offset, revisadas
+    )
     return ReceitasPagina(
         items=[ReceitaResumo.model_validate(r, from_attributes=True) for r in receitas],
         total=total,
@@ -64,6 +69,16 @@ def substituir(id_: int, payload: ReceitaCorpo, session: SessionDep, quem: QuemD
     """Substitui os campos e os ingredientes. Os antigos levam soft delete."""
     servico = ReceitaService(session, quem)
     receita = servico.substituir(id_, payload)
+    session.commit()
+    return servico.detalhe(receita)
+
+
+@router.post("/{id_}/conferir", response_model=ReceitaDetalhe)
+def conferir(id_: int, session: SessionDep, quem: QuemDep) -> Any:
+    """ "Conferi, está certa": marca as quantidades como revisadas, com quem e quando.
+    Já conferida: 200 com a receita como está (vale a primeira conferência)."""
+    servico = ReceitaService(session, quem)
+    receita = servico.conferir(id_)
     session.commit()
     return servico.detalhe(receita)
 

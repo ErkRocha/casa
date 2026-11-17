@@ -54,6 +54,7 @@ from scripts.aplicar_role import aplicar as aplicar_role  # noqa: E402
 _TABELAS = (
     "auditoria",
     "itens_lista_cardapio",
+    "passos_feitos",
     "sessoes_preparo",
     "refeicao_pessoas",
     "refeicoes",

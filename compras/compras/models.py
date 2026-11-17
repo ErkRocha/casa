@@ -20,6 +20,7 @@ from sqlalchemy import (
     Numeric,
     Text,
     Uuid,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -210,6 +211,10 @@ class Receita(Comum, Base):
     dura_dias: Mapped[int | None] = mapped_column(Integer)
     pode_congelar: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     id_cliente: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    #: "Conferi, está certa" (migration 0005): quem e quando.
+    quantidades_revisadas: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    revisadas_por: Mapped[str | None] = mapped_column(Text)
+    revisadas_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ReceitaIngrediente(Comum, Base):
@@ -265,6 +270,22 @@ class SessaoPreparo(Comum, Base):
     semana_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("semanas.id"), nullable=False)
     data: Mapped[date] = mapped_column(Date, nullable=False)
     rotulo: Mapped[str | None] = mapped_column(Text)
+
+
+class PassoFeito(Comum, Base):
+    """Um passo do roteiro concluído. Linha viva é passo feito; desfazer é soft delete."""
+
+    __tablename__ = "passos_feitos"
+
+    sessao_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("sessoes_preparo.id"), nullable=False
+    )
+    receita_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("receitas.id"), nullable=False)
+    feito_por: Mapped[str] = mapped_column(Text, nullable=False)
+    feito_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    id_cliente: Mapped[uuid.UUID | None] = mapped_column(Uuid)
 
 
 class ItemListaCardapio(Comum, Base):
