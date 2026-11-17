@@ -10,6 +10,7 @@ from compras.deps import QuemDep, SessionDep
 from compras.schemas_cardapio import (
     RefeicaoCriar,
     RefeicaoLeitura,
+    Roteiro,
     SemanaCopiada,
     SemanaCopiar,
     SemanaCriar,
@@ -21,6 +22,7 @@ from compras.schemas_cardapio import (
 )
 from compras.services.preparo import SessaoService
 from compras.services.refeicoes import RefeicaoService
+from compras.services.roteiro import RoteiroService
 from compras.services.semanas import SemanaService
 
 router = APIRouter(prefix="/semanas", tags=["cardápio: semanas"])
@@ -124,3 +126,11 @@ def criar_sessao(id_: int, payload: SessaoCriar, session: SessionDep, quem: Quem
     sessao = SessaoService(session, quem).criar(semana, payload.data, payload.rotulo)
     session.commit()
     return SessaoLeitura.model_validate(sessao, from_attributes=True)
+
+
+@router.get("/{id_}/preparo", response_model=Roteiro)
+def preparo(id_: int, session: SessionDep) -> Any:
+    """O roteiro de preparo, calculado na hora a partir das refeições, das receitas
+    e das sessões (regras em `modelo-cardapio.md`, "Preparo")."""
+    semana = SemanaService(session).get(id_)
+    return RoteiroService(session).montar(semana)
