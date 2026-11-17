@@ -211,6 +211,10 @@ class ListaService:
             .order_by(ItemLista.situacao, Secao.ordem, Produto.nome_normalizado, ItemLista.id)
         )
 
+    def pendente(self, produto_id: int) -> ItemLista | None:
+        """O item pendente do produto, se houver (no máximo um: único parcial)."""
+        return self._pendente(produto_id)
+
     def _pendente(self, produto_id: int) -> ItemLista | None:
         return self.session.scalar(
             select(ItemLista)

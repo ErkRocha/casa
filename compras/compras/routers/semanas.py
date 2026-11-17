@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from compras.deps import QuemDep, SessionDep
 from compras.schemas_cardapio import (
+    ListaCardapio,
     RefeicaoCriar,
     RefeicaoLeitura,
     Roteiro,
@@ -20,6 +21,7 @@ from compras.schemas_cardapio import (
     SessaoCriar,
     SessaoLeitura,
 )
+from compras.services.lista_cardapio import ListaCardapioService
 from compras.services.preparo import SessaoService
 from compras.services.refeicoes import RefeicaoService
 from compras.services.roteiro import RoteiroService
@@ -134,3 +136,19 @@ def preparo(id_: int, session: SessionDep) -> Any:
     e das sessões (regras em `modelo-cardapio.md`, "Preparo")."""
     semana = SemanaService(session).get(id_)
     return RoteiroService(session).montar(semana)
+
+
+@router.get("/{id_}/lista", response_model=ListaCardapio)
+def previa_da_lista(id_: int, session: SessionDep) -> Any:
+    """Prévia: o que a geração faria, sem gravar nada. Semana que já passou: 409."""
+    semana = SemanaService(session).get(id_)
+    return ListaCardapioService(session).previa(semana)
+
+
+@router.post("/{id_}/lista", response_model=ListaCardapio)
+def gerar_a_lista(id_: int, session: SessionDep, quem: QuemDep) -> Any:
+    """Gera ou atualiza a lista pelo cardápio, numa transação com a semana travada.
+    Repetir sem mudar o cardápio não muda nada. Semana que já passou: 409."""
+    resposta = ListaCardapioService(session, quem).gerar(id_)
+    session.commit()
+    return resposta
