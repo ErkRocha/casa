@@ -40,7 +40,8 @@ Todas as portas publicadas só em `127.0.0.1`. Volume do banco:
 - **mcp-servidor → compras**: HTTP em `http://127.0.0.1:5173/api/compras`
   (`COMPRAS_API_URL`), header `X-Quem: voz`, `origem: voz`. Ferramentas:
   `ver_lista_compras`, `adicionar_na_lista`, `marcar_comprado`,
-  `marcar_acabou`. O mcp-servidor roda na porta 8765.
+  `marcar_acabou`; cardápio: `cardapio`,
+  `definir_refeicoes`, `preparo`, `cardapio_para_lista`, `receitas`. O mcp-servidor roda na porta 8765.
 - **MCP de finanças (D-20)** — outro servidor, deste repo: stdio no Claude
   Desktop, `docker exec -i casa_api python -m app.mcp`. Não confundir com o
   mcp-servidor.
