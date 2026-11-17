@@ -10,6 +10,8 @@ import { CopiarSemana } from "./copiar-semana";
 import { diasDaSemana, hojeSP, segundaDe, semanaEncerrada, somarDias } from "./datas";
 import { EditarRefeicao, type AlvoDaRefeicao } from "./editar-refeicao";
 import { usePessoasDoCardapio, useRoteiro, useSemana } from "./queries";
+import { ReceitaPainel } from "./receita-painel";
+import { ReceitasPainel } from "./receitas-painel";
 import { SemanaCelular } from "./semana-celular";
 import { SemanaVazia } from "./semana-vazia";
 import { SeletorSemana } from "./seletor-semana";
@@ -82,6 +84,11 @@ function Cardapio({ quem }: { quem: string | null }) {
         }
       : null;
 
+  const usos = (id: number) =>
+    dados
+      ? dados.dias.reduce((n, d) => n + d.refeicoes.filter((r) => r.receita?.id === id).length, 0)
+      : null;
+
   const pratos = dados ? dados.dias.reduce((n, d) => n + d.refeicoes.length, 0) : 0;
   const nomes = (pessoas.data ?? []).map((p) => p.nome).join(" e ");
 
@@ -131,6 +138,13 @@ function Cardapio({ quem }: { quem: string | null }) {
               >
                 Copiar esta semana para a próxima
               </button>
+              <button
+                type="button"
+                onClick={() => mudarParams({ receitas: "1" })}
+                className="text-destaque text-apoio min-h-22 cursor-pointer rounded-interno border-none bg-transparent font-semibold"
+              >
+                Receitas
+              </button>
             </section>
           </SemanaCelular>
           <EditarRefeicao
@@ -151,6 +165,14 @@ function Cardapio({ quem }: { quem: string | null }) {
           />
         </>
       ) : null}
+
+      <ReceitasPainel aberto={params.get("receitas") !== null} quem={quem} />
+      <ReceitaPainel
+        receita={params.get("receita")}
+        editar={params.get("editar") === "1"}
+        quem={quem}
+        usos={usos}
+      />
     </div>
   );
 }

@@ -16,12 +16,15 @@ export function Dialogo({
   onFechar,
   titulo,
   lateral = false,
+  larga = false,
   children,
 }: {
   aberto: boolean;
   onFechar: () => void;
   titulo: string;
   lateral?: boolean;
+  /** Painel lateral mais largo (receita, roteiro): 520px em vez de 420px. */
+  larga?: boolean;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -47,7 +50,10 @@ export function Dialogo({
         "bg-superficie text-texto m-0 max-h-none max-w-none border-none p-0",
         "backdrop:bg-[rgba(23,32,51,0.45)]",
         lateral
-          ? "fixed inset-0 h-full w-full md:inset-y-0 md:right-0 md:left-auto md:w-[420px]"
+          ? cn(
+              "fixed inset-0 h-full w-full md:inset-y-0 md:right-0 md:left-auto",
+              larga ? "md:w-[520px]" : "md:w-[420px]",
+            )
           : "rounded-bloco fixed top-1/2 left-1/2 max-h-[85vh] w-[min(560px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2",
       )}
     >

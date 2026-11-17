@@ -50,6 +50,10 @@ export interface Produto extends Linha {
   secao_nome: string;
   unidade_padrao: string | null;
   id_cliente: string | null;
+  /** Em que o produto é medido (cardápio, D-30); nulo = sem conversão. */
+  medida_base: "g" | "ml" | "un" | null;
+  /** Quanto de `medida_base` tem uma unidade do produto. */
+  medida_por_unidade: string | null;
 }
 
 export interface Secao extends Linha {
