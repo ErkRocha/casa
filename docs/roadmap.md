@@ -588,6 +588,67 @@ Registrados para decidir na fase em que aparecem, sem solução escolhida.
 
 ---
 
+## Cardápio (D-30)
+
+Módulo do serviço `compras`, no mesmo schema: receitas -> cardápio da
+semana -> roteiro de preparo do fim de semana -> lista de compras,
+descontando a despensa. Usado pelo casal, pelos celulares. Modelo em
+`docs/compras/modelo-cardapio.md`, endpoints em `docs/compras/api-cardapio.md`.
+
+Nesta ordem, sem pular:
+
+1. **Backend.** Migration nova no `compras`: `pessoas`, `receitas`,
+   `receita_ingredientes`, `semanas`, `refeicoes`, `refeicao_pessoas`,
+   `sessoes_preparo`, `itens_lista_cardapio`; `medida_base` e
+   `medida_por_unidade` em `produtos`; `cardapio` no enum `origem_item`.
+   Endpoints de `api-cardapio.md`, com a conversão de unidades, o roteiro
+   calculado e a geração da lista num service só, na mesma transação do
+   ciclo da despensa.
+
+   **Pronto quando:** pelo `/api/compras/docs` dá para cadastrar duas
+   receitas, montar uma semana para os dois com uma porção ajustada,
+   copiá-la para a semana seguinte, ver o roteiro com um prato indo ao
+   congelador e gerar a lista; gerar de novo não muda nada; um produto que
+   já estava na lista à mão é ajustado, não duplicado; um produto em `tem`
+   aparece em "confira" e não na lista. Os casos de teste de
+   `api-cardapio.md` passam.
+2. **Telas.** Desenhadas no Claude Design antes de qualquer código (D-15):
+   receitas (lista e edição), semana (dias por tipo de refeição, quem come
+   e a porção), roteiro de preparo e a prévia da lista antes de gerar.
+   Pensadas para o celular, como as de Compras.
+
+   **Pronto quando:** o casal planeja uma semana real pelos celulares, gera
+   a lista e faz a compra com ela.
+3. **Sugestão de cardápio pelo Claude**, no painel e pela voz (servidor
+   MCP do vault, cliente da API como já é da lista): "monta o cardápio da
+   semana que vem com o que tem em casa". A sugestão é um rascunho que o
+   casal aceita; não grava sozinha. Antes de começar: decidir como o painel
+   chama o Claude (chave, custo, onde roda; `docs/llm.md`).
+4. **Registro do que foi comido**, baixando da despensa: marcar a refeição
+   como feita (ou não feita) e, com isso, mudar o estado dos ingredientes na
+   despensa. Em aberto: a despensa não tem quantidade, então "baixar" é uma
+   regra a decidir (por exemplo, sugerir "acabando" quando a receita usou a
+   maior parte da embalagem).
+5. **Nutrientes, por último.** `produto_nutrientes` (por 100 g) e as metas
+   por pessoa; total da refeição, do dia e da semana por pessoa. Escolher a
+   fonte (Tabela TACO é a candidata) e o que fazer com produto medido em ml.
+
+### Bloco seguinte, depois do cardápio
+
+Registrado, sem decisão nem modelo ainda:
+
+- **Detalhe da despesa.** Tela de uma transação de finanças com a nota
+  fiscal ligada a ela, os itens da nota e o histórico de preço de cada
+  item. Os dados são do `compras` (D-25: finanças consulta a API dele pelo
+  `transacao_id` da nota). Depende da validação da NFC-e com nota real e
+  de desenho aprovado (D-15).
+- **Abastecimento.** Registro de cada abastecimento: litros, preço por
+  litro e quilometragem, com o consumo médio (km/L) entre abastecimentos.
+  Em aberto: em que serviço mora (é uma despesa de finanças com detalhe,
+  como a nota é do mercado) e se nasce da transação do posto ou à parte.
+
+---
+
 ## Fora de escopo
 
 Registrado para não ser reintroduzido por engano:

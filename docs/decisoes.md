@@ -34,6 +34,7 @@ leia o motivo — ele costuma ser a parte que não é óbvia.
 - D-27 — Visão de caixa: o que sai da conta, com a fatura no vencimento
 - D-28 — Compras pendentes do cartão só para exibição
 - D-29 — Início com gráficos de linha: gastos acumulados e ciclos de fatura
+- D-30 — Cardápio como módulo do serviço `compras`
 
 ---
 
@@ -1059,3 +1060,51 @@ comprovantes da sync, como na D-27.
 
 **Fica de fora.** Os cartões do topo, pessoas, categorias e orçamento não
 mudam (D-02, D-28). Pendente de conta corrente continua ignorada.
+
+---
+
+## D-30 — Cardápio como módulo do serviço `compras`
+
+Decisão do usuário, 17/11/2026. Planejado, ainda sem código.
+
+O casal quer planejar o que come na semana e chegar à lista de compras sem
+montá-la à mão: **receitas -> cardápio da semana -> roteiro de preparo do
+fim de semana -> lista de compras, descontando a despensa.** Os usuários
+são os dois, pelos celulares.
+
+- **Módulo do `compras`, no mesmo schema, não serviço novo.** Ingrediente
+  de receita, item da despensa e item da lista são o mesmo produto. Um
+  serviço à parte teria de copiar `produtos` ou ligar-se a ele por id sem
+  FK (o preço da D-25, que lá se paga porque finanças é outra coisa), e a
+  geração da lista escreveria na lista de outro serviço pela rede, sem a
+  mesma transação que garante o pendente único e o ciclo da despensa. Aqui
+  as três coisas compartilham cadastro, transação e regras. O que a D-25
+  separou (finanças) continua separado: nada do cardápio toca finanças.
+- **A necessidade de cada pessoa começa como porção**: um multiplicador
+  por pessoa (o padrão do perfil), ajustável em cada refeição. É o que o
+  casal sabe dizer hoje ("ela come uma porção, ele uma e meia") e basta
+  para a lista. Calorias e proteína exigem uma tabela de composição e
+  medida em gramas de cada ingrediente; o modelo já deixa o caminho
+  (nutrientes por produto, por 100 g; metas por pessoa), mas nada disso é
+  usado na v1. Tabela TACO registrada como candidata, não escolhida.
+- **Pessoas do cardápio são do `compras`**, ligadas à identidade que o
+  serviço já tem (`identidades_tailscale`), sem FK para finanças (D-25).
+- **A despensa não ganha quantidade.** Produto em `tem` entra como
+  "provavelmente já tem, confira", não como item; `acabando` e `acabou`
+  entram normalmente. Contar estoque em casa é trabalho que o casal não
+  quer fazer só para isso; registrar o que foi comido é subfase própria.
+- **A geração respeita o pendente único (D-25) e pode ser repetida.** O
+  produto que já está na lista é ajustado, com a origem "cardápio"
+  registrada; gerar de novo a mesma semana aplica só a diferença.
+- **Unidades: duas colunas por produto** (`medida_base` e
+  `medida_por_unidade`) e uma tabela fixa no código (kg, L, colher,
+  xícara). O que não converte vai para a lista sem quantidade, com aviso;
+  não bloqueia. Densidade e conversão por produto ficam para quando
+  fizerem falta.
+- **O roteiro de preparo é calculado, não guardado**: sai das refeições,
+  das receitas (pode antecipar, dura quantos dias, pode congelar) e das
+  sessões de preparo da semana.
+
+Modelo em `docs/compras/modelo-cardapio.md`, endpoints em
+`docs/compras/api-cardapio.md`, fases no roadmap, seção "Cardápio". As
+telas precisam de desenho aprovado antes do código (D-15).
