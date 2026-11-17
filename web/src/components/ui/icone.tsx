@@ -55,6 +55,12 @@ const TRACOS = {
     </>
   ),
   adicionar: <path d="M12 5v14M5 12h14" />,
+  aviso: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v5M12 16h.01" />
+    </>
+  ),
   fechar: <path d="M6 6l12 12M18 6L6 18" />,
   lixeira: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
   filtros: <path d="M4 6h16M7 12h10M10 18h4" />,
