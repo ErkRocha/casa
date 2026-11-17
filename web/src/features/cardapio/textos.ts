@@ -74,6 +74,8 @@ export function decimalParaCampo(valor: string | null): string {
 /** Como a refeição fica pronta, vista do roteiro (CardapioSemanaCelular). */
 export interface Preparo {
   texto: string;
+  /** Uma palavra para a célula da grade: "pronto", "congelado", "na hora", "aviso". */
+  curto: string;
   /** O roteiro avisa algo dessa refeição: aparece em âmbar. */
   aviso: boolean;
 }
@@ -94,6 +96,7 @@ export function preparoPorRefeicao(roteiro: Roteiro | undefined): Map<number, Pr
             d.onde === "congelador"
               ? `Congelado: descongelar${d.descongelar_em ? ` dia ${diaEMesBR(d.descongelar_em)}` : ""}`
               : `Pronto ${noDia(sessao.data)}`,
+          curto: d.onde === "congelador" ? "congelado" : "pronto",
           aviso: false,
         });
       }
@@ -101,10 +104,14 @@ export function preparoPorRefeicao(roteiro: Roteiro | undefined): Map<number, Pr
   }
   for (const n of roteiro.no_dia) {
     const min = n.receita.tempo_preparo_min;
-    mapa.set(n.refeicao_id, { texto: min ? `Na hora, ${min} min` : "Na hora", aviso: false });
+    mapa.set(n.refeicao_id, {
+      texto: min ? `Na hora, ${min} min` : "Na hora",
+      curto: "na hora",
+      aviso: false,
+    });
   }
   for (const a of roteiro.avisos) {
-    mapa.set(a.refeicao_id, { texto: "Sem preparo: veja o aviso", aviso: true });
+    mapa.set(a.refeicao_id, { texto: "Sem preparo: veja o aviso", curto: "aviso", aviso: true });
   }
   return mapa;
 }

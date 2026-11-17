@@ -1,11 +1,13 @@
 import { useState } from "react";
 
+import { Button } from "@/components/ui/controls";
 import { Carregando, Falha } from "@/components/ui/estados";
 import { Icone } from "@/components/ui/icone";
 import { CabecalhoCompras } from "@/features/compras/abas-compras";
 import { ComTela } from "@/features/compras/compras-page";
 import { useLista } from "@/features/compras/queries";
 import { mudarParams, useParamsDaRota } from "@/lib/rotas";
+import { useMedia } from "@/lib/use-media";
 import { AvisosRoteiro } from "./avisos-roteiro";
 import { CopiarSemana } from "./copiar-semana";
 import {
@@ -20,14 +22,16 @@ import {
 import { EditarRefeicao, type AlvoDaRefeicao } from "./editar-refeicao";
 import { ListaPrevia } from "./lista-previa";
 import { usePessoasDoCardapio, useRoteiro, useSemana } from "./queries";
+import { ResumoRoteiro } from "./resumo-roteiro";
 import { ReceitaPainel } from "./receita-painel";
 import { RoteiroPainel } from "./roteiro-painel";
 import { SessaoDialogo } from "./sessao-dialogo";
 import { ReceitasPainel } from "./receitas-painel";
 import { SemanaCelular } from "./semana-celular";
+import { SemanaGrade } from "./semana-grade";
 import { SemanaVazia } from "./semana-vazia";
 import { SeletorSemana } from "./seletor-semana";
-import { preparoPorRefeicao } from "./textos";
+import { numeroCurto, preparoPorRefeicao } from "./textos";
 import type { SemanaCopiada } from "./types";
 import type { VistaDaSemana } from "./vista";
 
@@ -47,6 +51,8 @@ function Cardapio({ quem }: { quem: string | null }) {
   useLista();
 
   const params = useParamsDaRota();
+  // Mesmo ponto de troca de Compras (a despensa ao lado da lista): 1280px.
+  const desktop = useMedia("(min-width: 1280px)");
   const hoje = hojeSP();
   const semanaAtual = segundaDe(hoje);
   const pedida = params.get("semana");
@@ -107,16 +113,48 @@ function Cardapio({ quem }: { quem: string | null }) {
   const pratos = dados ? dados.dias.reduce((n, d) => n + d.refeicoes.length, 0) : 0;
   const nomes = (pessoas.data ?? []).map((p) => p.nome).join(" e ");
 
+  const resumoPessoas = (pessoas.data ?? [])
+    .map((p) => `${p.nome}, porção ${numeroCurto(p.porcao_padrao)}`)
+    .join(" · ");
+
+  const seletor = (
+    <SeletorSemana
+      inicio={inicio}
+      naSemanaAtual={inicio === semanaAtual}
+      resumo={
+        desktop
+          ? undefined
+          : dados
+            ? `${pratos} pratos${nomes ? ` · ${nomes}` : ""}`
+            : "sem cardápio"
+      }
+      onIr={(n) => irParaSemana(somarDias(inicio, 7 * n))}
+      onHoje={() => irParaSemana(semanaAtual)}
+    />
+  );
+
   return (
     <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-6">
       <CabecalhoCompras atual="cardapio" />
-      <SeletorSemana
-        inicio={inicio}
-        naSemanaAtual={inicio === semanaAtual}
-        resumo={dados ? `${pratos} pratos${nomes ? ` · ${nomes}` : ""}` : "sem cardápio"}
-        onIr={(n) => irParaSemana(somarDias(inicio, 7 * n))}
-        onHoje={() => irParaSemana(semanaAtual)}
-      />
+      {desktop ? (
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+          {seletor}
+          <span className="text-apoio text-texto-2 flex-1">
+            {dados ? `${pratos} pratos` : "Sem cardápio"}
+            {resumoPessoas ? ` · ${resumoPessoas}` : ""}
+          </span>
+          {dados ? (
+            <Button variant="secondary" className="h-22" disabled={!quem} onClick={() => setCopiando(true)}>
+              Copiar para a próxima semana
+            </Button>
+          ) : null}
+          <Button variant="secondary" className="h-22" onClick={() => mudarParams({ receitas: "1" })}>
+            Receitas
+          </Button>
+        </div>
+      ) : (
+        seletor
+      )}
 
       <p role="status" className="text-apoio text-texto-2 m-0 px-1 empty:hidden">
         {aviso}
@@ -141,53 +179,68 @@ function Cardapio({ quem }: { quem: string | null }) {
             avisos={roteiro.data?.avisos ?? []}
             onVerRoteiro={() => mudarParams({ roteiro: "1" })}
           />
-          <SemanaCelular
-            v={v}
-            dia={dia}
-            onEscolherDia={(d) => mudarParams({ dia: d }, { substituir: true })}
-          >
-            <section className="bg-superficie rounded-bloco flex flex-col gap-4 p-8">
-              <h2 className="text-bloco-celular font-forte m-0">A semana inteira</h2>
-              <button
-                type="button"
-                onClick={() => mudarParams({ roteiro: "1" })}
-                className="bg-superficie-2 text-texto rounded-interno flex min-h-26 cursor-pointer items-center justify-between gap-5 border-none px-7 text-left"
-              >
-                <span className="flex flex-col gap-1">
-                  <span className="text-corpo font-forte">Roteiro de preparo</span>
-                  <span className="text-pequeno text-texto-2">
-                    {proximaSessao
-                      ? `Próxima sessão: ${nomeDoDia(proximaSessao.data)} ${diaEMesBR(proximaSessao.data)}`
-                      : "Nenhuma sessão daqui para a frente"}
+          {desktop ? (
+            <>
+              <SemanaGrade v={v} />
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] items-start gap-8">
+                <ResumoRoteiro v={v} onNovaSessao={() => setNovaSessao(true)} />
+                <ListaPrevia
+                  semanaId={v.semana.id}
+                  encerrada={v.encerrada}
+                  quem={quem}
+                  variante="computador"
+                />
+              </div>
+            </>
+          ) : (
+            <SemanaCelular
+              v={v}
+              dia={dia}
+              onEscolherDia={(d) => mudarParams({ dia: d }, { substituir: true })}
+            >
+              <section className="bg-superficie rounded-bloco flex flex-col gap-4 p-8">
+                <h2 className="text-bloco-celular font-forte m-0">A semana inteira</h2>
+                <button
+                  type="button"
+                  onClick={() => mudarParams({ roteiro: "1" })}
+                  className="bg-superficie-2 text-texto rounded-interno flex min-h-26 cursor-pointer items-center justify-between gap-5 border-none px-7 text-left"
+                >
+                  <span className="flex flex-col gap-1">
+                    <span className="text-corpo font-forte">Roteiro de preparo</span>
+                    <span className="text-pequeno text-texto-2">
+                      {proximaSessao
+                        ? `Próxima sessão: ${nomeDoDia(proximaSessao.data)} ${diaEMesBR(proximaSessao.data)}`
+                        : "Nenhuma sessão daqui para a frente"}
+                    </span>
                   </span>
-                </span>
-                <span className="text-texto-2 flex">
-                  <Icone nome="direita" />
-                </span>
-              </button>
-              <ListaPrevia
-                semanaId={v.semana.id}
-                encerrada={v.encerrada}
-                quem={quem}
-                variante="celular"
-              />
-              <button
-                type="button"
-                disabled={!quem}
-                onClick={v.onCopiar}
-                className="text-destaque text-apoio min-h-22 cursor-pointer rounded-interno border-none bg-transparent font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Copiar esta semana para a próxima
-              </button>
-              <button
-                type="button"
-                onClick={() => mudarParams({ receitas: "1" })}
-                className="text-destaque text-apoio min-h-22 cursor-pointer rounded-interno border-none bg-transparent font-semibold"
-              >
-                Receitas
-              </button>
-            </section>
-          </SemanaCelular>
+                  <span className="text-texto-2 flex">
+                    <Icone nome="direita" />
+                  </span>
+                </button>
+                <ListaPrevia
+                  semanaId={v.semana.id}
+                  encerrada={v.encerrada}
+                  quem={quem}
+                  variante="celular"
+                />
+                <button
+                  type="button"
+                  disabled={!quem}
+                  onClick={v.onCopiar}
+                  className="text-destaque text-apoio min-h-22 cursor-pointer rounded-interno border-none bg-transparent font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Copiar esta semana para a próxima
+                </button>
+                <button
+                  type="button"
+                  onClick={() => mudarParams({ receitas: "1" })}
+                  className="text-destaque text-apoio min-h-22 cursor-pointer rounded-interno border-none bg-transparent font-semibold"
+                >
+                  Receitas
+                </button>
+              </section>
+            </SemanaCelular>
+          )}
           <EditarRefeicao
             alvo={editando}
             onFechar={() => setEditando(null)}
