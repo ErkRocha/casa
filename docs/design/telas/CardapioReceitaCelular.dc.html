@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Receita no celular</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1F4FBF}a:hover{color:#163A8F}
+</style>
+</helmet>
+<div style="width: 390px; height: 1500px; position: relative; box-sizing: border-box; background: #EEF1F6; font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; color: #172033; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow: hidden">
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px 14px 120px 14px">
+<header style="display: flex; align-items: center; gap: 8px; padding: 0 2px">
+<a href="CardapioSemanaCelular.dc.html" aria-label="Voltar ao cardápio" style="width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; background: #FFFFFF; color: #172033; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></a>
+<div style="display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0"><h1 style="margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.3px">Frango grelhado</h1><span style="font-size: 13px; color: #556070">Almoço · usada em 6 pratos nesta semana</span></div>
+<button style="height: 40px; border: none; border-radius: 10px; background: #FFFFFF; color: #172033; padding: 0 12px; font-family: inherit; font-size: 14px; font-weight: 600">Editar</button>
+</header>
+
+<div style="background: #FFF8E8; border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; color: #5C3D00; box-shadow: inset 0 0 0 1px #F0D9A6">
+<span style="font-size: 14px; line-height: 1.45"><strong style="font-weight: 650">Quantidades estimadas.</strong> Esta receita veio da carga inicial; confira se a quantidade por porção é a que vocês usam.</span>
+<button style="align-self: flex-start; height: 36px; border: none; border-radius: 9px; background: #FFFFFF; color: #5C3D00; padding: 0 12px; font-family: inherit; font-size: 14px; font-weight: 600; box-shadow: inset 0 0 0 1px #E5C27A">Conferi, está certa</button>
+</div>
+
+<section style="background: #FFFFFF; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 0; padding: 6px">
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px">
+<div style="background: #F4F6FA; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #556070">Rende</span><span style="font-size: 16px; font-weight: 650">4 porções</span></div>
+<div style="background: #F4F6FA; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #556070">Tempo</span><span style="font-size: 16px; font-weight: 650">35 min</span></div>
+<div style="background: #F4F6FA; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #556070">Pronta dura</span><span style="font-size: 16px; font-weight: 650">4 dias</span></div>
+<div style="background: #F4F6FA; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #556070">Congela</span><span style="font-size: 16px; font-weight: 650">Sim, até 3 meses</span></div>
+</div>
+</section>
+
+<section style="background: #FFFFFF; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 6px"><h2 style="margin: 0; font-size: 17px; font-weight: 650">Ingredientes</h2><span style="font-size: 13px; color: #556070">para 1 porção</span></div>
+<sc-for list="{{ingredientes}}" as="i" hint-placeholder-count="6">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 48px; box-shadow: inset 0 1px 0 #EEF1F6">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 15px; font-weight: 550">{{i.nome}}</span><span style="font-size: 12px; color: {{i.notaCor}}">{{i.nota}}</span></span>
+<span style="font-size: 15px; font-weight: 650; white-space: nowrap">{{i.qtd}}</span>
+</div>
+</sc-for>
+</section>
+
+<section style="background: #FFFFFF; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 17px; font-weight: 650">Modo de preparo</h2>
+<ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 15px; line-height: 1.5">
+<li>Corte o peito de frango em tiras e tempere com sal, alho e limão. Deixe 10 minutos.</li>
+<li>Aqueça a frigideira com um fio de azeite em fogo alto.</li>
+<li>Grelhe as tiras em levas, sem amontoar, 4 minutos de cada lado.</li>
+<li>Espere esfriar antes de fechar os potes.</li>
+</ol>
+</section>
+
+<button style="height: 48px; border: none; border-radius: 14px; background: #FFFFFF; color: #172033; font-family: inherit; font-size: 15px; font-weight: 600; box-shadow: inset 0 0 0 1px #D5DBE5">Duplicar como variação</button>
+</div>
+<nav aria-label="Navegação principal" style="position: absolute; left: 0; right: 0; bottom: 0; background: #FFFFFF; box-shadow: 0 -1px 0 #E2E6EE; padding: 6px 6px 20px 6px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px">
+<a href="InicioCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg>Início</a>
+<a href="LancamentosCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>Lançamentos</a>
+<a href="ComprasListaCelular.dc.html" aria-current="page" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #1F4FBF; font-size: 11px; font-weight: 650"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11h11.2L21 8H6.2"></path><circle cx="9" cy="19" r="1.5"></circle><circle cx="17" cy="19" r="1.5"></circle></svg>Compras</a>
+<a href="RevisarCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg>Revisar</a>
+<a href="AnalisesCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7"></path></svg>Análises</a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() { return {
+      ingredientes: [
+        { nome: 'Peito de frango', qtd: '150 g', nota: 'compra em kg', notaCor: '#556070' },
+        { nome: 'Alho', qtd: '½ dente', nota: 'antes estava 1 dente, revisado', notaCor: '#556070' },
+        { nome: 'Limão', qtd: '¼ unidade', nota: 'compra por unidade', notaCor: '#556070' },
+        { nome: 'Azeite', qtd: '1 colher de chá', nota: 'sem medida cadastrada: vai à lista sem quantidade', notaCor: '#8A5A00' },
+        { nome: 'Sal', qtd: 'a gosto', nota: '', notaCor: '#556070' }
+      ]
+    }; }
+}
+</script>
+</body>
+</html>

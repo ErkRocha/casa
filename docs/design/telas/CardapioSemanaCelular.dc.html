@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Cardápio da semana no celular</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1F4FBF}a:hover{color:#163A8F}
+</style>
+</helmet>
+<div style="width: 390px; height: 1700px; position: relative; box-sizing: border-box; background: #EEF1F6; font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; color: #172033; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow: hidden">
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px 14px 120px 14px">
+<header style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px">
+<h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.4px">Compras</h1>
+</header>
+<div role="tablist" aria-label="Compras" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: #FFFFFF; border-radius: 12px; padding: 4px; gap: 2px">
+<a role="tab" aria-selected="false" href="ComprasListaCelular.dc.html" style="text-decoration: none; height: 40px; border-radius: 9px; background: transparent; color: #2C364A; font-size: 14px; font-weight: 500; display: flex; align-items: center; justify-content: center">Lista</a>
+<a role="tab" aria-selected="true" href="CardapioSemanaCelular.dc.html" style="text-decoration: none; height: 40px; border-radius: 9px; background: #172033; color: #FFFFFF; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center">Cardápio</a>
+<a role="tab" aria-selected="false" href="ComprasDespensaCelular.dc.html" style="text-decoration: none; height: 40px; border-radius: 9px; background: transparent; color: #2C364A; font-size: 14px; font-weight: 500; display: flex; align-items: center; justify-content: center">Despensa</a>
+</div>
+
+<div style="display: flex; align-items: center; justify-content: space-between; background: #FFFFFF; border-radius: 14px; padding: 4px">
+<button aria-label="Semana anterior" style="width: 44px; height: 44px; border: none; border-radius: 10px; background: transparent; color: #172033; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></button>
+<span style="display: flex; flex-direction: column; align-items: center; gap: 1px"><span style="font-size: 16px; font-weight: 650">16 a 22 de novembro</span><span style="font-size: 12px; color: #556070">41 pratos · Erik e Laura</span></span>
+<button aria-label="Próxima semana" style="width: 44px; height: 44px; border: none; border-radius: 10px; background: transparent; color: #172033; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"></path></svg></button>
+</div>
+
+<div role="tablist" aria-label="Dia da semana" style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px">
+<sc-for list="{{dias}}" as="d" hint-placeholder-count="7">
+<button role="tab" aria-selected="{{d.sel}}" style="height: 56px; border: none; border-radius: 12px; background: {{d.fundo}}; color: {{d.cor}}; font-family: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px"><span style="font-size: 12px; font-weight: 500">{{d.sem}}</span><span style="font-size: 16px; font-weight: 700">{{d.num}}</span></button>
+</sc-for>
+</div>
+
+<div style="background: #FFF8E8; border-radius: 14px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; color: #5C3D00; box-shadow: inset 0 0 0 1px #F0D9A6">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg>
+<span style="font-size: 14px; line-height: 1.45">A aveia feita na quarta dura 3 dias e não chega até domingo. Faça mais no sábado ou troque o café de domingo.</span>
+</div>
+
+<sc-for list="{{refeicoes}}" as="r" hint-placeholder-count="4">
+<section style="background: #FFFFFF; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><h2 style="margin: 0; font-size: 14px; font-weight: 650; color: #556070">{{r.tipo}}</h2><button style="height: 32px; border: none; background: transparent; color: #1F4FBF; font-family: inherit; font-size: 14px; font-weight: 600">Trocar</button></div>
+<sc-for list="{{r.pratos}}" as="p" hint-placeholder-count="3">
+<a href="CardapioReceitaCelular.dc.html" style="text-decoration: none; color: #172033; display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 44px; padding: 4px 0; box-shadow: inset 0 1px 0 #EEF1F6">
+<span style="display: flex; flex-direction: column; gap: 4px; min-width: 0"><span style="font-size: 16px; font-weight: 600">{{p.nome}}</span><span style="font-size: 13px; color: #556070">{{p.preparo}}</span></span>
+<span style="display: flex; gap: 4px; flex-shrink: 0">
+<span style="font-size: 12px; font-weight: 650; border-radius: 999px; padding: 3px 8px; background: #E4EAF8; color: #1E3A8A; display: {{p.erik}}">Erik {{p.porE}}</span>
+<span style="font-size: 12px; font-weight: 650; border-radius: 999px; padding: 3px 8px; background: #EEF3FD; color: #2F56B0; display: {{p.laura}}">Laura {{p.porL}}</span>
+</span>
+</a>
+</sc-for>
+</section>
+</sc-for>
+
+<button style="height: 48px; border: none; border-radius: 14px; background: #FFFFFF; color: #1F4FBF; font-family: inherit; font-size: 15px; font-weight: 650; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: inset 0 0 0 1.5px #C9D6F2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Adicionar prato em terça</button>
+
+<section style="background: #FFFFFF; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 17px; font-weight: 650">A semana inteira</h2>
+<a href="CardapioPreparoCelular.dc.html" style="text-decoration: none; display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 52px; padding: 0 14px; border-radius: 12px; background: #F4F6FA; color: #172033">
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 650">Roteiro de preparo</span><span style="font-size: 13px; color: #556070">Próxima sessão: quarta à noite, cerca de 1h30</span></span>
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#556070" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"></path></svg>
+</a>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 12px; background: #F4F6FA">
+<span style="font-size: 15px; font-weight: 650">Mandar para a lista de compras</span>
+<span style="font-size: 13px; line-height: 1.45; color: #556070">8 itens novos, 6 itens da lista com quantidade ajustada, e 11 que a despensa diz que vocês já têm (vão como "confira").</span>
+<button style="height: 48px; border: none; border-radius: 12px; background: #1F4FBF; color: #FFFFFF; font-family: inherit; font-size: 15px; font-weight: 650">Ver prévia e mandar</button>
+</div>
+<button style="height: 44px; border: none; border-radius: 12px; background: transparent; color: #1F4FBF; font-family: inherit; font-size: 14px; font-weight: 600">Copiar esta semana para a próxima</button>
+</section>
+</div>
+<nav aria-label="Navegação principal" style="position: absolute; left: 0; right: 0; bottom: 0; background: #FFFFFF; box-shadow: 0 -1px 0 #E2E6EE; padding: 6px 6px 20px 6px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px">
+<a href="InicioCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg>Início</a>
+<a href="LancamentosCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>Lançamentos</a>
+<a href="ComprasListaCelular.dc.html" aria-current="page" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #1F4FBF; font-size: 11px; font-weight: 650"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11h11.2L21 8H6.2"></path><circle cx="9" cy="19" r="1.5"></circle><circle cx="17" cy="19" r="1.5"></circle></svg>Compras</a>
+<a href="RevisarCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg>Revisar</a>
+<a href="AnalisesCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7"></path></svg>Análises</a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1700}}'>
+class Component extends DCLogic {
+  renderVals() { return {
+      dias: [
+        { sem: 'seg', num: '16', sel: 'false', fundo: '#FFFFFF', cor: '#8A94A6' },
+        { sem: 'ter', num: '17', sel: 'true', fundo: '#1F4FBF', cor: '#FFFFFF' },
+        { sem: 'qua', num: '18', sel: 'false', fundo: '#FFFFFF', cor: '#172033' },
+        { sem: 'qui', num: '19', sel: 'false', fundo: '#FFFFFF', cor: '#172033' },
+        { sem: 'sex', num: '20', sel: 'false', fundo: '#FFFFFF', cor: '#172033' },
+        { sem: 'sáb', num: '21', sel: 'false', fundo: '#FFFFFF', cor: '#172033' },
+        { sem: 'dom', num: '22', sel: 'false', fundo: '#FFFFFF', cor: '#172033' }
+      ],
+      refeicoes: [
+        { tipo: 'Café da manhã', pratos: [ { nome: 'Aveia de geladeira com iogurte e banana', preparo: 'Pronta no domingo', erik: 'inline-block', laura: 'inline-block', porE: '1,5', porL: '1' } ] },
+        { tipo: 'Lanches', pratos: [
+          { nome: 'Sanduíche de frango desfiado', preparo: 'Montar na hora, 5 min', erik: 'inline-block', laura: 'inline-block', porE: '1,5', porL: '1' },
+          { nome: 'Banana com pasta de amendoim', preparo: 'Pré-treino', erik: 'inline-block', laura: 'none', porE: '1', porL: '' } ] },
+        { tipo: 'Almoço (marmita)', pratos: [
+          { nome: 'Arroz', preparo: 'Pronto no domingo', erik: 'inline-block', laura: 'inline-block', porE: '1,5', porL: '1' },
+          { nome: 'Feijão', preparo: 'Pronto no domingo', erik: 'inline-block', laura: 'inline-block', porE: '1,5', porL: '1' },
+          { nome: 'Frango grelhado', preparo: 'Pronto no domingo', erik: 'inline-block', laura: 'inline-block', porE: '1,5', porL: '1' },
+          { nome: 'Brócolis e cenoura no vapor', preparo: 'Na hora, 10 min', erik: 'inline-block', laura: 'inline-block', porE: '1', porL: '1' } ] },
+        { tipo: 'Janta', pratos: [ { nome: 'Omelete com legumes e queijo', preparo: 'Na hora, 15 min', erik: 'inline-block', laura: 'inline-block', porE: '1,5', porL: '1' } ] }
+      ]
+    }; }
+}
+</script>
+</body>
+</html>

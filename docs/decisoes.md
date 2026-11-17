@@ -1128,3 +1128,19 @@ telas precisam de desenho aprovado antes do código (D-15).
 - **Abastecimento:** decidir depois, no bloco da tela de despesa.
 - **Sugestão de cardápio pelo Claude:** primeiro pelo MCP do vault (sem
   custo além da assinatura); dentro do painel fica para depois.
+
+**Telas aprovadas (D-15), 17/11/2026.** O usuário aprovou as pranchetas do
+Claude Design em `docs/design/CARDAPIO.md` e `docs/design/telas/Cardapio*`:
+semana no celular (seletor de dias), semana no computador (grade 7 dias x 4
+refeições), receita e roteiro de preparo (no computador, painel lateral). O
+cardápio é uma aba dentro de Compras (Lista, Cardápio, Despensa); a barra
+inferior e a lateral não mudam. Junto com as telas, duas mudanças de schema
+aprovadas:
+
+- **Quantidades revisadas** viram campo da receita (booleano, quem e
+  quando), no lugar da linha `[REVISAR QUANTIDADES]` no modo de preparo,
+  que é migrada e apagada. É o botão "Conferi, está certa".
+- **Passos do roteiro feitos** ganham tabela própria: por sessão de preparo
+  e receita, se foi feito, por quem e quando. O roteiro continua calculado;
+  a tabela só marca o que foi concluído, e a marcação chega ao outro
+  celular pelo mesmo polling da lista (`/mudancas`).

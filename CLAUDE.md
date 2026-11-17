@@ -85,5 +85,5 @@ backups/ faturas/ pluggy_amostras/   dados reais, fora do git
 - ingestão ou insights com LLM → docs/llm.md
 - compras → docs/compras/api.md, docs/compras/modelo-dados.md
 - cardápio → docs/compras/modelo-cardapio.md, docs/compras/api-cardapio.md
-- telas → docs/design/README.md, docs/design/COMPRAS.md
+- telas → docs/design/README.md, docs/design/COMPRAS.md, docs/design/CARDAPIO.md
 - progresso → notas/progresso.md

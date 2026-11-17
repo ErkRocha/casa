@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Roteiro de preparo no celular</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1F4FBF}a:hover{color:#163A8F}
+</style>
+</helmet>
+<div style="width: 390px; height: 1500px; position: relative; box-sizing: border-box; background: #EEF1F6; font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; color: #172033; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow: hidden">
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 16px 14px 120px 14px">
+<header style="display: flex; align-items: center; gap: 8px; padding: 0 2px">
+<a href="CardapioSemanaCelular.dc.html" aria-label="Voltar ao cardápio" style="width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; background: #FFFFFF; color: #172033; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></a>
+<div style="display: flex; flex-direction: column; gap: 2px"><h1 style="margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.3px">Roteiro de preparo</h1><span style="font-size: 13px; color: #556070">Semana de 16 a 22 de novembro</span></div>
+</header>
+
+<div role="tablist" aria-label="Sessão de preparo" style="display: flex; gap: 8px; overflow-x: auto">
+<button role="tab" aria-selected="false" style="flex-shrink: 0; height: 52px; border: none; border-radius: 12px; background: #FFFFFF; color: #8A94A6; padding: 0 14px; font-family: inherit; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px"><span style="font-size: 14px; font-weight: 600">Domingo 15</span><span style="font-size: 12px">já passou</span></button>
+<button role="tab" aria-selected="true" style="flex-shrink: 0; height: 52px; border: none; border-radius: 12px; background: #172033; color: #FFFFFF; padding: 0 14px; font-family: inherit; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px"><span style="font-size: 14px; font-weight: 650">Quarta 18, noite</span><span style="font-size: 12px; color: #C9D1DE">cerca de 1h30</span></button>
+<button role="tab" aria-selected="false" style="flex-shrink: 0; height: 52px; border: none; border-radius: 12px; background: #FFFFFF; color: #172033; padding: 0 14px; font-family: inherit; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px"><span style="font-size: 14px; font-weight: 600">No dia</span><span style="font-size: 12px; color: #556070">13 pratos</span></button>
+<button aria-label="Adicionar sessão" style="flex-shrink: 0; width: 52px; height: 52px; border: none; border-radius: 12px; background: #FFFFFF; color: #1F4FBF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+</div>
+
+<section style="background: #FFFFFF; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 6px"><h2 style="margin: 0; font-size: 17px; font-weight: 650">Na ordem, pelo que demora mais</h2><span style="font-size: 13px; color: #556070">2 de 9 feitos</span></div>
+<sc-for list="{{passos}}" as="p" hint-placeholder-count="9">
+<label style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; box-shadow: inset 0 1px 0 #EEF1F6; cursor: pointer">
+<span style="width: 26px; height: 26px; flex-shrink: 0; border-radius: 8px; background: {{p.caixaFundo}}; box-shadow: inset 0 0 0 2px {{p.caixaBorda}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; margin-top: 1px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="opacity: {{p.check}}"><path d="M20 6L9 17l-5-5"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-width: 0">
+<span style="display: flex; justify-content: space-between; gap: 8px"><span style="font-size: 16px; font-weight: 600; color: {{p.cor}}; text-decoration: {{p.risco}}">{{p.nome}}</span><span style="font-size: 13px; color: #556070; white-space: nowrap">{{p.tempo}}</span></span>
+<span style="font-size: 13px; color: #556070">{{p.porcoes}}</span>
+<span style="display: flex; flex-wrap: wrap; gap: 6px">
+<span style="font-size: 12px; font-weight: 650; border-radius: 6px; padding: 2px 8px; background: #EAF0FD; color: #163A8F">{{p.destino}}</span>
+<span style="font-size: 12px; font-weight: 650; border-radius: 6px; padding: 2px 8px; background: #E4F2FA; color: #0B5B85; display: {{p.congelaVis}}">{{p.congela}}</span>
+</span>
+</span>
+</label>
+</sc-for>
+</section>
+
+<div style="background: #FFF8E8; border-radius: 14px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; color: #5C3D00; box-shadow: inset 0 0 0 1px #F0D9A6">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg>
+<span style="font-size: 14px; line-height: 1.45">A aveia desta sessão dura 3 dias: o café de domingo fica sem. Crie uma sessão no sábado ou troque o café de domingo.</span>
+</div>
+</div>
+<nav aria-label="Navegação principal" style="position: absolute; left: 0; right: 0; bottom: 0; background: #FFFFFF; box-shadow: 0 -1px 0 #E2E6EE; padding: 6px 6px 20px 6px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px">
+<a href="InicioCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg>Início</a>
+<a href="LancamentosCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>Lançamentos</a>
+<a href="ComprasListaCelular.dc.html" aria-current="page" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #1F4FBF; font-size: 11px; font-weight: 650"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11h11.2L21 8H6.2"></path><circle cx="9" cy="19" r="1.5"></circle><circle cx="17" cy="19" r="1.5"></circle></svg>Compras</a>
+<a href="RevisarCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg>Revisar</a>
+<a href="AnalisesCelular.dc.html" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 52px; color: #556070; font-size: 11px; font-weight: 500"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7"></path></svg>Análises</a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() { return {
+      passos: [
+        { nome: 'Sobrecoxa assada', tempo: '45 min', porcoes: '2,5 porções · forno a 200 °C', destino: 'Geladeira até sáb', congela: '', congelaVis: 'none', caixaFundo: '#1C7A55', caixaBorda: '#1C7A55', check: '1', cor: '#8A94A6', risco: 'line-through' },
+        { nome: 'Feijão', tempo: '40 min', porcoes: '7,5 porções', destino: 'Geladeira até dom', congela: '', congelaVis: 'none', caixaFundo: '#1C7A55', caixaBorda: '#1C7A55', check: '1', cor: '#8A94A6', risco: 'line-through' },
+        { nome: 'Sopa de legumes com frango', tempo: '35 min', porcoes: '2,5 porções', destino: 'Geladeira até qui', congela: '', congelaVis: 'none', caixaFundo: '#FFFFFF', caixaBorda: '#B9C2D0', check: '0', cor: '#172033', risco: 'none' },
+        { nome: 'Frango grelhado', tempo: '35 min', porcoes: '5 porções', destino: 'Geladeira até sex', congela: '', congelaVis: 'none', caixaFundo: '#FFFFFF', caixaBorda: '#B9C2D0', check: '0', cor: '#172033', risco: 'none' },
+        { nome: 'Carne moída com legumes', tempo: '30 min', porcoes: '5 porções', destino: 'Geladeira até sex', congela: '', congelaVis: 'none', caixaFundo: '#FFFFFF', caixaBorda: '#B9C2D0', check: '0', cor: '#172033', risco: 'none' },
+        { nome: 'Arroz', tempo: '25 min', porcoes: '7,5 porções', destino: 'Geladeira até dom', congela: '', congelaVis: 'none', caixaFundo: '#FFFFFF', caixaBorda: '#B9C2D0', check: '0', cor: '#172033', risco: 'none' },
+        { nome: 'Macarrão com carne moída', tempo: '20 min', porcoes: '4,5 porções', destino: '2,5 na geladeira', congela: '2 no congelador · descongelar sáb à noite', congelaVis: 'inline-block', caixaFundo: '#FFFFFF', caixaBorda: '#B9C2D0', check: '0', cor: '#172033', risco: 'none' },
+        { nome: 'Frango desfiado', tempo: '20 min', porcoes: '4 porções', destino: 'Geladeira até sex', congela: '', congelaVis: 'none', caixaFundo: '#FFFFFF', caixaBorda: '#B9C2D0', check: '0', cor: '#172033', risco: 'none' },
+        { nome: 'Aveia de geladeira', tempo: '10 min', porcoes: '5 potes', destino: 'Geladeira até sáb', congela: '', congelaVis: 'none', caixaFundo: '#FFFFFF', caixaBorda: '#B9C2D0', check: '0', cor: '#172033', risco: 'none' }
+      ]
+    }; }
+}
+</script>
+</body>
+</html>
