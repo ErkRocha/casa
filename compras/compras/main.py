@@ -16,10 +16,13 @@ from compras.routers import (
     mercados,
     mudancas,
     notas,
+    pessoas,
     precos,
     produtos,
     receitas,
+    refeicoes,
     secoes,
+    semanas,
 )
 from compras.services.base import Conflito, NaoEncontrado, RegraViolada
 
@@ -70,6 +73,9 @@ app.include_router(mercados.router)
 app.include_router(precos.router)
 app.include_router(identidades.router)
 app.include_router(receitas.router)
+app.include_router(pessoas.router)
+app.include_router(semanas.router)
+app.include_router(refeicoes.router)
 
 
 @app.get("/health", tags=["infra"])

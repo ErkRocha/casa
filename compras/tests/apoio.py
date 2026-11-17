@@ -97,3 +97,31 @@ def receita(
     resposta = client.post("/receitas", json=corpo, headers=LAURA)
     assert resposta.status_code == 201, resposta.text
     return dict(resposta.json())
+
+
+def pessoa(client: TestClient, nome: str, porcao: str = "1") -> dict[str, Any]:
+    r = client.post("/pessoas", json={"nome": nome, "porcao_padrao": porcao}, headers=LAURA)
+    assert r.status_code == 201, r.text
+    return dict(r.json())
+
+
+def semana(client: TestClient, inicio: str) -> dict[str, Any]:
+    r = client.post("/semanas", json={"inicio": inicio}, headers=LAURA)
+    assert r.status_code in (200, 201), r.text
+    return dict(r.json())
+
+
+def refeicao(
+    client: TestClient,
+    semana_id: int,
+    dia: str,
+    tipo: str = "almoco",
+    receita_id: int | None = None,
+    **campos: Any,
+) -> dict[str, Any]:
+    corpo: dict[str, Any] = {"dia": dia, "tipo": tipo, **campos}
+    if receita_id is not None:
+        corpo["receita_id"] = receita_id
+    r = client.post(f"/semanas/{semana_id}/refeicoes", json=corpo, headers=LAURA)
+    assert r.status_code == 201, r.text
+    return dict(r.json())

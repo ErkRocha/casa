@@ -17,7 +17,8 @@ existe; inventar outra aqui trocaria a senha do serviço que está no ar.
 
 import atexit
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from datetime import date
 
 import pytest
 
@@ -115,6 +116,26 @@ def session() -> Iterator[Session]:
 def client() -> Iterator[TestClient]:
     with TestClient(app) as c:
         yield c
+
+
+#: O "hoje" dos testes do cardápio: terça-feira da semana de 16/11/2026.
+HOJE_PADRAO = date(2026, 11, 17)
+
+
+@pytest.fixture
+def hoje(monkeypatch: pytest.MonkeyPatch) -> Callable[[date], None]:
+    """Troca o "hoje" do serviço (`compras.tempo.hoje`). Chame com a data desejada."""
+
+    def fixar(dia: date) -> None:
+        monkeypatch.setattr("compras.tempo.hoje", lambda: dia)
+
+    return fixar
+
+
+@pytest.fixture(autouse=True)
+def _hoje_padrao(hoje: Callable[[date], None]) -> None:
+    """Sem isto, a semana "atual" dos testes deixaria de ser atual com o calendário."""
+    hoje(HOJE_PADRAO)
 
 
 @pytest.fixture
