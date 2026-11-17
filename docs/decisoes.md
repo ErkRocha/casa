@@ -1108,3 +1108,23 @@ são os dois, pelos celulares.
 Modelo em `docs/compras/modelo-cardapio.md`, endpoints em
 `docs/compras/api-cardapio.md`, fases no roadmap, seção "Cardápio". As
 telas precisam de desenho aprovado antes do código (D-15).
+
+**Decisões do usuário sobre os pontos em aberto (17/11/2026):**
+
+- **Aprovados:** metas nutricionais fora da v1; várias receitas no mesmo
+  dia e tipo; `pessoas` como tabela própria, ligada à identidade do
+  Tailscale; item removido à mão não volta ao gerar de novo.
+- **Semana que já passou não gera nem regenera lista**: vira histórico. A
+  semana passou quando o domingo dela é anterior a hoje (São Paulo). A
+  semana corrente e as futuras geram. O cardápio da semana passada ainda
+  pode ser editado (é o registro do que se planejou).
+- **Editar receita afeta só as semanas atuais e futuras.** Sem schema novo:
+  a edição nunca muda um ingrediente no lugar, ela apaga (soft delete) e
+  cria outro. Uma semana passada lê os ingredientes vivos no fim dela
+  (`criado_em` até o domingo, `deleted_em` nulo ou depois). Os campos da
+  receita em si (rendimento, validade) não têm histórico na v1: valem os
+  atuais, o que só afeta a leitura de semanas passadas, que já não geram
+  lista.
+- **Abastecimento:** decidir depois, no bloco da tela de despesa.
+- **Sugestão de cardápio pelo Claude:** primeiro pelo MCP do vault (sem
+  custo além da assinatura); dentro do painel fica para depois.

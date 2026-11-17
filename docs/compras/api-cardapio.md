@@ -39,7 +39,7 @@ geração da lista cria ou ajusta em `itens_lista` chega aos celulares pelo
 | GET | `/receitas?busca=&tipo=&pode_antecipar=&limite=20&offset=0` | Busca no `nome_normalizado` (contém; quem começa com o texto vem antes), com `total` |
 | GET | `/receitas/{id}` | A receita com os ingredientes na ordem, o nome do produto e se cada um converte |
 | POST | `/receitas` | `{id_cliente, nome, tipo, rendimento_porcoes, tempo_preparo_min?, modo_preparo?, pode_antecipar, dura_dias?, pode_congelar, ingredientes: [{produto_id ou produto_nome, quantidade?, unidade, observacao?}]}`. Ingrediente com `produto_nome` sem produto cria o produto em "Sem seção", na mesma transação. `id_cliente` repetido: 200 com a que existe |
-| PUT | `/receitas/{id}` | Mesmo corpo, sem `id_cliente`: substitui os campos e a lista de ingredientes numa transação (os que saem levam soft delete). Aqui é `PUT` porque a receita é editada como um formulário inteiro, não por ação |
+| PUT | `/receitas/{id}` | Mesmo corpo, sem `id_cliente`: substitui os campos e a lista de ingredientes numa transação. Todo ingrediente antigo leva soft delete e o novo é criado (nunca UPDATE no lugar), para a semana passada continuar lendo os seus (D-30). Aqui é `PUT` porque a receita é editada como um formulário inteiro, não por ação |
 | POST | `/receitas/{id}/duplicar` | Cópia com o nome "<nome> (cópia)", para variar uma receita |
 | DELETE | `/receitas/{id}` | Soft delete. Usada em semana que ainda não acabou: 409, com as semanas |
 
@@ -97,7 +97,7 @@ geração da lista cria ou ajusta em `itens_lista` chega aos celulares pelo
 
 | Método | Caminho | O que faz |
 |---|---|---|
-| GET | `/semanas/{id}/lista` | **Prévia**: o que a geração faria, sem gravar nada |
+| GET | `/semanas/{id}/lista` | **Prévia**: o que a geração faria, sem gravar nada. Semana que já passou: 409 (D-30), nas duas |
 | POST | `/semanas/{id}/lista` | Gera ou atualiza: grava os itens e a `itens_lista_cardapio`, numa transação com a semana travada. Repetir sem mudar o cardápio não muda nada (todos em `sem_mudanca`) |
 
 Mesma resposta nos dois:

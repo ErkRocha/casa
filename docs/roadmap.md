@@ -619,11 +619,12 @@ Nesta ordem, sem pular:
 
    **Pronto quando:** o casal planeja uma semana real pelos celulares, gera
    a lista e faz a compra com ela.
-3. **Sugestão de cardápio pelo Claude**, no painel e pela voz (servidor
-   MCP do vault, cliente da API como já é da lista): "monta o cardápio da
-   semana que vem com o que tem em casa". A sugestão é um rascunho que o
-   casal aceita; não grava sozinha. Antes de começar: decidir como o painel
-   chama o Claude (chave, custo, onde roda; `docs/llm.md`).
+3. **Sugestão de cardápio pelo Claude**, primeiro pela voz e pelo chat do
+   servidor MCP do vault (cliente da API, como já é da lista; sem custo além
+   da assinatura): "monta o cardápio da semana que vem com o que tem em
+   casa". A sugestão é um rascunho que o casal aceita; não grava sozinha.
+   Dentro do painel fica para depois (D-30), e antes dele é preciso decidir
+   como o painel chama o Claude (chave, custo, onde roda; `docs/llm.md`).
 4. **Registro do que foi comido**, baixando da despensa: marcar a refeição
    como feita (ou não feita) e, com isso, mudar o estado dos ingredientes na
    despensa. Em aberto: a despensa não tem quantidade, então "baixar" é uma
@@ -644,8 +645,8 @@ Registrado, sem decisão nem modelo ainda:
   de desenho aprovado (D-15).
 - **Abastecimento.** Registro de cada abastecimento: litros, preço por
   litro e quilometragem, com o consumo médio (km/L) entre abastecimentos.
-  Em aberto: em que serviço mora (é uma despesa de finanças com detalhe,
-  como a nota é do mercado) e se nasce da transação do posto ou à parte.
+  Em que serviço mora e se nasce da transação do posto: decidir junto com
+  a tela de detalhe da despesa (D-30).
 
 ---
 

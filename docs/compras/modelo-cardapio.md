@@ -156,9 +156,11 @@ são duas linhas, e a lista soma. Ingrediente sempre tem produto, pelo mesmo
 motivo do item da lista: sem produto não há despensa nem lista. Digitar um
 nome novo cria o produto em "Sem seção", como no `POST /lista/itens`.
 
-Editar uma receita muda as semanas que a usam, inclusive as passadas: não
-há foto da receita na semana. Se o histórico fizer falta (subfase "o que
-foi comido"), entra lá.
+Editar uma receita afeta só as semanas atuais e futuras (D-30): a edição
+nunca muda um ingrediente no lugar, apaga (soft delete) e cria outro. Uma
+semana passada lê os ingredientes vivos no fim dela (`criado_em` até o
+domingo, `deleted_em` nulo ou depois). Os campos da própria receita não
+têm histórico na v1.
 
 ---
 
@@ -282,6 +284,8 @@ A lista soma os ingredientes pela mesma conta, então os dois batem.
 
 `POST /semanas/{id}/lista` grava; `GET /semanas/{id}/lista` é a prévia,
 com o mesmo cálculo, sem gravar nada. Período da v1: a semana inteira.
+**Semana que já passou** (domingo antes de hoje, São Paulo) recusa as duas
+(409): vira histórico (D-30).
 
 ## `itens_lista_cardapio`
 O quanto cada semana pediu de cada item da lista. É o que torna a geração
@@ -392,6 +396,6 @@ cobre os industrializados (que provavelmente pedem o rótulo).
   subfase própria (roadmap).
 - **Roteiro gravado.** É calculado na leitura.
 - **Densidade e conversões por produto.** Ver "Unidades".
-- **Foto da receita na semana.** Editar a receita muda as semanas que a
-  usam.
+- **Histórico dos campos da receita** (rendimento, validade). Só os
+  ingredientes têm, pelo soft delete.
 - **Metas e nutrientes como colunas.** Entram com a subfase que as usa.
