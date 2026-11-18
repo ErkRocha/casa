@@ -199,6 +199,14 @@ def alertas_deterministicos(dossie: Dossie) -> list[Alerta]:
 #: um texto é seco sem importar o caminho de geração e a sessão read-only.
 PROMPT_SEM_IA = "deterministico_v1"
 
+#: Qual base o relatório usa (D-31). Vai no fim de todo relatório, com ou sem
+#: modelo: o Início é pela data da compra, e os números não batem com os dele.
+NOTA_BASE = (
+    "_Base deste relatório: mês da fatura (competência). Compra no cartão conta "
+    "no mês da fatura em que caiu, não no da data da compra; por isso os números "
+    "podem diferir dos do Início, que é pela data da compra._"
+)
+
 
 def relatorio_sem_ia(dossie: Dossie) -> str:
     """Markdown gerado só com os números. Nenhuma chamada de modelo.
@@ -253,5 +261,12 @@ def relatorio_sem_ia(dossie: Dossie) -> str:
         linhas += ["", "## Pontos de atenção", ""]
         linhas += [f"- {alerta.texto}" for alerta in achados]
 
-    linhas += ["", "---", "", "_Gerado sem modelo de linguagem — apenas SQL agregado._"]
+    linhas += [
+        "",
+        "---",
+        "",
+        NOTA_BASE,
+        "",
+        "_Gerado sem modelo de linguagem — apenas SQL agregado._",
+    ]
     return "\n".join(linhas)

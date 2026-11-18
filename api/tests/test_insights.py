@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.orm import Session
 
-from app.insights import harness, tools
+from app.insights import deteccoes, harness, tools
 from app.insights.db import sessao_leitura
 from app.insights.deteccoes import alertas_deterministicos, reais, relatorio_sem_ia
 from app.schemas.insights import RelatorioGerado
@@ -299,6 +299,7 @@ class TestDeteccoes:
         assert "R$ 750,00" in texto
         assert "Alimentação" in texto
         assert "apenas SQL agregado" in texto
+        assert deteccoes.NOTA_BASE in texto  # D-31: diz qual base usa
 
 
 class TestHarness:
@@ -378,6 +379,22 @@ class TestRelatorioService:
         assert relatorio.prompt_versao == "deterministico_v1"
         assert relatorio.execucao["backend"] == "nenhum"
         assert "R$ 750,00" in relatorio.conteudo
+        assert deteccoes.NOTA_BASE in relatorio.conteudo
+
+    def test_texto_do_modelo_tambem_diz_a_base(
+        self, cenario: dict, session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        resposta = RelatorioGerado(
+            titulo="Julho de 2026",
+            resumo="Um resumo com tamanho suficiente para passar na validação.",
+            analise="Uma análise com mais de cinquenta caracteres para validar o schema.",
+            alertas=["um alerta"],
+        ).model_dump_json()
+        monkeypatch.setattr(
+            harness, "_chamar_claude_code", lambda *_: (resposta, None), raising=True
+        )
+        relatorio = RelatorioService(session, hoje=HOJE).gerar_mensal(COMPETENCIA)
+        assert relatorio.conteudo.rstrip().endswith(deteccoes.NOTA_BASE)
 
     def test_o_dossie_fica_gravado_junto(self, cenario: dict, session: Session) -> None:
         """Sem isto, uma afirmação do texto vira palavra contra palavra."""

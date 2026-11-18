@@ -96,6 +96,8 @@ class RelatorioService(CrudService[Relatorio]):
             prompt_versao = PROMPT_SEM_IA
         else:
             conteudo, execucao = self._escrever_com_modelo(dossie)
+            # D-31: o texto do modelo também diz qual base usa.
+            conteudo = "\n\n".join([conteudo.rstrip(), "---", deteccoes.NOTA_BASE])
             prompt_versao = PROMPT_MENSAL
 
         return self._gravar(
