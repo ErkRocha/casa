@@ -25,6 +25,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.faixas_orcamento import faixa_orcamento
+from app.medias import media_mensal_despesas
 from app.schemas.insights import (
     Cobertura,
     ComparacaoCategoria,
@@ -241,30 +242,24 @@ def comparar_periodos(
     anterior = somar_meses(competencia, -1)
     inicio = somar_meses(competencia, -meses)
 
-    # Totais mensais da janela, incluindo o mês corrente.
     mensais = sessao.execute(
         text("""
             SELECT competencia, sum(valor) AS total
             FROM vw_transacoes_completa
-            WHERE tipo = 'despesa'
-              AND competencia >= :inicio AND competencia <= :competencia
+            WHERE tipo = 'despesa' AND competencia IN (:anterior, :competencia)
             GROUP BY 1
         """),
-        {"inicio": inicio, "competencia": competencia},
+        {"anterior": anterior, "competencia": competencia},
     ).all()
     por_mes = {linha.competencia: _dec(linha.total) for linha in mensais}
 
     total_atual = por_mes.get(competencia, ZERO)
     total_anterior = por_mes.get(anterior, ZERO)
 
-    # Média só dos meses anteriores com lançamento: incluir o mês corrente
-    # compararia o mês com ele mesmo, e incluir meses vazios mediria o quanto
-    # ainda não foi importado. Mesma lógica do card de analytics — os dois
-    # números aparecem lado a lado para o usuário e precisam bater.
-    base_media = [total for mes, total in por_mes.items() if mes != competencia and total > 0]
-    media = (
-        (sum(base_media, ZERO) / len(base_media)).quantize(Decimal("0.01")) if base_media else ZERO
-    )
+    # Média dos meses anteriores da janela, pela mesma função das Análises
+    # (`app.medias`): o mês corrente fica fora (seria comparar o mês com ele
+    # mesmo), e mês sem nenhum lançamento também.
+    media = media_mensal_despesas(sessao, inicio, anterior, base="caixa")
 
     categorias = sessao.execute(
         text("""
@@ -302,8 +297,8 @@ def comparar_periodos(
         total_anterior=total_anterior,
         diferenca=total_atual - total_anterior,
         variacao_pct=_variacao(total_atual, total_anterior),
-        media_janela=media,
-        meses_na_media=len(base_media),
+        media_janela=media.media if media.media is not None else ZERO,
+        meses_na_media=media.meses,
         maiores_altas=[c for c in por_diferenca if c.diferenca > 0][:top],
         maiores_quedas=[c for c in reversed(por_diferenca) if c.diferenca < 0][:top],
     )

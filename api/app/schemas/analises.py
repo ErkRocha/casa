@@ -91,6 +91,8 @@ class Analises(BaseModel):
     base_categorias: Literal["media_mensal", "mes"]
     #: Média de despesas dos meses fechados; nula quando não há.
     media_mensal: Decimal | None
+    #: Quantos meses fechados com lançamento entraram na média (`app.medias`).
+    meses_na_media: int
     #: O mês de maior despesa do período, se algum teve despesa.
     mes_mais_caro: MesAnalise | None
     categorias: list[CategoriaAnalise]

@@ -189,10 +189,10 @@ def test_doze_meses(session: Session, dados: dict[str, Any]) -> None:
     assert r.inicio == date(2025, 11, 1)
     assert len(r.meses) == 12
     assert r.meses_fechados == 11
-    # Mês sem gasto conta como zero na média: (350 + 580) / 11.
-    assert r.media_mensal == Decimal("84.55")
+    # Só os meses com lançamento entram na média (app.medias): (350 + 580) / 2.
+    assert (r.media_mensal, r.meses_na_media) == (Decimal("465.00"), 2)
     assert r.mudancas is not None
-    assert (r.mudancas.referencia, r.mudancas.meses_base) == (SET, 10)
+    assert (r.mudancas.referencia, r.mudancas.meses_base) == (SET, 1)
 
 
 def test_este_mes(session: Session, dados: dict[str, Any]) -> None:
@@ -211,10 +211,11 @@ def test_este_mes(session: Session, dados: dict[str, Any]) -> None:
 def test_sem_dados(session: Session) -> None:
     r = _resumo(session, "3m")
     assert [m.despesas for m in r.meses] == [Decimal("0")] * 3
-    assert r.media_mensal == Decimal("0.00")
+    # Nenhum mês com lançamento: não há média nem base para comparar.
+    assert (r.media_mensal, r.meses_na_media) == (None, 0)
     assert r.mes_mais_caro is None
     assert r.categorias == []
-    assert r.mudancas is not None and r.mudancas.linhas == []
+    assert r.mudancas is None
     assert r.orcamento == []
 
 

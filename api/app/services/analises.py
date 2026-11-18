@@ -4,8 +4,10 @@ Toda soma, média, variação e faixa sai do SQL abaixo; o Python escolhe os
 meses e monta a resposta (regras 7 e 10, D-14). Transferência fica fora de
 tudo (D-05).
 
-**Média é dos meses fechados.** O mês corrente está pela metade: entrar na
-média puxaria tudo para baixo. Ele aparece no gráfico, marcado como parcial,
+**Média é dos meses fechados com lançamento.** O mês corrente está pela
+metade: entrar na média puxaria tudo para baixo. Mês sem nenhum lançamento
+(antes do primeiro mês com dados) também fica fora, pela mesma função do
+relatório (`app.medias`). Ele aparece no gráfico, marcado como parcial,
 e é o mês do orçamento. No período "este mês", que não tem mês fechado, as
 categorias mostram o próprio mês e não há comparação com a média.
 
@@ -20,13 +22,13 @@ from __future__ import annotations
 import calendar
 from collections.abc import Sequence
 from datetime import date
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import Row, text
 from sqlalchemy.orm import Session
 
 from app.faixas_orcamento import sql_faixa
+from app.medias import MES_POR_BASE, media_mensal_despesas
 from app.schemas.analises import (
     Analises,
     BaseAnalise,
@@ -46,17 +48,10 @@ MESES_DO_PERIODO: dict[str, int] = {"mes": 1, "3m": 3, "12m": 12}
 LIMITE_MUDANCAS = 5
 SEM_CATEGORIA = "Sem categoria"
 
-#: O mês de cada transação, por base (D-27). Dicionário fechado: o SQL nunca
-#: recebe texto do usuário. `caixa` = o que sai da conta (D-02); `compra` = o
-#: mês da data da compra.
-_MES_POR_BASE: dict[str, str] = {
-    "caixa": "t.competencia",
-    "compra": "date_trunc('month', t.data)::date",
-}
-
 
 def _sql(consulta: str, base: str) -> str:
-    return consulta.replace("__MES__", _MES_POR_BASE[base])
+    """O mês de cada transação pela base (D-27, D-31), de `app.medias`."""
+    return consulta.replace("__MES__", MES_POR_BASE[base])
 
 
 #: `:pessoa` é o id em texto, `conjunto`, ou nulo para todos.
@@ -105,15 +100,13 @@ _RESUMO_MESES = f"""
       ORDER BY despesas DESC, competencia DESC
       LIMIT 1
     )
-    SELECT
-      (SELECT round(avg(despesas), 2) FROM mensal WHERE NOT em_curso) AS media_mensal,
-      c.competencia, c.despesas, c.receitas, c.em_curso
+    SELECT c.competencia, c.despesas, c.receitas, c.em_curso
     FROM (SELECT 1) AS um
     LEFT JOIN mais_caro c ON true
 """
 
-#: Por raiz e por folha, divididos pelo número de meses (mês sem gasto conta
-#: como zero na média).
+#: Por raiz e por folha, divididos por `:n`, os meses com lançamento da janela
+#: (`app.medias`): mês da casa sem gasto na categoria conta como zero.
 _CATEGORIAS = f"""
     WITH base AS (
       SELECT
@@ -244,9 +237,17 @@ class AnalisesService:
         ]
         resumo = self.session.execute(text(_sql(_RESUMO_MESES, base)), params).one()
 
-        # Categorias: a média dos meses fechados, ou o próprio mês.
-        if fechados > 0:
-            de, ate, n = inicio, _somar_meses(fim, -1), fechados
+        # Média e categorias: os meses fechados com lançamento, ou o próprio
+        # mês quando não há nenhum.
+        media = (
+            media_mensal_despesas(
+                self.session, inicio, _somar_meses(fim, -1), base=base, pessoa=pessoa
+            )
+            if fechados > 0
+            else None
+        )
+        if media is not None and media.meses > 0:
+            de, ate, n = inicio, _somar_meses(fim, -1), media.meses
         else:
             de, ate, n = fim, fim, 1
         categorias = self._categorias(
@@ -265,10 +266,9 @@ class AnalisesService:
             dias_no_mes=calendar.monthrange(fim.year, fim.month)[1],
             meses=meses,
             meses_fechados=fechados,
-            base_categorias="media_mensal" if fechados > 0 else "mes",
-            media_mensal=(
-                Decimal(resumo.media_mensal) if resumo.media_mensal is not None else None
-            ),
+            base_categorias="media_mensal" if media is not None and media.meses > 0 else "mes",
+            media_mensal=media.media if media is not None else None,
+            meses_na_media=media.meses if media is not None else 0,
             mes_mais_caro=(
                 MesAnalise(
                     competencia=resumo.competencia,
@@ -288,13 +288,25 @@ class AnalisesService:
         )
 
     def _mudancas(
-        self, params: dict[str, Any], inicio: date, fim: date, fechados: int, base_tela: str
+        self,
+        params: dict[str, Any],
+        inicio: date,
+        fim: date,
+        fechados: int,
+        base_tela: BaseAnalise,
     ) -> Mudancas | None:
-        """O último mês fechado contra a média dos fechados antes dele."""
-        base = fechados - 1
-        if base < 1:
+        """O último mês fechado contra a média dos fechados antes dele.
+
+        Os meses de base são só os com lançamento (`app.medias`).
+        """
+        if fechados < 2:
             return None
         referencia = _somar_meses(fim, -1)
+        base = media_mensal_despesas(
+            self.session, inicio, _somar_meses(referencia, -1), base=base_tela
+        ).meses
+        if base < 1:
+            return None
         linhas = self.session.execute(
             text(_sql(_MUDANCAS, base_tela)),
             {

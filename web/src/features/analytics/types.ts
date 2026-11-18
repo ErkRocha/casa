@@ -69,6 +69,7 @@ export interface Analises {
   meses_fechados: number;
   base_categorias: "media_mensal" | "mes";
   media_mensal: Dinheiro | null;
+  meses_na_media: number;
   mes_mais_caro: MesAnalise | null;
   categorias: CategoriaAnalise[];
   mudancas: Mudancas | null;
