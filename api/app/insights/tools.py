@@ -76,6 +76,15 @@ MINIMO_MESES_RECORRENTE = 3
 #: Variação abaixo disso não é reajuste, é arredondamento ou variação de uso.
 LIMIAR_REAJUSTE = Decimal("0.02")
 
+#: Cobrança de valor quase fixo: antes do aumento, o maior mês não passa o
+#: menor em mais do que isto. Assinatura e conta passam; mercado, restaurante
+#: e gasto variável não.
+VARIACAO_ESTAVEL = Decimal("0.05")
+
+#: Aumento acima disto de um mês para o outro não é reajuste, é outra
+#: cobrança com o mesmo nome (um plano trocado, duas compras somadas).
+AUMENTO_MAXIMO_REAJUSTE = Decimal("0.5")
+
 
 def somar_meses(competencia: date, meses: int) -> date:
     total = competencia.month - 1 + meses
@@ -466,13 +475,21 @@ def recorrencias_com_reajuste(
     meses: int = JANELA_PADRAO,
     limiar: Decimal = LIMIAR_REAJUSTE,
 ) -> Reajustes:
-    """Cobranças que se repetem todo mês e subiram de valor.
+    """Cobranças recorrentes de valor quase fixo que subiram de valor (D-32).
 
     O caso que isto pega é a assinatura que reajusta em silêncio: ninguém
     percebe R$ 19,90 virar R$ 27,90, porque o débito continua acontecendo.
 
-    Parcelamento fica de fora (`parcela_total IS NULL`) — parcela repete por
-    construção e o valor sobe quando muda de compra, não por reajuste.
+    Só conta como recorrente o mesmo estabelecimento com **uma** cobrança por
+    mês em pelo menos `MINIMO_MESES_RECORRENTE` meses **seguidos**, chegando
+    até o mês do relatório ou o anterior, com valor estável antes do aumento
+    (`VARIACAO_ESTAVEL`). O aviso compara o último mês com o anterior, e o
+    aumento fica entre `limiar` e `AUMENTO_MAXIMO_REAJUSTE`.
+
+    Ficam de fora: parcelamento (repete por construção), Pix e transferência
+    (o "mesmo estabelecimento" é uma pessoa, e o valor é o que se combinou),
+    e o que varia de mês a mês ou aparece várias vezes no mês (mercado,
+    restaurante, combustível).
     """
     inicio = somar_meses(competencia, -meses)
 
@@ -483,24 +500,50 @@ def recorrencias_com_reajuste(
                 lower(btrim(coalesce(descricao, descricao_original))) AS chave,
                 max(coalesce(descricao, descricao_original)) AS rotulo,
                 competencia,
-                sum(valor) AS valor
+                sum(valor) AS valor,
+                count(*) AS lancamentos
               FROM vw_transacoes_completa
               WHERE tipo = 'despesa'
                 AND parcela_total IS NULL
+                AND coalesce(CAST(forma_pagamento_tipo AS text), '') NOT IN ('pix', 'transferencia')
                 AND coalesce(descricao, descricao_original) IS NOT NULL
                 AND competencia >= :inicio AND competencia <= :competencia
               GROUP BY 1, 3
             ),
+            -- Meses seguidos: o índice do mês menos a posição é constante numa
+            -- sequência sem buraco.
+            numerada AS (
+              SELECT b.*,
+                (extract(year FROM competencia) * 12 + extract(month FROM competencia))::int
+                - row_number() OVER (PARTITION BY chave ORDER BY competencia) AS grupo
+              FROM base b
+            ),
+            sequencias AS (
+              SELECT chave, grupo, max(rotulo) AS rotulo, count(*) AS meses,
+                min(competencia) AS primeira, max(competencia) AS ultima,
+                bool_and(lancamentos = 1) AS uma_por_mes
+              FROM numerada
+              GROUP BY chave, grupo
+            ),
+            -- A sequência mais recente de cada cobrança, que chega até o mês
+            -- do relatório ou o anterior.
+            atual AS (
+              SELECT DISTINCT ON (chave) *
+              FROM sequencias
+              ORDER BY chave, ultima DESC
+            ),
             recorrentes AS (
-              SELECT
-                chave,
-                max(rotulo) AS rotulo,
-                count(*) AS meses,
-                min(competencia) AS primeira,
-                max(competencia) AS ultima
-              FROM base
-              GROUP BY chave
-              HAVING count(*) >= :minimo_meses
+              SELECT a.*
+              FROM atual a
+              WHERE a.meses >= :minimo_meses
+                AND a.uma_por_mes
+                AND a.ultima >= (CAST(:competencia AS date) - interval '1 month')::date
+                -- Antes do aumento o valor era quase fixo.
+                AND (
+                  SELECT max(n.valor) <= min(n.valor) * (1 + :variacao_estavel)
+                  FROM numerada n
+                  WHERE n.chave = a.chave AND n.grupo = a.grupo AND n.competencia < a.ultima
+                )
             )
             SELECT
               r.rotulo AS descricao,
@@ -516,9 +559,11 @@ def recorrencias_com_reajuste(
                   AND t.competencia = r.ultima
               ) AS categoria
             FROM recorrentes r
-            JOIN base p ON p.chave = r.chave AND p.competencia = r.primeira
             JOIN base u ON u.chave = r.chave AND u.competencia = r.ultima
+            JOIN base p ON p.chave = r.chave
+              AND p.competencia = (r.ultima - interval '1 month')::date
             WHERE u.valor > p.valor * (1 + :limiar)
+              AND u.valor <= p.valor * (1 + :aumento_maximo)
             ORDER BY (u.valor - p.valor) DESC
             LIMIT 10
         """),
@@ -527,6 +572,8 @@ def recorrencias_com_reajuste(
             "inicio": inicio,
             "minimo_meses": MINIMO_MESES_RECORRENTE,
             "limiar": limiar,
+            "variacao_estavel": VARIACAO_ESTAVEL,
+            "aumento_maximo": AUMENTO_MAXIMO_REAJUSTE,
             "sem_categoria": SEM_CATEGORIA,
         },
     ).all()

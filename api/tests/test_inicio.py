@@ -324,6 +324,60 @@ def test_reajuste_vira_aviso(session: Session) -> None:
     )
 
 
+def _reajustes(session: Session) -> list[str]:
+    session.commit()
+    return [a.descricao for a in _resumo(session).avisos if a.tipo == "reajuste"]
+
+
+class TestReajusteSoParaCobrancaQuaseFixa:
+    """D-32: aviso de reajuste só para cobrança recorrente de valor quase fixo."""
+
+    def test_assinatura_com_aumento_gera_e_falsos_nao(self, session: Session) -> None:
+        pix = FormaPagamento(apelido="Pix", tipo=TipoPagamento.PIX)
+        cartao = FormaPagamento(apelido="Cartão", tipo=TipoPagamento.CREDITO)
+        session.add_all([pix, cartao])
+        session.flush()
+        for mes, valor in [(7, "29.90"), (8, "29.90"), (9, "29.90"), (10, "34.90")]:
+            c = date(2026, mes, 1)
+            _t(session, date(2026, mes, 8), valor, c, descricao="Assinatura", forma=cartao)
+        # Mercado: várias compras no mês, valor variável, subindo.
+        for mes, valores in [
+            (7, ["80", "120"]),
+            (8, ["95", "60"]),
+            (9, ["150"]),
+            (10, ["90", "200"]),
+        ]:
+            for i, valor in enumerate(valores):
+                c = date(2026, mes, 1)
+                _t(session, date(2026, mes, 3 + i), valor, c, descricao="Mercado X", forma=cartao)
+        # Pix para si: mesmo "estabelecimento" todo mês, valor subindo pouco.
+        for mes, valor in [(7, "100.00"), (8, "100.00"), (9, "100.00"), (10, "110.00")]:
+            c = date(2026, mes, 1)
+            _t(session, date(2026, mes, 10), valor, c, descricao="Pix para mim", forma=pix)
+        # Restaurante uma vez por mês, valor variável.
+        for mes, valor in [(7, "60.00"), (8, "85.00"), (9, "70.00"), (10, "90.00")]:
+            c = date(2026, mes, 1)
+            _t(session, date(2026, mes, 15), valor, c, descricao="Restaurante Y", forma=cartao)
+        assert _reajustes(session) == ["Assinatura"]
+
+    def test_meses_com_buraco_nao_sao_recorrencia(self, session: Session) -> None:
+        for mes, valor in [(5, "19.90"), (6, "19.90"), (8, "19.90"), (10, "24.90")]:
+            _t(session, date(2026, mes, 5), valor, date(2026, mes, 1), descricao="Clube")
+        assert _reajustes(session) == []
+
+    def test_salto_grande_nao_e_reajuste(self, session: Session) -> None:
+        # 24,90 -> 74,90 é outra cobrança com o mesmo nome, não reajuste.
+        for mes, valor in [(7, "24.90"), (8, "24.90"), (9, "24.90"), (10, "74.90")]:
+            _t(session, date(2026, mes, 5), valor, date(2026, mes, 1), descricao="Loja Z")
+        assert _reajustes(session) == []
+
+    def test_cobranca_que_parou_nao_avisa(self, session: Session) -> None:
+        # Último mês em julho: longe de outubro, não é cobrança viva.
+        for mes, valor in [(4, "9.90"), (5, "9.90"), (6, "9.90"), (7, "11.90")]:
+            _t(session, date(2026, mes, 5), valor, date(2026, mes, 1), descricao="Antiga")
+        assert _reajustes(session) == []
+
+
 def test_endpoint(client: TestClient, mes: dict[str, Any]) -> None:
     resposta = client.get("/analytics/inicio", params={"competencia": "2099-01-01"})
     assert resposta.status_code == 200, resposta.text
