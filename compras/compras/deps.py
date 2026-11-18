@@ -11,7 +11,7 @@ from compras.db import definir_autor, get_session
 from compras.financas import Financas, FinancasHttp
 from compras.nfce.consulta import ConsultaPublica, ConsultaSefazRs
 from compras.nfce.leitor import LeitorNota
-from compras.nfce.leitor_svrs import LeitorSvrsHtml
+from compras.nfce.leitor_rs import LeitorSefazRs
 from compras.services.identidades import IdentidadeService, nome_do_tailscale, normalizar_login
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -100,7 +100,7 @@ def consulta_publica() -> ConsultaPublica:
 
 
 def leitor_nota() -> LeitorNota:
-    return LeitorSvrsHtml()
+    return LeitorSefazRs()
 
 
 def financas() -> Financas:

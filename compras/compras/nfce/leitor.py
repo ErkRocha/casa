@@ -41,6 +41,11 @@ class NotaLida:
     valor_total: Decimal | None
     desconto_total: Decimal
     itens: list[ItemLido] = field(default_factory=list)
+    #: A versão do leitor específico de layout que leu a página (o composto
+    #: `LeitorSefazRs` escolhe entre vários); None se o leitor não informa.
+    versao: str | None = None
+    #: Ex.: "Cartão de Crédito". Só exposta; o service ainda não a grava.
+    forma_pagamento: str | None = None
 
 
 class LeitorNota(Protocol):

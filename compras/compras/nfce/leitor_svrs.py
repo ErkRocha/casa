@@ -1,8 +1,9 @@
 """Leitor da página da consulta pública da NFC-e no portal SVRS (RS).
 
-**Layout presumido, pendente de uma nota real.** Não havia amostra quando
-este leitor foi escrito (02/11/2026). Ele segue o layout conhecido da página
-"DANFE NFC-e" do portal SVRS, que o RS usa:
+**Layout do QR code, ainda sem validação com uma nota real.** A consulta
+pela chave lê a "Consulta Completa" (``leitor_completa.py``), validada com
+uma nota real em 18/11/2026. Este leitor segue o layout conhecido da página
+"DANFE NFC-e" do portal SVRS, que a URL do QR code pode mostrar:
 
 * emitente: ``.txtTopo`` (razão social), e no mesmo bloco ``.text`` com o
   CNPJ e outro com o endereço;
@@ -12,9 +13,9 @@ este leitor foi escrito (02/11/2026). Ele segue o layout conhecido da página
   R$:", "Descontos R$:");
 * emissão: o texto "Emissão: dd/mm/aaaa hh:mm:ss" em ``#infos``.
 
-Quando chegar uma nota de verdade (anonimizada, ver
-``tests/amostras/README.md``), o teste pendente passa a rodar contra ela. Se
-o layout real for outro, troque este leitor por outro com outra ``VERSAO``:
+Quando chegar uma amostra desse layout (anonimizada, ver
+``tests/amostras/README.md``), um teste passa a rodar contra ela. Se o
+layout real for outro, troque este leitor por outro com outra ``VERSAO``:
 as notas lidas por esta versão continuam com o conteúdo guardado e podem
 ser relidas.
 """
@@ -22,114 +23,23 @@ ser relidas.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
-from html.parser import HTMLParser
-from zoneinfo import ZoneInfo
+from decimal import Decimal
 
+from compras.nfce.html import (
+    FUSO,
+    _Arvore,
+    _decimal,
+    _depois_do_rotulo,
+    _gtin,
+    _No,
+    decodificar,
+)
 from compras.nfce.leitor import FormatoDesconhecido, ItemLido, NotaLida
 
+__all__ = ["FUSO", "VERSAO", "LeitorSvrsHtml"]
+
 VERSAO = "svrs-html-1"
-FUSO = ZoneInfo("America/Sao_Paulo")
-
-_VAZIOS = frozenset(
-    {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "wbr"}
-)
-
-
-# --- uma árvore mínima, só com a biblioteca padrão ------------------------------
-
-
-@dataclass
-class _No:
-    tag: str
-    attrs: dict[str, str]
-    filhos: list[_No | str] = field(default_factory=list)
-
-    @property
-    def classes(self) -> set[str]:
-        return set(self.attrs.get("class", "").split())
-
-    def texto(self) -> str:
-        partes: list[str] = []
-        for f in self.filhos:
-            partes.append(f if isinstance(f, str) else f.texto())
-        return " ".join(" ".join(partes).split())
-
-    def todos(self) -> list[_No]:
-        achados: list[_No] = []
-        for f in self.filhos:
-            if isinstance(f, _No):
-                achados.append(f)
-                achados.extend(f.todos())
-        return achados
-
-    def por_classe(self, classe: str) -> list[_No]:
-        return [n for n in self.todos() if classe in n.classes]
-
-    def por_id(self, id_: str) -> _No | None:
-        return next((n for n in self.todos() if n.attrs.get("id") == id_), None)
-
-
-class _Arvore(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.raiz = _No("raiz", {})
-        self._pilha = [self.raiz]
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        no = _No(tag, {k: v or "" for k, v in attrs})
-        self._pilha[-1].filhos.append(no)
-        if tag not in _VAZIOS:
-            self._pilha.append(no)
-
-    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        self._pilha[-1].filhos.append(_No(tag, {k: v or "" for k, v in attrs}))
-
-    def handle_endtag(self, tag: str) -> None:
-        # HTML real fecha fora de ordem: volta até a tag aberta mais próxima.
-        for i in range(len(self._pilha) - 1, 0, -1):
-            if self._pilha[i].tag == tag:
-                del self._pilha[i:]
-                return
-
-    def handle_data(self, data: str) -> None:
-        if data.strip():
-            self._pilha[-1].filhos.append(data)
-
-
-# --- números e datas no formato da página ---------------------------------------
-
-
-def _decimal(texto: str | None) -> Decimal | None:
-    """ "1.234,56" -> 1234.56; o primeiro número do texto."""
-    if not texto:
-        return None
-    achado = re.search(r"-?\d[\d.]*(?:,\d+)?", texto)
-    if not achado:
-        return None
-    try:
-        return Decimal(achado.group(0).replace(".", "").replace(",", "."))
-    except InvalidOperation:
-        return None
-
-
-def _depois_do_rotulo(no: _No) -> str:
-    """O texto de um campo como "Qtde.: 2", sem o rótulo."""
-    return no.texto().split(":", 1)[-1].strip()
-
-
-def _gtin(codigo: str | None) -> str | None:
-    """O código vira GTIN só quando é, com certeza razoável, um código de
-    barras brasileiro: 13 dígitos, prefixo GS1 Brasil (789/790) e dígito
-    verificador certo. Código interno do mercado fica só em `codigo`."""
-    if not codigo or not re.fullmatch(r"\d{13}", codigo) or codigo[:3] not in {"789", "790"}:
-        return None
-    soma = sum(int(d) * (3 if i % 2 else 1) for i, d in enumerate(codigo[:12]))
-    return codigo if (10 - soma % 10) % 10 == int(codigo[12]) else None
-
-
 # --- o leitor --------------------------------------------------------------------
 
 
@@ -139,7 +49,7 @@ class LeitorSvrsHtml:
     def ler(self, conteudo: bytes, tipo: str | None) -> NotaLida:
         if tipo and "html" not in tipo.lower():
             raise FormatoDesconhecido(f"Este leitor lê HTML, não {tipo}.")
-        texto = conteudo.decode("utf-8", errors="replace")
+        texto = decodificar(conteudo)
         arvore = _Arvore()
         arvore.feed(texto)
         arvore.close()
@@ -163,6 +73,7 @@ class LeitorSvrsHtml:
             valor_total=valor_total,
             desconto_total=desconto or Decimal("0"),
             itens=itens,
+            versao=VERSAO,
         )
 
     def _itens(self, tabela: _No) -> list[ItemLido]:

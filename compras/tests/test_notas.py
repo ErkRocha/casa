@@ -243,7 +243,7 @@ def test_leitor_nao_entendeu_guarda_o_conteudo_e_rele_sem_buscar(
     consulta.paginas[chave()] = b"<html><body>Pagina diferente</body></html>"
     nota = ler(client, url_qr(chave())).json()
     assert nota["status"] == "erro"
-    assert "svrs-html-1" in nota["erro_mensagem"]
+    assert "sefaz-rs-1" in nota["erro_mensagem"]
     assert session.execute(
         text("SELECT conteudo_original IS NOT NULL FROM compras.notas_fiscais")
     ).scalar_one()

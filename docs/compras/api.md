@@ -155,11 +155,11 @@ Sem telas ainda (D-15: precisam de desenho antes). Toda escrita exige
 mesmo mercado > apelido sem mercado > apelido de outro mercado, só se todos
 concordam. Nada disso: o item fica sem produto, na fila.
 
-**Pendente de uma nota real** (roadmap): o leitor da página
-(`compras/nfce/leitor_svrs.py`, versão `svrs-html-1`) segue o layout
-presumido do portal SVRS, e a URL montada só com a chave
-(`entrada.URL_CONSULTA_POR_CHAVE`) também não foi conferida. O teste contra
-a amostra fica pulado até existir `compras/tests/amostras/nfce_rs_anonimizada.html`.
+**Validado com uma nota real em 18/11/2026**: a chave pura abre o formulário
+da "Consulta Completa" (`entrada.URL_FORMULARIO_POR_CHAVE`) e a consulta o
+envia; `LeitorSefazRs` (`sefaz-rs-1`) lê essa página (`sefaz-rs-completa-1`,
+`leitor_completa.py`). O layout do QR code (`leitor_svrs.py`, `svrs-html-1`)
+ainda não tem amostra real; a Consulta Completa não traz GTIN.
 
 ---
 

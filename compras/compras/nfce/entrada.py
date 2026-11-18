@@ -1,8 +1,8 @@
 """O que o usuário cola ou o celular lê: a URL do QR code ou a chave.
 
 A URL vem de fora, então só é aceita a de um endereço conhecido da SEFAZ-RS
-(nada de o serviço buscar um endereço qualquer). Sem URL, a de consulta é
-montada pela chave.
+(nada de o serviço buscar um endereço qualquer). Sem URL, a consulta abre o
+formulário da "Consulta Completa" pela chave (`URL_FORMULARIO_POR_CHAVE`).
 """
 
 from __future__ import annotations
@@ -19,10 +19,13 @@ HOSTS_PERMITIDOS = frozenset(
     {"www.sefaz.rs.gov.br", "sefaz.rs.gov.br", "dfe-portal.svrs.rs.gov.br"}
 )
 
-#: A consulta montada só com a chave, quando não há URL. É o parâmetro `p`
-#: do QR code versão 2 sem o resto; **pendente de validação com uma nota
-#: real** (roadmap, "Nota fiscal e preços").
-URL_CONSULTA_POR_CHAVE = "https://www.sefaz.rs.gov.br/NFCE/NFCE-COM.aspx?p={chave}"
+#: Abre o formulário da "Consulta Completa" com a chave preenchida; a consulta
+#: (`ConsultaSefazRs`) envia esse formulário. Validado com uma nota real em
+#: 18/11/2026. A URL `NFCE-COM.aspx?p=<chave>`, só com a chave, responde
+#: "902 - Parâmetros informados inválidos".
+URL_FORMULARIO_POR_CHAVE = (
+    "https://www.sefaz.rs.gov.br/ASP/AAE_ROOT/NFE/SAT-WEB-NFE-NFC_1.asp?chaveNFe={chave}"
+)
 
 #: UFs cuja consulta pública este serviço sabe buscar.
 UFS_SUPORTADAS = frozenset({"RS"})
@@ -83,6 +86,6 @@ def interpretar(texto: str) -> Entrada:
     url = (
         urlsplit(bruto)._replace(scheme="https").geturl()
         if do_qr
-        else URL_CONSULTA_POR_CHAVE.format(chave=chave.numero)
+        else URL_FORMULARIO_POR_CHAVE.format(chave=chave.numero)
     )
     return Entrada(chave=chave, url_consulta=url, do_qr_code=do_qr)

@@ -1,7 +1,7 @@
-"""Chave de acesso, entrada (URL ou chave) e o leitor da página do SVRS.
+"""Chave de acesso, entrada (URL ou chave) e os leitores da página da nota.
 
-Nada aqui fala com a SEFAZ nem depende de nota real, exceto o teste da
-amostra, que fica pendente até o usuário fornecer uma nota anonimizada.
+Nada aqui fala com a SEFAZ. O teste da amostra lê a Consulta Completa de
+uma nota real, anonimizada (tests/amostras).
 """
 
 from datetime import datetime
@@ -13,6 +13,7 @@ import pytest
 from compras.nfce.chave import ChaveInvalida, digito_verificador, validar
 from compras.nfce.entrada import EntradaInvalida, interpretar
 from compras.nfce.leitor import FormatoDesconhecido
+from compras.nfce.leitor_rs import LeitorSefazRs
 from compras.nfce.leitor_svrs import FUSO, VERSAO, LeitorSvrsHtml
 from tests.nfce_apoio import CNPJ_A, Item, chave, pagina, url_qr
 
@@ -87,7 +88,18 @@ def test_entrada_pela_chave_monta_a_url() -> None:
     numero = chave()
     e = interpretar(f"  {numero}  ")
     assert not e.do_qr_code
-    assert numero in e.url_consulta
+    assert e.url_consulta == (
+        f"https://www.sefaz.rs.gov.br/ASP/AAE_ROOT/NFE/SAT-WEB-NFE-NFC_1.asp?chaveNFe={numero}"
+    )
+
+
+def test_entrada_pela_url_publica_com_a_chave() -> None:
+    numero = chave()
+    url = f"https://www.sefaz.rs.gov.br/NFE/NFE-NFC.aspx?chaveNFe={numero}"
+    e = interpretar(url)
+    assert e.do_qr_code
+    assert e.chave.numero == numero
+    assert e.url_consulta == url
 
 
 @pytest.mark.parametrize(
@@ -174,22 +186,42 @@ def test_versao_do_leitor() -> None:
     assert LeitorSvrsHtml().versao == VERSAO
 
 
-@pytest.mark.skipif(
-    not AMOSTRA_REAL.exists(),
-    reason=(
-        "PENDENTE: falta uma NFC-e real do RS, anonimizada, em "
-        "tests/amostras/nfce_rs_anonimizada.html (ver tests/amostras/README.md)"
-    ),
-)
 def test_leitor_com_amostra_real_anonimizada() -> None:
-    """Valida o layout presumido contra uma nota de verdade.
+    """A Consulta Completa de uma nota real (Zaffari, 15/11/2026), anonimizada."""
+    nota = LeitorSefazRs().ler(AMOSTRA_REAL.read_bytes(), "text/html")
+    assert nota.versao == "sefaz-rs-completa-1"
+    assert nota.cnpj == "93015006002914"
+    assert nota.razao_social == "COMPANHIA ZAFFARI COMERCIO E INDUSTRIA"
+    assert nota.cidade == "PASSO FUNDO"
+    assert nota.emitida_em == datetime(2026, 11, 15, 19, 44, 33, tzinfo=FUSO)
+    assert nota.valor_total == Decimal("398.56")
+    assert nota.desconto_total == Decimal("0")
+    assert nota.forma_pagamento == "Cartão de Crédito"
+    assert len(nota.itens) == 24
+    assert sum(i.valor_total for i in nota.itens) == Decimal("398.56")
+    assert all(i.gtin is None for i in nota.itens)
+    primeiro, segundo = nota.itens[0], nota.itens[1]
+    assert primeiro.descricao == "PAO CACETINHO"
+    assert primeiro.quantidade == Decimal("0.5119")
+    assert primeiro.unidade == "KG"
+    assert primeiro.valor_unitario == Decimal("15.9")
+    assert primeiro.valor_total == Decimal("8.14")
+    assert primeiro.codigo == "1077397"
+    assert segundo.descricao == "IOG GREGO BATAVO TRAD 450G"
+    assert segundo.quantidade == Decimal("2")
+    assert segundo.unidade == "UN"
+    assert segundo.valor_unitario == Decimal("11.98")
+    assert segundo.valor_total == Decimal("23.96")
 
-    O que se confere é o que não depende dos dados anonimizados: há itens, e
-    cada um tem descrição, quantidade e valor; há emissão e valor a pagar.
-    """
-    nota = LeitorSvrsHtml().ler(AMOSTRA_REAL.read_bytes(), "text/html")
-    assert nota.itens
-    assert all(i.descricao and i.quantidade > 0 and i.valor_total >= 0 for i in nota.itens)
-    assert nota.emitida_em is not None
-    assert nota.valor_total is not None
-    assert nota.cnpj is not None and len(nota.cnpj) == 14
+
+def test_composto_escolhe_o_leitor_do_qr_code() -> None:
+    nota = LeitorSefazRs().ler(pagina([Item("ARROZ 5KG", "1", "25.90")]), "text/html")
+    assert nota.versao == "svrs-html-1"
+    assert LeitorSefazRs().versao == "sefaz-rs-1"
+
+
+def test_composto_recusa_html_desconhecido() -> None:
+    with pytest.raises(FormatoDesconhecido, match="nem a Consulta Completa"):
+        LeitorSefazRs().ler(b"<html><body>902 - Parametros invalidos</body></html>", "text/html")
+    with pytest.raises(FormatoDesconhecido, match="HTML"):
+        LeitorSefazRs().ler(b"<nfeProc/>", "application/xml")

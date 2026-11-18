@@ -1,19 +1,29 @@
 # Amostras de NFC-e para os testes
 
-O leitor `compras/nfce/leitor_svrs.py` foi escrito sem nenhuma nota real
-(02/11/2026), seguindo o layout presumido do portal SVRS. O teste
-`test_leitor_com_amostra_real_anonimizada` fica **pulado** até existir aqui
-o arquivo `nfce_rs_anonimizada.html`.
+**O repositório é público.** Nada de nota real sem anonimizar, e a página
+bruta nunca vai para o git.
 
-**O repositório é público.** Nada de nota real sem anonimizar.
+## O que há aqui
 
-## Como fornecer a amostra
+`nfce_rs_anonimizada.html` é a página "Consulta Completa da NFC-e" de uma
+nota real (Zaffari, 15/11/2026), anonimizada: CPF zerado; chave, número,
+série e protocolo inventados. Itens, valores, CNPJ e endereço do mercado
+foram mantidos (são públicos). Lida por `compras/nfce/leitor_completa.py`
+(`test_leitor_com_amostra_real_anonimizada`, em `test_nfce.py`). A página
+vem em iso-8859-1.
 
-1. Pegue uma NFC-e de mercado do RS e leia pelo serviço
+**Falta** uma amostra do layout do QR code (portal SVRS, `#tabResult`),
+lido por `leitor_svrs.py`, que hoje só é testado com páginas sintéticas
+(`tests/nfce_apoio.py`).
+
+## Como acrescentar uma amostra
+
+1. Leia uma NFC-e de mercado do RS pelo serviço
    (`POST /api/compras/notas`, ver o README da raiz). A página fica guardada
    inteira em `compras.notas_fiscais.conteudo_original`.
 2. Salve a página **fora do git**, com o sufixo `.bruta.html` (o
-   `.gitignore` recusa esse sufixo nesta pasta):
+   `.gitignore` recusa esse sufixo nesta pasta). Nunca commite a página
+   bruta:
 
    ```bash
    source scripts/local/ambiente.sh && cd compras && python - <<'EOF'
@@ -29,15 +39,15 @@ o arquivo `nfce_rs_anonimizada.html`.
    ```
 
    (ou peça ao Claude Code para extrair a última nota.)
-3. Anonimize numa cópia `nfce_rs_anonimizada.html`, mantendo a estrutura
-   HTML intacta (tags, `id`, `class`):
+3. Anonimize numa cópia, mantendo a estrutura HTML intacta (tags, `id`,
+   `class`) e a codificação original (iso-8859-1 na Consulta Completa):
    - **CPF do consumidor**, nome e qualquer dado do comprador: apague ou
      troque por `000.000.000-00`;
-   - **chave de acesso**, protocolo de autorização e QR code: troque por
-     dígitos inventados;
+   - **chave de acesso**, número, série, protocolo de autorização e QR
+     code: troque por dígitos inventados;
    - forma de pagamento e últimos dígitos de cartão: troque;
    - CNPJ, razão social e endereço do mercado podem ficar (são públicos),
      ou troque se preferir; os itens e valores podem ficar.
-4. Rode `cd compras && pytest tests/test_nfce.py`. Se o teste falhar, o
-   layout real é outro: ajuste o leitor (com outra `VERSAO`) e acrescente
-   asserções específicas da amostra.
+4. Rode `make compras-test`. Se o teste falhar, o layout mudou: ajuste o
+   leitor (com outra `VERSAO`) e acrescente asserções específicas da
+   amostra.

@@ -34,8 +34,8 @@ from compras.models import Apelido, NotaFiscal, NotaItem, Produto
 from compras.nfce.chave import Chave, validar
 from compras.nfce.consulta import ConsultaFalhou, ConsultaPublica
 from compras.nfce.entrada import EntradaInvalida, interpretar
+from compras.nfce.html import FUSO
 from compras.nfce.leitor import FormatoDesconhecido, LeitorNota
-from compras.nfce.leitor_svrs import FUSO
 from compras.normalizar import normalizar
 from compras.services.base import Conflito, NaoEncontrado, RegraViolada
 from compras.services.mercados import MercadoService
@@ -142,6 +142,7 @@ class NotaService:
             nota.erro_mensagem = f"Leitor {self.leitor.versao}: {exc}"
             self.session.flush()
             return
+        nota.leitor_versao = lida.versao or self.leitor.versao
         if lida.cnpj and lida.cnpj != chave.cnpj:
             nota.status = StatusNota.ERRO
             nota.erro_mensagem = (
