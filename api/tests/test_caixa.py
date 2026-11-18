@@ -13,6 +13,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
+import pytest
 from sqlalchemy.orm import Session
 
 from app.conversao_pluggy import OBS_PAGAMENTO_NA_CONTA, OBS_PAGAMENTO_NO_CARTAO
@@ -23,6 +24,7 @@ from app.models import (
     FormaPagamento,
     Importacao,
     ImportacaoItem,
+    Pessoa,
     PluggyPendente,
     Transacao,
 )
@@ -507,13 +509,15 @@ def test_pendente_que_virou_lancada_nao_conta_duas_vezes(session: Session) -> No
     r = _resumo(session)
     aberta = r.faturas_abertas[0]
     assert (aberta.valor, aberta.pendente) == (Decimal("25.00"), Decimal("5.00"))
+    # D-32: o gasto do Início é a fatura do mês, com a pendente; p1 conta uma vez.
+    assert (r.gasto, r.gasto_pendente) == (Decimal("25.00"), Decimal("5.00"))
 
     item.deleted_em = datetime.now(UTC)
     session.commit()
     r = _resumo(session)
     aberta = r.faturas_abertas[0]
     assert (aberta.valor, aberta.pendente) == (Decimal("45.00"), Decimal("25.00"))
-    assert r.gasto == Decimal("20.00")  # pendente nunca entra no gasto
+    assert (r.gasto, r.gasto_pendente) == (Decimal("45.00"), Decimal("25.00"))
 
 
 def test_fatura_aberta_com_pendentes(session: Session) -> None:
@@ -543,7 +547,7 @@ def test_fatura_aberta_com_pendentes(session: Session) -> None:
     )
 
 
-def test_gasto_pela_data_da_compra_difere_do_da_competencia(session: Session) -> None:
+def test_gasto_do_mes_difere_do_caixa(session: Session) -> None:
     banco = _conta(session, "Banco")
     a = _forma(session, "Cartão A", TipoPagamento.CREDITO, banco, fecha=20, vence=10)
     pix = _forma(session, "Pix", TipoPagamento.PIX, banco)
@@ -557,10 +561,12 @@ def test_gasto_pela_data_da_compra_difere_do_da_competencia(session: Session) ->
     session.commit()
 
     nov = _em(session, hoje, NOVEMBRO)
-    # D-31: o topo é pela data da compra; o caixa segue a competência (D-27).
-    assert nov.gasto == Decimal("10.00")
+    # D-32: o topo é a fatura do mês (o ciclo de 21/10 a 20/11 do cartão que
+    # fecha dia 20: 40 + a pendente 99) mais o Pix de novembro (10). O caixa
+    # segue a competência (D-27).
+    assert (nov.gasto, nov.gasto_pendente) == (Decimal("149.00"), Decimal("99.00"))
     assert nov.gasto_mes_anterior == Decimal("7.00")  # outubro até o dia 5
-    assert nov.diferenca_mes_anterior == Decimal("3.00")
+    assert nov.diferenca_mes_anterior == Decimal("142.00")
     assert nov.caixa.saiu_da_conta == {p.dia: p.acumulado for p in nov.caixa.serie}[5]
     assert nov.caixa.saiu_da_conta == Decimal("10.00")
     assert nov.caixa.serie[-1].com_a_pagar == Decimal("50.00")  # fatura 40 + Pix 10
@@ -571,9 +577,118 @@ def test_gasto_pela_data_da_compra_difere_do_da_competencia(session: Session) ->
     )
 
     out = _em(session, hoje, OUTUBRO)
-    assert out.gasto == Decimal("67.00")
+    assert out.gasto == Decimal("27.00")  # só o Pix: a compra de 28/10 é do ciclo de novembro
     assert out.gasto_mes_anterior == Decimal("0")
     assert out.caixa.serie[-1].com_a_pagar == Decimal("27.00")
 
     fut = _em(session, hoje, date(2026, 12, 1))
     assert (fut.gasto, fut.caixa.saiu_da_conta) == (Decimal("0"), Decimal("0"))
+
+
+class TestGastoDoMesD32:
+    """D-32: a fatura do mês de cada cartão (lançadas e pendentes) mais o resto.
+
+    "Hoje" é 18/11/2026. Cartão A fecha dia 3 e Cartão B dia 20: o ciclo de
+    novembro do A vai de 04/11 a 03/12, o do B de 21/10 a 20/11 (é quase todo
+    de novembro). A compra antes do fechamento é do ciclo anterior.
+
+        A  10/10  15  ciclo de outubro
+        A  02/11  50  ciclo de outubro (antes do fechamento de 03/11)
+        A  04/11  30  novembro
+        A  13/11  60  novembro; também pendente pa2 já no staging: conta uma vez
+        A  18/11   5  novembro
+        A  19/11 999  depois de hoje: fora
+        A  12/11  25  pendente pa1 (titular Erik)
+        B  19/10  40  ciclo de outubro (antes do fechamento de 20/10)
+        B  21/10  70  novembro
+        B  10/11  20  novembro
+        B  15/11   9  pendente pb1 (titular da conta: Laura)
+        Pix 31/10 11  outubro
+        Pix 05/11  8  novembro
+
+    Novembro: A 30+60+5+25 = 120, B 70+20+9 = 99, Pix 8 -> 227 (34 pendente).
+    Outubro inteiro: A 15+50, B 40, Pix 11 -> 116. 116 + 227 = 343, todas as
+    compras até hoje, cada uma uma vez.
+    """
+
+    HOJE = date(2026, 11, 18)
+
+    @pytest.fixture
+    def cenario(self, session: Session) -> dict[str, Any]:
+        erik, laura = Pessoa(nome="Erik"), Pessoa(nome="Laura")
+        session.add_all([erik, laura])
+        session.flush()
+        banco = _conta(session, "Banco")
+        conta_b = Conta(nome="Banco B", tipo=TipoConta.CORRENTE, titular_id=laura.id)
+        session.add(conta_b)
+        session.flush()
+        a = _forma(session, "Cartão A", TipoPagamento.CREDITO, banco, fecha=3, vence=10)
+        a.titular_id = erik.id
+        b = _forma(session, "Cartão B", TipoPagamento.CREDITO, conta_b, fecha=20, vence=27)
+        pix = _forma(session, "Pix", TipoPagamento.PIX, banco)
+        liga_a = _liga_pluggy(session, a, banco, "acc-a")
+        liga_b = _liga_pluggy(session, b, conta_b, "acc-b")
+        for forma, data, valor in [
+            (a, date(2026, 10, 10), "15.00"),
+            (a, date(2026, 11, 2), "50.00"),
+            (a, date(2026, 11, 4), "30.00"),
+            (a, date(2026, 11, 13), "60.00"),
+            (a, date(2026, 11, 18), "5.00"),
+            (a, date(2026, 11, 19), "999.00"),
+            (b, date(2026, 10, 19), "40.00"),
+            (b, date(2026, 10, 21), "70.00"),
+            (b, date(2026, 11, 10), "20.00"),
+            (pix, date(2026, 10, 31), "11.00"),
+            (pix, date(2026, 11, 5), "8.00"),
+        ]:
+            _gasto(session, forma, data, valor, data.replace(day=1))
+        _pendente(session, liga_a, "pa1", date(2026, 11, 12), "25.00")
+        _pendente(session, liga_a, "pa2", date(2026, 11, 13), "60.00")
+        _item_staging(session, "pa2", date(2026, 11, 13), "60.00")  # já consolidou
+        _pendente(session, liga_b, "pb1", date(2026, 11, 15), "9.00")
+        session.commit()
+        return {"erik": erik, "laura": laura}
+
+    def test_fatura_do_mes_de_dois_cartoes_e_pendentes(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        r = _em(session, self.HOJE)
+        assert (r.gasto, r.gasto_pendente) == (Decimal("227.00"), Decimal("34.00"))
+        # Outubro até o dia 18, na mesma regra: só a compra de 10/10 do A.
+        assert r.gasto_mes_anterior == Decimal("15.00")
+        assert r.diferenca_mes_anterior == Decimal("212.00")
+
+    def test_cada_compra_conta_em_um_mes_so(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        outubro = _em(session, self.HOJE, OUTUBRO)
+        assert outubro.situacao == "passado"
+        assert outubro.gasto == Decimal("116.00")
+        novembro = _em(session, self.HOJE)
+        assert outubro.gasto + novembro.gasto == Decimal("343.00")
+
+    def test_partes_somam_o_gasto_com_pendentes(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        r = _em(session, self.HOJE)
+        assert sum((p.valor for p in r.pessoas), Decimal(0)) == r.gasto
+        assert sum((c.valor for c in r.categorias), Decimal(0)) == r.gasto
+        pessoas = {p.nome: p.valor for p in r.pessoas}
+        # Pendente vai para o titular do cartão: pa1 (A, Erik), pb1 (conta do B, Laura).
+        assert pessoas == {
+            "Erik": Decimal("25.00"),
+            "Laura": Decimal("9.00"),
+            "Juntos": Decimal("193.00"),
+        }
+        # Sem categoria em nada: tudo cai em "Sem categoria", pendentes inclusive.
+        assert [(c.tipo, c.valor) for c in r.categorias] == [("sem_categoria", Decimal("227.00"))]
+
+    def test_pendentes_ficam_fora_do_oficial(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        from app.insights import tools
+
+        # D-28: relatório e orçamento oficial não veem pendente.
+        assert tools.resumo_mensal(session, NOVEMBRO, hoje=self.HOJE).despesas == Decimal(
+            "1172.00"  # competência de novembro: 50+30+60+5+999+20+8, sem os 25 e 9
+        )

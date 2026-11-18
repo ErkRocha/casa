@@ -9,7 +9,7 @@ import type { RevisarResumo } from "@/features/revisar/types";
 import { inteiro, reais } from "@/lib/format";
 import { href } from "@/lib/rotas";
 import { cn } from "@/lib/utils";
-import { COR_FAIXA, textoComparacao, textoRevisar } from "../textos";
+import { COR_FAIXA, textoComparacao, textoPendente, textoRevisar } from "../textos";
 import type { AvisoOrcamento, AvisoReajuste, Inicio } from "../types";
 
 function BarraOrcamento({ i, grossa = false }: { i: Inicio; grossa?: boolean }) {
@@ -88,7 +88,7 @@ function CaixaOrcamento({ i, compacta = false }: { i: Inicio; compacta?: boolean
           <>
             {`${i.orcamento.percentual_usado}% já usado`}
             <br />
-            pela data da compra
+            pelo gasto do mês
           </>
         ) : (
           "Nenhuma meta neste mês"
@@ -148,9 +148,15 @@ export function ResumoComputador({ i }: { i: Inicio }) {
         valor={reais(i.gasto)}
         apoio={
           <>
+            {textoPendente(i) ? (
+              <>
+                {textoPendente(i)}
+                <br />
+              </>
+            ) : null}
             {textoComparacao(i)}
             <br />
-            pela data da compra
+            cartão pela fatura do mês
           </>
         }
         tom="nenhum"
@@ -181,9 +187,15 @@ export function ResumoCelular({ i, grafico }: { i: Inicio; grafico: ReactNode })
           {reais(i.gasto)}
         </span>
         <span className="text-pequeno text-texto-2">
+          {textoPendente(i) ? (
+            <>
+              {textoPendente(i)}
+              <br />
+            </>
+          ) : null}
           {textoComparacao(i)}
           <br />
-          pela data da compra
+          cartão pela fatura do mês
         </span>
       </div>
       <div className="grid grid-cols-2 gap-4">

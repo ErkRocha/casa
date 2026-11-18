@@ -4,11 +4,13 @@ Toda soma, diferença, percentual e a previsão saem do SQL abaixo; o Python
 só escolhe o mês e monta a resposta (regras 7 e 10, D-14). Transferência
 fica fora de tudo (D-05).
 
-**O topo é pela data da compra (D-31).** Gasto até hoje, a comparação com o
-mês anterior no mesmo dia, receitas, sobra, orçamento, quem gastou, por
-categoria e os avisos de orçamento saem todos de `_COMPRA`: despesas e
-receitas com data no mês, até o dia de referência, sem pendentes (D-28).
-Pessoas e categorias somam o gasto, e nenhum número do topo usa competência.
+**O topo é o gasto do mês da D-32** (ajusta a D-31). Cartão: a fatura do mês
+de cada cartão, do dia seguinte ao fechamento até hoje, pela data da compra,
+lançadas e pendentes (D-28). O resto (Pix, débito, boleto): pela data, no mês
+até hoje. A comparação com o mês anterior, o orçamento, quem gastou, por
+categoria e os avisos de orçamento saem da mesma base (`_cte_gasto`), numa
+consulta só (`_TOPO`). Pendente entra sem categoria e na pessoa titular do
+cartão. Pessoas e categorias somam o gasto. Receitas são pela data.
 
 **O caixa é um bloco à parte (D-27).** Faturas a pagar, o que já saiu da conta
 e a previsão de fechamento são por competência, desenhados pelo caixa: Pix,
@@ -25,7 +27,7 @@ fatura inteira entraria no ritmo e seria multiplicada pelos dias que faltam.
 from __future__ import annotations
 
 import calendar
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -128,122 +130,204 @@ _SERIE = f"""
     ORDER BY d.dia
 """
 
-#: A base do topo (D-31): despesas e receitas pela data da compra, no mês
-#: `:c` até o dia `:dia_ref`, sem pendentes (D-28).
-_COMPRA = """
-    SELECT t.tipo, t.valor, t.pessoa_id, t.categoria_id, t.categoria_nome
-    FROM vw_transacoes_completa t
-    WHERE t.tipo IN ('despesa', 'receita')
-      AND t.data >= CAST(:c AS date)
-      AND t.data < (CAST(:c AS date) + interval '1 month')::date
-      AND extract(day FROM t.data) <= :dia_ref
-"""
+#: Quantos dias depois do fechamento decidem de que mês é a fatura (D-32): o
+#: ciclo é do mês em que cai a maior parte dele. Cartão que fecha dia 3 abre
+#: o ciclo de novembro em 04/11; o que fecha dia 28 abre em 29/10 o ciclo que
+#: é quase todo de novembro.
+DIAS_ATE_O_MEIO_DO_CICLO = 15
 
-_TOTAIS = f"""
-    WITH base AS ({_COMPRA}),
-    atual AS (
-      SELECT
-        coalesce(sum(valor) FILTER (WHERE tipo = 'despesa'), 0) AS gasto,
-        coalesce(sum(valor) FILTER (WHERE tipo = 'receita'), 0) AS receitas
-      FROM base
+
+def _cte_gasto(nome: str, mes: str, ate_cartao: str, ate_outros: str) -> str:
+    """CTEs do "gasto até hoje" de um mês (D-32), com o prefixo `nome`.
+
+    Precisa de `caixa.CTES_FATURAS` e `caixa.CTE_PENDENTES` antes. A última CTE,
+    `{nome}`, tem uma linha por despesa: `valor`, `pessoa_id`, `categoria_id`,
+    `categoria_nome`, `categoria_raiz_id` e `pendente`.
+
+    * **Cartão com datas** (fatura da Pluggy, dia de fechamento cadastrado ou
+      a conta de crédito da Pluggy): as compras do ciclo que é do mês, do dia
+      seguinte ao fechamento até o próximo fechamento e até `ate_cartao`;
+      lançadas e pendentes (D-28). A compra antes do fechamento é do ciclo
+      anterior, contada no mês anterior: cada compra entra em um mês só.
+    * **O resto** (Pix, débito, boleto, dinheiro, sem forma, cartão sem
+      nenhuma data): pela data, no mês e até `ate_outros`.
+
+    `mes`, `ate_cartao` e `ate_outros` são nomes de parâmetro (":c"), nunca
+    texto do usuário.
+    """
+    m = f"CAST({mes} AS date)"
+    ac = f"CAST({ate_cartao} AS date)"
+    ao = f"CAST({ate_outros} AS date)"
+    return f"""
+    {nome}_fechs AS (
+      SELECT k.fid,
+        coalesce(
+          (SELECT max(fa.fechamento) FROM faturas fa
+            WHERE fa.account_id = k.account_id AND date_trunc('month', fa.fechamento) = x.m),
+          CASE WHEN k.dia_fechamento IS NOT NULL THEN {caixa.no_mes("x.m", "k.dia_fechamento")} END,
+          CASE WHEN date_trunc('month', k.cc_fecha) = x.m THEN k.cc_fecha END
+        ) AS fech
+      FROM cartao_conta k
+      CROSS JOIN (
+        SELECT ({m} + n * interval '1 month')::date AS m FROM generate_series(-2, 2) AS n
+      ) x
     ),
-    anterior AS (
-      SELECT coalesce(sum(t.valor), 0) AS gasto
+    {nome}_com_datas AS (
+      SELECT DISTINCT fid FROM {nome}_fechs WHERE fech IS NOT NULL
+    ),
+    {nome}_ciclos AS (
+      SELECT f.fid, f.fech AS desde,
+        least(
+          coalesce(
+            (SELECT min(g.fech) FROM {nome}_fechs g WHERE g.fid = f.fid AND g.fech > f.fech),
+            {ac}
+          ),
+          {ac}
+        ) AS ate
+      FROM {nome}_fechs f
+      WHERE f.fech IS NOT NULL
+        AND date_trunc('month', f.fech + {DIAS_ATE_O_MEIO_DO_CICLO}) = {m}
+    ),
+    {nome} AS (
+      SELECT t.valor, t.pessoa_id, t.categoria_id, t.categoria_nome, t.categoria_raiz_id,
+        false AS pendente
       FROM vw_transacoes_completa t
-      WHERE t.tipo = 'despesa'
-        AND t.data >= CAST(:p AS date) AND t.data < CAST(:c AS date)
-        AND extract(day FROM t.data) <= :dia_cmp
-    ),
-    meta AS (
-      SELECT sum(valor_meta) AS total
-      FROM orcamentos WHERE competencia = :c AND deleted_em IS NULL
+      WHERE t.tipo = 'despesa' AND (
+        EXISTS (
+          SELECT 1 FROM {nome}_ciclos z
+          WHERE z.fid = t.forma_pagamento_id AND t.data > z.desde AND t.data <= z.ate
+        )
+        OR (
+          (t.forma_pagamento_id IS NULL
+           OR t.forma_pagamento_id NOT IN (SELECT fid FROM {nome}_com_datas))
+          AND t.data >= {m} AND t.data < ({m} + interval '1 month')::date AND t.data <= {ao}
+        )
+      )
+      UNION ALL
+      SELECT p.valor, coalesce(f.titular_id, ct.titular_id), NULL::bigint, NULL::text,
+        NULL::bigint, true
+      FROM pendentes p
+      JOIN formas_pagamento f ON f.id = p.forma_pagamento_id
+      LEFT JOIN contas ct ON ct.id = f.conta_id
+      WHERE EXISTS (
+          SELECT 1 FROM {nome}_ciclos z
+          WHERE z.fid = p.forma_pagamento_id AND p.data > z.desde AND p.data <= z.ate
+        )
+        OR (
+          p.forma_pagamento_id NOT IN (SELECT fid FROM {nome}_com_datas)
+          AND p.data >= {m} AND p.data < ({m} + interval '1 month')::date AND p.data <= {ao}
+        )
+    )"""
+
+
+#: O topo do Início numa consulta só (D-32): o gasto do mês e o do mês
+#: anterior na mesma regra, receitas, orçamento, pessoas, categorias e os
+#: avisos de orçamento. As listas saem em JSON com dinheiro em texto (regra 1:
+#: nunca float no caminho).
+_TOPO = f"""
+    WITH {caixa.CTES_FATURAS},
+    {caixa.CTE_PENDENTES},
+    {_cte_gasto("atual", ":c", ":ate_cartao", ":ate_outros")},
+    {_cte_gasto("anterior", ":p", ":ate_cartao_p", ":ate_outros_p")},
+    totais AS (
+      SELECT
+        (SELECT coalesce(sum(valor), 0) FROM atual) AS gasto,
+        (SELECT coalesce(sum(valor), 0) FROM atual WHERE pendente) AS pendente,
+        (SELECT coalesce(sum(valor), 0) FROM anterior) AS gasto_anterior,
+        (SELECT coalesce(sum(t.valor), 0) FROM vw_transacoes_completa t
+          WHERE t.tipo = 'receita' AND t.data >= CAST(:c AS date)
+            AND t.data < (CAST(:c AS date) + interval '1 month')::date
+            AND t.data <= CAST(:ate_outros AS date)) AS receitas,
+        (SELECT sum(valor_meta) FROM orcamentos
+          WHERE competencia = CAST(:c AS date) AND deleted_em IS NULL) AS meta
     ),
     calculo AS (
-      SELECT
-        a.gasto,
-        a.receitas,
-        ant.gasto AS gasto_anterior,
-        m.total AS meta,
-        CASE WHEN m.total > 0 THEN a.gasto / m.total * 100 END AS razao
-      FROM atual a, anterior ant, meta m
-    )
-    SELECT
-      gasto,
-      receitas,
-      gasto_anterior,
-      gasto - gasto_anterior AS diferenca_anterior,
-      receitas - gasto AS sobra,
-      meta,
-      round(razao)::int AS percentual_usado,
-      {sql_faixa("razao")} AS faixa,
-      (SELECT count(*) FROM vw_transacoes_completa t
-       WHERE t.competencia = :c
-          OR (t.data >= CAST(:c AS date)
-              AND t.data < (CAST(:c AS date) + interval '1 month')::date)) AS lancamentos
-    FROM calculo
-"""
-
-#: Cada balde (pessoa ou conjunto, D-03) com o gasto do topo. Pessoa removida
-#: que tem gasto no mês continua listada: as linhas somam o gasto.
-_PESSOAS = f"""
-    WITH base AS ({_COMPRA}),
-    somas AS (
-      SELECT coalesce(cast(pessoa_id AS text), 'conjunto') AS balde, sum(valor) AS valor
-      FROM base WHERE tipo = 'despesa' GROUP BY 1
+      SELECT *, CASE WHEN meta > 0 THEN gasto / meta * 100 END AS razao FROM totais
     ),
-    total AS (SELECT sum(valor) AS total FROM somas),
-    baldes AS (
+    p_somas AS (
+      SELECT coalesce(cast(pessoa_id AS text), 'conjunto') AS balde, sum(valor) AS valor
+      FROM atual GROUP BY 1
+    ),
+    p_total AS (SELECT sum(valor) AS total FROM p_somas),
+    p_baldes AS (
       SELECT cast(id AS text) AS balde, nome, 0 AS ordem
       FROM pessoas
-      WHERE deleted_em IS NULL OR cast(id AS text) IN (SELECT balde FROM somas)
+      WHERE deleted_em IS NULL OR cast(id AS text) IN (SELECT balde FROM p_somas)
       UNION ALL
       SELECT 'conjunto', CAST(:juntos AS text), 1
-    )
-    SELECT
-      b.balde,
-      b.nome,
-      coalesce(s.valor, 0) AS valor,
-      CASE WHEN t.total > 0 THEN round(coalesce(s.valor, 0) / t.total * 100)::int ELSE 0 END
-        AS percentual
-    FROM baldes b
-    LEFT JOIN somas s ON s.balde = b.balde
-    CROSS JOIN total t
-    ORDER BY b.ordem, b.nome
-"""
-
-#: As maiores categorias, "Outras categorias" com o resto e "Sem categoria"
-#: no fim: as linhas somam o gasto do topo (D-31).
-_CATEGORIAS = f"""
-    WITH base AS ({_COMPRA}),
-    somas AS (
+    ),
+    p_linhas AS (
+      SELECT b.balde, b.nome, b.ordem, coalesce(s.valor, 0) AS valor,
+        CASE WHEN t.total > 0 THEN round(coalesce(s.valor, 0) / t.total * 100)::int ELSE 0 END
+          AS percentual
+      FROM p_baldes b
+      LEFT JOIN p_somas s ON s.balde = b.balde
+      CROSS JOIN p_total t
+    ),
+    c_somas AS (
       SELECT categoria_id, max(categoria_nome) AS nome, sum(valor) AS valor
-      FROM base WHERE tipo = 'despesa' GROUP BY categoria_id
+      FROM atual GROUP BY categoria_id
     ),
-    ranqueadas AS (
+    c_ranqueadas AS (
       SELECT s.*, row_number() OVER (ORDER BY valor DESC, nome) AS posicao
-      FROM somas s WHERE categoria_id IS NOT NULL
+      FROM c_somas s WHERE categoria_id IS NOT NULL
     ),
-    escolhidas AS (
+    c_escolhidas AS (
       SELECT 'categoria' AS tipo, 0 AS grupo, categoria_id, nome, valor
-      FROM ranqueadas WHERE posicao <= :top
+      FROM c_ranqueadas WHERE posicao <= :top
       UNION ALL
       SELECT 'outras', 1, NULL, CAST(:outras AS text), sum(valor)
-      FROM ranqueadas WHERE posicao > :top HAVING count(*) > 0
+      FROM c_ranqueadas WHERE posicao > :top HAVING count(*) > 0
       UNION ALL
       SELECT 'sem_categoria', 2, NULL, CAST(:sem_categoria AS text), valor
-      FROM somas WHERE categoria_id IS NULL
+      FROM c_somas WHERE categoria_id IS NULL
     ),
-    total AS (SELECT sum(valor) AS total, max(valor) AS maior FROM escolhidas)
+    c_total AS (SELECT sum(valor) AS total, max(valor) AS maior FROM c_escolhidas),
+    c_linhas AS (
+      SELECT e.*,
+        round(e.valor / t.total * 100)::int AS percentual,
+        round(e.valor / t.maior * 100)::int AS largura
+      FROM c_escolhidas e CROSS JOIN c_total t
+      WHERE t.total > 0
+    ),
+    o_linhas AS (
+      SELECT cat.nome AS categoria, o.valor_meta AS meta, coalesce(r.realizado, 0) AS realizado,
+        round(coalesce(r.realizado, 0) / o.valor_meta * 100, 1) AS percentual,
+        {sql_faixa("coalesce(r.realizado, 0) / o.valor_meta * 100")} AS situacao
+      FROM orcamentos o
+      JOIN categorias cat ON cat.id = o.categoria_id
+      LEFT JOIN LATERAL (
+        SELECT sum(a.valor) AS realizado FROM atual a WHERE a.categoria_raiz_id = o.categoria_id
+      ) r ON true
+      WHERE o.deleted_em IS NULL AND o.competencia = CAST(:c AS date) AND o.valor_meta > 0
+    )
     SELECT
-      e.tipo,
-      e.categoria_id,
-      e.nome,
-      e.valor,
-      round(e.valor / t.total * 100)::int AS percentual,
-      round(e.valor / t.maior * 100)::int AS largura
-    FROM escolhidas e CROSS JOIN total t
-    WHERE t.total > 0
-    ORDER BY e.grupo, e.valor DESC, e.nome
+      k.gasto,
+      k.pendente,
+      k.receitas,
+      k.gasto_anterior,
+      k.gasto - k.gasto_anterior AS diferenca_anterior,
+      k.receitas - k.gasto AS sobra,
+      k.meta,
+      round(k.razao)::int AS percentual_usado,
+      {sql_faixa("k.razao")} AS faixa,
+      (SELECT count(*) FROM vw_transacoes_completa t
+       WHERE t.competencia = CAST(:c AS date)
+          OR (t.data >= CAST(:c AS date)
+              AND t.data < (CAST(:c AS date) + interval '1 month')::date)) AS lancamentos,
+      (SELECT coalesce(json_agg(json_build_object(
+          'balde', balde, 'nome', nome, 'valor', valor::text, 'percentual', percentual)
+          ORDER BY ordem, nome), '[]') FROM p_linhas) AS pessoas,
+      (SELECT coalesce(json_agg(json_build_object(
+          'tipo', tipo, 'categoria_id', categoria_id, 'nome', nome, 'valor', valor::text,
+          'percentual', percentual, 'largura', largura)
+          ORDER BY grupo, valor DESC, nome), '[]') FROM c_linhas) AS categorias,
+      (SELECT coalesce(json_agg(json_build_object(
+          'categoria', categoria, 'meta', meta::text, 'realizado', realizado::text,
+          'percentual', percentual::text, 'situacao', situacao)
+          ORDER BY situacao = 'atencao', percentual DESC, categoria), '[]')
+        FROM o_linhas WHERE situacao <> 'ok') AS orcamento_avisos
+    FROM calculo k
 """
 
 
@@ -251,6 +335,37 @@ def _mes_anterior(competencia: date) -> date:
     if competencia.month == 1:
         return date(competencia.year - 1, 12, 1)
     return date(competencia.year, competencia.month - 1, 1)
+
+
+def _cortes(situacao: str, c: date, p: date, hoje: date, dias: int, dias_p: int) -> dict[str, date]:
+    """Até que data cada parte do gasto vale, no mês e no anterior (D-32).
+
+    Mês corrente: hoje, e o mês anterior até o mesmo dia. Mês fechado: o mês
+    inteiro, e o cartão até hoje (o ciclo do mês fecha no começo do seguinte).
+    Mês futuro: nada.
+    """
+    if situacao == "futuro":
+        nada = c - timedelta(days=1)
+        return {
+            "ate_cartao": date(1900, 1, 1),
+            "ate_outros": nada,
+            "ate_cartao_p": date(1900, 1, 1),
+            "ate_outros_p": nada,
+        }
+    if situacao == "corrente":
+        mesmo_dia = p.replace(day=min(hoje.day, dias_p))
+        return {
+            "ate_cartao": hoje,
+            "ate_outros": hoje,
+            "ate_cartao_p": mesmo_dia,
+            "ate_outros_p": mesmo_dia,
+        }
+    return {
+        "ate_cartao": hoje,
+        "ate_outros": c.replace(day=dias),
+        "ate_cartao_p": hoje,
+        "ate_outros_p": p.replace(day=dias_p),
+    }
 
 
 class InicioService:
@@ -281,7 +396,22 @@ class InicioService:
             "corrente": situacao == "corrente",
         }
 
-        t = self.session.execute(text(_TOTAIS), params).mappings().one()
+        t = (
+            self.session.execute(
+                text(_TOPO),
+                {
+                    "c": c,
+                    "p": p,
+                    **_cortes(situacao, c, p, self.hoje, dias, dias_p),
+                    "juntos": ROTULO_JUNTOS,
+                    "top": TOP_CATEGORIAS,
+                    "outras": OUTRAS_CATEGORIAS,
+                    "sem_categoria": tools.SEM_CATEGORIA,
+                },
+            )
+            .mappings()
+            .one()
+        )
         orcamento = (
             Orcamento(
                 total=Decimal(t["meta"]),
@@ -299,42 +429,15 @@ class InicioService:
             dia_referencia=dia_ref,
             tem_dados=int(t["lancamentos"]) > 0,
             gasto=Decimal(t["gasto"]),
+            gasto_pendente=Decimal(t["pendente"]),
             gasto_mes_anterior=Decimal(t["gasto_anterior"]),
             diferenca_mes_anterior=Decimal(t["diferenca_anterior"]),
             receitas=Decimal(t["receitas"]),
             sobra=Decimal(t["sobra"]),
             orcamento=orcamento,
-            pessoas=[
-                LinhaPessoaInicio(
-                    balde=linha.balde,
-                    nome=linha.nome,
-                    valor=Decimal(linha.valor),
-                    percentual=int(linha.percentual),
-                )
-                for linha in self.session.execute(
-                    text(_PESSOAS), {**params, "juntos": ROTULO_JUNTOS}
-                )
-            ],
-            categorias=[
-                LinhaCategoriaInicio(
-                    tipo=linha.tipo,
-                    categoria_id=linha.categoria_id,
-                    nome=linha.nome,
-                    valor=Decimal(linha.valor),
-                    percentual=int(linha.percentual),
-                    largura=int(linha.largura),
-                )
-                for linha in self.session.execute(
-                    text(_CATEGORIAS),
-                    {
-                        **params,
-                        "top": TOP_CATEGORIAS,
-                        "outras": OUTRAS_CATEGORIAS,
-                        "sem_categoria": tools.SEM_CATEGORIA,
-                    },
-                )
-            ],
-            avisos=self._avisos(c, situacao, dia_ref, dias - dia_ref),
+            pessoas=[LinhaPessoaInicio.model_validate(linha) for linha in t["pessoas"]],
+            categorias=[LinhaCategoriaInicio.model_validate(linha) for linha in t["categorias"]],
+            avisos=self._avisos(c, situacao, dias - dia_ref, t["orcamento_avisos"]),
             caixa=self._caixa(c, params),
             faturas_abertas=caixa.faturas_abertas(self.session, self.hoje),
         )
@@ -367,32 +470,30 @@ class InicioService:
         )
 
     def _avisos(
-        self, c: date, situacao: str, dia_ref: int, dias_restantes: int
+        self,
+        c: date,
+        situacao: str,
+        dias_restantes: int,
+        orcamento: list[dict[str, Any]],
     ) -> list[AvisoOrcamento | AvisoReajuste]:
-        """As detecções do relatório mensal, sem modelo nenhum (D-10).
+        """Orçamento na base do topo (D-32) e os reajustes do relatório (D-10).
 
         Mês futuro não tem o que detectar. A ordem é a de leitura: o que
-        estourou, o que está perto, e os reajustes. O orçamento é pela data
-        da compra até o dia de referência, como o resto do topo (D-31).
+        estourou, o que está em atenção, e os reajustes.
         """
         if situacao == "futuro":
             return []
-        avisos: list[AvisoOrcamento | AvisoReajuste] = []
-        orcamento = tools.status_orcamento(self.session, c, pela_compra_ate=c.replace(day=dia_ref))
-        for situacao_linha in ("estourado", "atencao"):
-            for linha in orcamento.linhas:
-                if linha.situacao != situacao_linha:
-                    continue
-                avisos.append(
-                    AvisoOrcamento(
-                        categoria=linha.categoria,
-                        percentual=linha.percentual,
-                        realizado=linha.realizado,
-                        meta=linha.meta,
-                        situacao=linha.situacao,
-                        dias_restantes=dias_restantes if situacao == "corrente" else None,
-                    )
-                )
+        avisos: list[AvisoOrcamento | AvisoReajuste] = [
+            AvisoOrcamento(
+                categoria=linha["categoria"],
+                percentual=Decimal(linha["percentual"]),
+                realizado=Decimal(linha["realizado"]),
+                meta=Decimal(linha["meta"]),
+                situacao=linha["situacao"],
+                dias_restantes=dias_restantes if situacao == "corrente" else None,
+            )
+            for linha in orcamento
+        ]
         for reajuste in tools.recorrencias_com_reajuste(self.session, c).linhas:
             avisos.append(
                 AvisoReajuste(

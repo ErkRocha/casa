@@ -304,53 +304,16 @@ def comparar_periodos(
     )
 
 
-#: Mesma conta de `vw_orcamento_mes` (a raiz soma as subcategorias), mas com
-#: o realizado pela data da compra até `:ate` (D-31, Início).
-_ORCAMENTO_PELA_COMPRA = """
-    SELECT
-      cat.nome AS categoria_nome,
-      o.valor_meta,
-      coalesce(r.realizado, 0) AS realizado,
-      CASE
-        WHEN o.valor_meta = 0 THEN 0
-        ELSE round(coalesce(r.realizado, 0) / o.valor_meta * 100, 1)
-      END AS percentual
-    FROM orcamentos o
-    JOIN categorias cat ON cat.id = o.categoria_id
-    LEFT JOIN LATERAL (
-      SELECT sum(t.valor) AS realizado
-      FROM vw_transacoes_completa t
-      WHERE t.tipo = 'despesa'
-        AND t.categoria_raiz_id = o.categoria_id
-        AND t.data >= o.competencia
-        AND t.data < (o.competencia + interval '1 month')::date
-        AND t.data <= CAST(:ate AS date)
-    ) r ON true
-    WHERE o.deleted_em IS NULL AND o.competencia = :competencia
-    ORDER BY percentual DESC
-"""
-
-
-def status_orcamento(
-    sessao: Session, competencia: date, *, pela_compra_ate: date | None = None
-) -> StatusOrcamento:
-    """Metas do mês contra o realizado.
-
-    Por padrão, por competência, direto da view (relatório, D-02). Com
-    `pela_compra_ate`, o realizado é pela data da compra, do dia 1 até essa
-    data (Início, D-31).
-    """
-    if pela_compra_ate is None:
-        consulta = """
+def status_orcamento(sessao: Session, competencia: date) -> StatusOrcamento:
+    """Metas do mês contra o realizado, por competência, direto da view."""
+    linhas = sessao.execute(
+        text("""
             SELECT categoria_nome, valor_meta, realizado, percentual
             FROM vw_orcamento_mes
             WHERE competencia = :competencia
             ORDER BY percentual DESC
-        """
-    else:
-        consulta = _ORCAMENTO_PELA_COMPRA
-    linhas = sessao.execute(
-        text(consulta), {"competencia": competencia, "ate": pela_compra_ate}
+        """),
+        {"competencia": competencia},
     ).all()
 
     def situacao(linha: Any) -> str:

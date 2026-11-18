@@ -1,5 +1,5 @@
 import type { RevisarResumo } from "@/features/revisar/types";
-import { nomeDoMes, reaisAbs, sinal } from "@/lib/format";
+import { nomeDoMes, reais, reaisAbs, sinal } from "@/lib/format";
 import type { FaixaOrcamento, Inicio } from "./types";
 
 /** Textos e cores do Início, fora dos componentes (hot reload, D-24). */
@@ -14,6 +14,11 @@ export const COR_FAIXA: Record<FaixaOrcamento, string> = {
 function mesAnterior(competencia: string): string {
   const mes = Number(competencia.split("-")[1] ?? "1");
   return nomeDoMes(mes === 1 ? 12 : mes - 1);
+}
+
+/** "inclui R$ 1.527,24 pendente no banco"; vazio sem pendente (D-32). */
+export function textoPendente(i: Inicio): string | null {
+  return sinal(i.gasto_pendente) > 0 ? `inclui ${reais(i.gasto_pendente)} pendente no banco` : null;
 }
 
 /** "R$ 312 a menos que setembro no dia 16". */

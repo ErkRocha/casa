@@ -150,7 +150,10 @@ export interface Inicio {
   dia_referencia: number;
   tem_dados: boolean;
   /** Despesas pela data da compra até `dia_referencia`, sem pendentes (D-31). */
+  /** D-32: fatura do mês de cada cartão (com pendentes) + Pix, débito e boleto. */
   gasto: Dinheiro;
+  /** Parte de `gasto` que ainda é pendente no banco (D-28). */
+  gasto_pendente: Dinheiro;
   gasto_mes_anterior: Dinheiro;
   diferenca_mes_anterior: Dinheiro;
   receitas: Dinheiro;

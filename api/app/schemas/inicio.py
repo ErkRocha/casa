@@ -3,9 +3,11 @@
 Tudo pronto para desenhar: somas, diferenças, percentuais e a previsão vêm
 calculados do banco. Dinheiro sai como `Decimal` (texto no JSON).
 
-**Duas bases, sem mistura (D-31).** O topo de `Inicio` (gasto, comparação,
-receitas, sobra, orçamento, pessoas, categorias e avisos de orçamento) é pela
-**data da compra**. O que sai da conta (D-27) fica todo em `caixa`.
+**Duas bases, sem mistura (D-31, D-32).** O topo de `Inicio` (gasto,
+comparação, orçamento, pessoas, categorias e avisos de orçamento) é o gasto do
+mês da D-32: a fatura do mês de cada cartão, com as pendentes, mais o resto
+pela data da compra. Receitas são pela data. O que sai da conta (D-27) fica
+todo em `caixa`.
 """
 
 from datetime import date
@@ -178,10 +180,14 @@ class Inicio(BaseModel):
     #: Algum lançamento (de qualquer tipo) com data no mês ou competência nele.
     tem_dados: bool
 
-    #: Despesas pela data da compra no mês, até o dia de referência (sem
-    #: pendentes, D-28). `pessoas` e `categorias` somam este valor.
+    #: O gasto do mês (D-32): a fatura do mês de cada cartão (do dia seguinte
+    #: ao fechamento até hoje, lançadas e pendentes) mais Pix, débito, boleto
+    #: e o resto pela data, até o dia de referência. `pessoas` e `categorias`
+    #: somam este valor.
     gasto: Decimal
-    #: O mesmo no mês anterior, até o mesmo dia.
+    #: Parte de `gasto` que ainda é compra pendente no banco (D-28).
+    gasto_pendente: Decimal
+    #: O mesmo, na mesma regra, no mês anterior até o mesmo dia.
     gasto_mes_anterior: Decimal
     #: `gasto - gasto_mes_anterior` (negativo = gastou menos).
     diferenca_mes_anterior: Decimal

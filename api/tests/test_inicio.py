@@ -231,11 +231,10 @@ class TestOutrosMeses:
 
 
 class TestPartesSomamOGasto:
-    """D-31: quem gastou e por categoria somam o gasto do topo.
+    """D-31, D-32: quem gastou e por categoria somam o gasto do topo.
 
-    Cartão que fecha dia 28: as compras de 27 e 28/09 são da fatura de
-    outubro, as de 29/09 em diante da de novembro. O topo é pela data da
-    compra, então a competência não pode puxar nada de um mês para o outro.
+    Cartão que fecha dia 28: o ciclo de outubro vai de 29/09 a 28/10 (é quase
+    todo de outubro), o de setembro de 29/08 a 28/09. O Pix vale pela data.
     """
 
     @pytest.fixture
@@ -258,12 +257,12 @@ class TestPartesSomamOGasto:
         session.flush()
         out, nov, set_ = OUTUBRO, date(2026, 11, 1), date(2026, 9, 1)
         compras = [
-            # setembro pela data: 205,00
+            # setembro: cartão 10 + 120 (ciclo até 28/09), Pix 15 -> 145,00
             (date(2026, 9, 27), "10.00", out, cats[0], erik, cartao),
             (date(2026, 9, 28), "120.00", out, cats[1], laura, cartao),
             (date(2026, 9, 29), "60.00", nov, cats[2], None, cartao),
             (date(2026, 9, 30), "15.00", set_, cats[3], saiu, pix),
-            # outubro pela data, até o dia 16: 124,00
+            # outubro até o dia 16: cartão 60 (29/09) + 117, Pix 7 -> 184,00
             (date(2026, 10, 1), "45.00", nov, cats[4], erik, cartao),
             (date(2026, 10, 2), "33.00", nov, cats[5], None, cartao),
             (date(2026, 10, 3), "5.00", nov, cats[0], laura, cartao),
@@ -281,7 +280,7 @@ class TestPartesSomamOGasto:
 
     @pytest.mark.parametrize(
         ("competencia", "gasto"),
-        [(OUTUBRO, Decimal("124.00")), (date(2026, 9, 1), Decimal("205.00"))],
+        [(OUTUBRO, Decimal("184.00")), (date(2026, 9, 1), Decimal("145.00"))],
     )
     def test_pessoas_e_categorias_somam_o_gasto(
         self, session: Session, virada: None, competencia: date, gasto: Decimal
@@ -294,7 +293,7 @@ class TestPartesSomamOGasto:
     def test_outras_categorias_junta_o_resto(self, session: Session, virada: None) -> None:
         linhas = [(c.tipo, c.nome, c.valor) for c in _resumo(session).categorias]
         assert linhas[-2:] == [
-            ("outras", "Outras categorias", Decimal("5.00")),  # Cat 2 (3,00) + Cat 3 (2,00)
+            ("outras", "Outras categorias", Decimal("6.00")),  # Cat 1 (4,00) + Cat 3 (2,00)
             ("sem_categoria", "Sem categoria", Decimal("25.00")),
         ]
         assert [t for t, _, _ in linhas].count("categoria") == 5
