@@ -54,7 +54,15 @@ export interface OrcamentoInicio {
 export interface PrevisaoInicio {
   valor: Dinheiro;
   comprometido: Dinheiro;
-  diferenca_orcamento: Dinheiro | null;
+}
+
+/** O que sai da conta no mês (D-27): base própria, separada do topo (D-31). */
+export interface CaixaMes {
+  saiu_da_conta: Dinheiro;
+  a_pagar: Dinheiro;
+  previsao: PrevisaoInicio | null;
+  serie: PontoAcumulado[];
+  faturas: FaturaMes[];
 }
 
 export interface LinhaPessoaInicio {
@@ -66,6 +74,8 @@ export interface LinhaPessoaInicio {
 }
 
 export interface LinhaCategoriaInicio {
+  /** `outras` junta as categorias além das maiores (D-31). */
+  tipo: "categoria" | "outras" | "sem_categoria";
   categoria_id: number | null;
   nome: string;
   valor: Dinheiro;
@@ -139,23 +149,14 @@ export interface Inicio {
   dias_no_mes: number;
   dia_referencia: number;
   tem_dados: boolean;
+  /** Despesas pela data da compra até `dia_referencia`, sem pendentes (D-31). */
   gasto: Dinheiro;
   gasto_mes_anterior: Dinheiro;
   diferenca_mes_anterior: Dinheiro;
-  /** Gasto do mês pela data da compra, só lançado, até `dia_referencia`. */
-  gasto_compra: Dinheiro;
-  gasto_compra_mes_anterior: Dinheiro;
-  diferenca_compra_mes_anterior: Dinheiro;
-  /** O que já saiu da conta no mês até `dia_referencia` (D-27). */
-  saiu_da_conta: Dinheiro;
-  /** Faturas com vencimento no mês ainda não pagas. */
-  a_pagar_mes: Dinheiro;
   receitas: Dinheiro;
   sobra: Dinheiro;
   orcamento: OrcamentoInicio | null;
-  previsao: PrevisaoInicio | null;
-  serie: PontoAcumulado[];
-  faturas: FaturaMes[];
+  caixa: CaixaMes;
   faturas_abertas: FaturaAberta[];
   pessoas: LinhaPessoaInicio[];
   categorias: LinhaCategoriaInicio[];

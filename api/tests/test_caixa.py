@@ -191,14 +191,16 @@ def test_dois_cartoes_com_datas_diferentes(session: Session) -> None:
     session.commit()
 
     r = _resumo(session)
-    assert [(f.cartao, f.dia, f.valor, f.situacao, f.origem_vencimento) for f in r.faturas] == [
+    assert [
+        (f.cartao, f.dia, f.valor, f.situacao, f.origem_vencimento) for f in r.caixa.faturas
+    ] == [
         ("Cartão A", 7, Decimal("150.00"), "a_pagar", "cadastro"),
         ("Cartão B", 10, Decimal("200.00"), "a_pagar", "cadastro"),
     ]
-    assert r.faturas[0].vencimento == date(2026, 10, 7)
-    assert r.faturas[0].pago_em is None
-    acumulado = {p.dia: p.acumulado for p in r.serie}
-    com_a_pagar = {p.dia: p.com_a_pagar for p in r.serie}
+    assert r.caixa.faturas[0].vencimento == date(2026, 10, 7)
+    assert r.caixa.faturas[0].pago_em is None
+    acumulado = {p.dia: p.acumulado for p in r.caixa.serie}
+    com_a_pagar = {p.dia: p.com_a_pagar for p in r.caixa.serie}
     assert com_a_pagar[6] == Decimal("0")
     assert com_a_pagar[7] == Decimal("150.00")
     assert com_a_pagar[10] == Decimal("350.00")
@@ -235,7 +237,7 @@ def test_vencimento_real_da_pluggy_vale_mais_que_o_cadastro(session: Session) ->
     )
     session.commit()
 
-    por_cartao = {f.cartao: f for f in _resumo(session).faturas}
+    por_cartao = {f.cartao: f for f in _resumo(session).caixa.faturas}
     assert por_cartao["Cartão A"].vencimento == date(2026, 10, 11)
     assert por_cartao["Cartão A"].dia == 11
     assert por_cartao["Cartão A"].origem_vencimento == "pluggy_fatura"
@@ -266,16 +268,16 @@ def test_pagamento_identificado_define_o_dia_da_saida(session: Session) -> None:
     session.commit()
 
     r = _resumo(session)
-    por_cartao = {f.cartao: f for f in r.faturas}
+    por_cartao = {f.cartao: f for f in r.caixa.faturas}
     assert (por_cartao["Cartão A"].situacao, por_cartao["Cartão A"].dia) == ("paga", 6)
     assert por_cartao["Cartão A"].pago_em == date(2026, 10, 6)
     assert (por_cartao["Cartão B"].situacao, por_cartao["Cartão B"].dia) == ("paga", 8)
     assert (por_cartao["Cartão C"].situacao, por_cartao["Cartão C"].dia) == ("a_pagar", 12)
-    acumulado = {p.dia: p.acumulado for p in r.serie}
+    acumulado = {p.dia: p.acumulado for p in r.caixa.serie}
     assert acumulado[5] == Decimal("0")
     assert acumulado[6] == Decimal("150.00")
     assert acumulado[8] == Decimal("350.00")
-    assert {p.dia: p.com_a_pagar for p in r.serie}[12] == Decimal("440.00")
+    assert {p.dia: p.com_a_pagar for p in r.caixa.serie}[12] == Decimal("440.00")
 
 
 def test_fatura_aberta_soma_pela_data_da_compra(session: Session) -> None:
@@ -352,20 +354,21 @@ def test_total_do_mes_fecha_com_o_da_competencia(session: Session) -> None:
 
     r = _resumo(session, SETEMBRO)
     assert r.situacao == "passado"
-    assert len(r.serie) == 30
+    assert len(r.caixa.serie) == 30
     total = Decimal("430.85")
-    assert r.gasto == total
-    assert r.serie[-1].com_a_pagar == total
+    # O topo é pela data da compra (D-31): a compra de 28/08 fica em agosto.
+    assert r.gasto == total - Decimal("300.00")
+    assert r.caixa.serie[-1].com_a_pagar == total
     # A fatura do Cartão A (345,50) segue a pagar: não saiu da conta.
-    assert r.serie[-1].acumulado == total - Decimal("345.50")
-    com_a_pagar = {p.dia: p.com_a_pagar for p in r.serie}
-    acumulado = {p.dia: p.acumulado for p in r.serie}
+    assert r.caixa.serie[-1].acumulado == total - Decimal("345.50")
+    com_a_pagar = {p.dia: p.com_a_pagar for p in r.caixa.serie}
+    acumulado = {p.dia: p.acumulado for p in r.caixa.serie}
     # Cartão sem datas mantém a compra no dia dela (20/09).
     assert com_a_pagar[19] == Decimal("355.60")  # fatura (dia 7) + Pix do dia 12
     assert com_a_pagar[20] == Decimal("425.85")
     assert acumulado[19] == Decimal("10.10")
     assert acumulado[20] == Decimal("80.35")
-    assert [f.cartao for f in r.faturas] == ["Cartão A"]
+    assert [f.cartao for f in r.caixa.faturas] == ["Cartão A"]
 
 
 def test_previsao_com_fatura_a_pagar(session: Session) -> None:
@@ -382,15 +385,16 @@ def test_previsao_com_fatura_a_pagar(session: Session) -> None:
     session.commit()
 
     r = _resumo(session)
-    assert [(f.dia, f.valor, f.situacao) for f in r.faturas] == [(28, Decimal("300.00"), "a_pagar")]
-    assert r.previsao is not None
+    assert [(f.dia, f.valor, f.situacao) for f in r.caixa.faturas] == [
+        (28, Decimal("300.00"), "a_pagar")
+    ]
+    assert r.caixa.previsao is not None
     # Fatura 300 + "antes" do cartão sem datas 100 + ritmo (50 + 30) / 16 * 31.
-    assert r.previsao.comprometido == Decimal("400.00")
-    assert r.previsao.valor == Decimal("555.00")
-    assert r.previsao.diferenca_orcamento is None
+    assert r.caixa.previsao.comprometido == Decimal("400.00")
+    assert r.caixa.previsao.valor == Decimal("555.00")
     # O fim da curva é o total da competência: 300 + 100 + 120.
-    assert r.serie[-1].com_a_pagar == Decimal("520.00")
-    assert r.serie[-1].acumulado == Decimal("180.00")  # só o que saiu até hoje
+    assert r.caixa.serie[-1].com_a_pagar == Decimal("520.00")
+    assert r.caixa.serie[-1].acumulado == Decimal("180.00")  # só o que saiu até hoje
 
 
 def test_fatura_aberta_nunca_fecha_antes_de_hoje(session: Session) -> None:
@@ -553,21 +557,23 @@ def test_gasto_pela_data_da_compra_difere_do_da_competencia(session: Session) ->
     session.commit()
 
     nov = _em(session, hoje, NOVEMBRO)
-    assert nov.gasto == Decimal("50.00")  # fatura 40 + Pix 10
-    assert nov.gasto_compra == Decimal("10.00")
-    assert nov.gasto_compra_mes_anterior == Decimal("7.00")  # outubro até o dia 5
-    assert nov.diferenca_compra_mes_anterior == Decimal("3.00")
-    assert nov.saiu_da_conta == {p.dia: p.acumulado for p in nov.serie}[5] == Decimal("10.00")
+    # D-31: o topo é pela data da compra; o caixa segue a competência (D-27).
+    assert nov.gasto == Decimal("10.00")
+    assert nov.gasto_mes_anterior == Decimal("7.00")  # outubro até o dia 5
+    assert nov.diferenca_mes_anterior == Decimal("3.00")
+    assert nov.caixa.saiu_da_conta == {p.dia: p.acumulado for p in nov.caixa.serie}[5]
+    assert nov.caixa.saiu_da_conta == Decimal("10.00")
+    assert nov.caixa.serie[-1].com_a_pagar == Decimal("50.00")  # fatura 40 + Pix 10
     assert (
-        nov.a_pagar_mes
+        nov.caixa.a_pagar
         == Decimal("40.00")
-        == sum(f.valor for f in nov.faturas if f.situacao == "a_pagar")
+        == sum(f.valor for f in nov.caixa.faturas if f.situacao == "a_pagar")
     )
 
     out = _em(session, hoje, OUTUBRO)
-    assert out.gasto == Decimal("27.00")
-    assert out.gasto_compra == Decimal("67.00")
-    assert out.gasto_compra_mes_anterior == Decimal("0")
+    assert out.gasto == Decimal("67.00")
+    assert out.gasto_mes_anterior == Decimal("0")
+    assert out.caixa.serie[-1].com_a_pagar == Decimal("27.00")
 
     fut = _em(session, hoje, date(2026, 12, 1))
-    assert (fut.gasto_compra, fut.saiu_da_conta) == (Decimal("0"), Decimal("0"))
+    assert (fut.gasto, fut.caixa.saiu_da_conta) == (Decimal("0"), Decimal("0"))

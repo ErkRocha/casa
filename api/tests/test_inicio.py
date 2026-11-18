@@ -1,21 +1,25 @@
-"""Tela Início (D-24): somas, previsão e avisos, todos do banco.
+"""Tela Início (D-24, D-31): somas, previsão e avisos, todos do banco.
 
 "Hoje" é 16/10/2026. Os números foram escolhidos para a conta fechar à mão:
 
-    outubro (competência), até o dia 16:
-      compra de cartão com data 25/09 (fatura de outubro)  100,00  dia 1
+    lançamentos com competência de outubro:
+      compra de cartão com data 25/09 (fatura de outubro)  100,00
       05/10 Restaurante, Laura                               50,00
       10/10 sem categoria, conjunto                          30,00
-      20/10 Mercado (depois de hoje: fora)                   40,00
+      20/10 Mercado (depois de hoje)                         40,00
       receita 05/10                                        1000,00
       transferência 06/10 (fora de tudo)                    999,00
-    gasto 180,00 · comprometido 100,00 · receitas 1000,00
-    previsão = 100 + (180 - 100) / 16 * 31 = 255,00
+
+    topo, pela data da compra (D-31), até o dia 16:
+      gasto 80,00 (a compra de 25/09 é de setembro) · receitas 1000,00
+      setembro até o dia 16: 70,00
+    caixa, por competência (D-27):
+      comprometido 100,00 · previsão = 100 + (180 - 100) / 16 * 31 = 255,00
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -23,8 +27,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.enums import TipoConta, TipoTransacao
-from app.models import Categoria, Conta, Orcamento, Pessoa, Transacao
+from app.enums import TipoConta, TipoPagamento, TipoTransacao
+from app.models import Categoria, Conta, FormaPagamento, Orcamento, Pessoa, Transacao
 from app.services.inicio import InicioService
 
 HOJE = date(2026, 10, 16)
@@ -42,6 +46,7 @@ def _t(
     pessoa: Pessoa | None = None,
     descricao: str | None = None,
     contas: tuple[Conta, Conta] | None = None,
+    forma: FormaPagamento | None = None,
 ) -> None:
     session.add(
         Transacao(
@@ -55,6 +60,7 @@ def _t(
             pessoa_id=pessoa.id if pessoa else None,
             conta_origem_id=contas[0].id if contas else None,
             conta_destino_id=contas[1].id if contas else None,
+            forma_pagamento_id=forma.id if forma else None,
         )
     )
 
@@ -114,28 +120,27 @@ class TestMesCorrente:
         r = _resumo(session)
         assert (r.situacao, r.dias_no_mes, r.dia_referencia) == ("corrente", 31, 16)
         assert r.tem_dados is True
-        assert r.gasto == Decimal("180.00")
+        assert r.gasto == Decimal("80.00")
         assert r.receitas == Decimal("1000.00")
-        assert r.sobra == Decimal("820.00")
+        assert r.sobra == Decimal("920.00")
         assert r.gasto_mes_anterior == Decimal("70.00")
-        assert r.diferenca_mes_anterior == Decimal("110.00")
+        assert r.diferenca_mes_anterior == Decimal("10.00")
 
     def test_previsao_separa_o_comprometido(self, session: Session, mes: dict[str, Any]) -> None:
-        r = _resumo(session)
-        assert r.previsao is not None
-        assert r.previsao.comprometido == Decimal("100.00")
-        assert r.previsao.valor == Decimal("255.00")
-        assert r.previsao.diferenca_orcamento == Decimal("-300.00")
+        previsao = _resumo(session).caixa.previsao
+        assert previsao is not None
+        assert previsao.comprometido == Decimal("100.00")
+        assert previsao.valor == Decimal("255.00")
 
     def test_orcamento_total_e_faixa(self, session: Session, mes: dict[str, Any]) -> None:
         r = _resumo(session)
         assert r.orcamento is not None
         assert r.orcamento.total == Decimal("555.00")
-        assert r.orcamento.percentual_usado == 32  # 180 / 555
+        assert r.orcamento.percentual_usado == 14  # 80 / 555, pela data da compra
         assert r.orcamento.faixa == "ok"
 
     def test_serie_acumulada_dia_a_dia(self, session: Session, mes: dict[str, Any]) -> None:
-        pontos = _resumo(session).serie
+        pontos = _resumo(session).caixa.serie
         serie = {p.dia: p.acumulado for p in pontos}
         # D-27: o mês corrente traz todos os dias; `acumulado` para em hoje.
         assert list(serie) == list(range(1, 32))
@@ -153,21 +158,20 @@ class TestMesCorrente:
     def test_quem_gastou(self, session: Session, mes: dict[str, Any]) -> None:
         pessoas = [(p.nome, p.valor, p.percentual) for p in _resumo(session).pessoas]
         assert pessoas == [
-            ("Erik", Decimal("100.00"), 56),
-            ("Laura", Decimal("50.00"), 28),
-            ("Juntos", Decimal("30.00"), 17),
+            ("Erik", Decimal("0"), 0),
+            ("Laura", Decimal("50.00"), 63),
+            ("Juntos", Decimal("30.00"), 38),
         ]
 
     def test_categorias_com_sem_categoria_no_fim(
         self, session: Session, mes: dict[str, Any]
     ) -> None:
         categorias = [
-            (c.nome, c.valor, c.percentual, c.largura) for c in _resumo(session).categorias
+            (c.tipo, c.nome, c.valor, c.percentual, c.largura) for c in _resumo(session).categorias
         ]
         assert categorias == [
-            ("Mercado", Decimal("100.00"), 56, 100),
-            ("Restaurante", Decimal("50.00"), 28, 50),
-            ("Sem categoria", Decimal("30.00"), 17, 30),
+            ("categoria", "Restaurante", Decimal("50.00"), 63, 100),
+            ("sem_categoria", "Sem categoria", Decimal("30.00"), 38, 60),
         ]
 
     def test_aviso_de_orcamento_vem_da_deteccao(
@@ -184,11 +188,11 @@ class TestMesCorrente:
     def test_faixa_perto_e_estourado(self, session: Session, mes: dict[str, Any]) -> None:
         orcamentos = session.query(Orcamento).all()
         for o in orcamentos:
-            o.valor_meta = Decimal("95")  # 180 / 190 = 94,7%
+            o.valor_meta = Decimal("42.50")  # 80 / 85 = 94,1%
         session.commit()
         assert _resumo(session).orcamento.faixa == "perto"  # type: ignore[union-attr]
         for o in orcamentos:
-            o.valor_meta = Decimal("80")  # 180 / 160
+            o.valor_meta = Decimal("35")  # 80 / 70
         session.commit()
         assert _resumo(session).orcamento.faixa == "estourado"  # type: ignore[union-attr]
 
@@ -199,17 +203,18 @@ class TestOutrosMeses:
     ) -> None:
         r = _resumo(session, date(2026, 9, 1))
         assert (r.situacao, r.dia_referencia) == ("passado", 30)
-        assert r.gasto == Decimal("570.00")
-        assert r.previsao is None
+        # Pela data da compra: a compra de 25/09 da fatura de outubro entra.
+        assert r.gasto == Decimal("670.00")
+        assert r.caixa.previsao is None
         assert r.orcamento is None
-        assert len(r.serie) == 30
+        assert len(r.caixa.serie) == 30
 
     def test_mes_futuro_vazio(self, session: Session, mes: dict[str, Any]) -> None:
         r = _resumo(session, date(2026, 11, 1))
         assert (r.situacao, r.dia_referencia, r.tem_dados) == ("futuro", 0, False)
         assert r.gasto == Decimal("0")
-        assert r.serie == [] and r.categorias == [] and r.avisos == []
-        assert r.previsao is None
+        assert r.caixa.serie == [] and r.categorias == [] and r.avisos == []
+        assert r.caixa.previsao is None
         assert all(p.valor == 0 and p.percentual == 0 for p in r.pessoas)
 
     def test_mes_sem_dados(self, session: Session, mes: dict[str, Any]) -> None:
@@ -217,6 +222,88 @@ class TestOutrosMeses:
         assert r.tem_dados is False
         assert r.gasto == Decimal("0")
         assert r.categorias == []
+
+
+class TestPartesSomamOGasto:
+    """D-31: quem gastou e por categoria somam o gasto do topo.
+
+    Cartão que fecha dia 28: as compras de 27 e 28/09 são da fatura de
+    outubro, as de 29/09 em diante da de novembro. O topo é pela data da
+    compra, então a competência não pode puxar nada de um mês para o outro.
+    """
+
+    @pytest.fixture
+    def virada(self, session: Session) -> None:
+        erik, laura = Pessoa(nome="Erik"), Pessoa(nome="Laura")
+        saiu = Pessoa(nome="Antiga", deleted_em=datetime(2026, 10, 1, tzinfo=UTC))
+        cats = [Categoria(nome=f"Cat {n}", tipo=TipoTransacao.DESPESA) for n in range(7)]
+        nubank = Conta(nome="Nubank", tipo=TipoConta.CARTAO)
+        session.add_all([erik, laura, saiu, nubank, *cats])
+        session.flush()
+        cartao = FormaPagamento(
+            apelido="Nubank",
+            tipo=TipoPagamento.CREDITO,
+            conta_id=nubank.id,
+            dia_fechamento=28,
+            dia_vencimento=5,
+        )
+        pix = FormaPagamento(apelido="Pix", tipo=TipoPagamento.PIX)
+        session.add_all([cartao, pix])
+        session.flush()
+        out, nov, set_ = OUTUBRO, date(2026, 11, 1), date(2026, 9, 1)
+        compras = [
+            # setembro pela data: 205,00
+            (date(2026, 9, 27), "10.00", out, cats[0], erik, cartao),
+            (date(2026, 9, 28), "120.00", out, cats[1], laura, cartao),
+            (date(2026, 9, 29), "60.00", nov, cats[2], None, cartao),
+            (date(2026, 9, 30), "15.00", set_, cats[3], saiu, pix),
+            # outubro pela data, até o dia 16: 124,00
+            (date(2026, 10, 1), "45.00", nov, cats[4], erik, cartao),
+            (date(2026, 10, 2), "33.00", nov, cats[5], None, cartao),
+            (date(2026, 10, 3), "5.00", nov, cats[0], laura, cartao),
+            (date(2026, 10, 4), "4.00", nov, cats[1], laura, cartao),
+            (date(2026, 10, 5), "3.00", nov, cats[2], erik, cartao),
+            (date(2026, 10, 6), "2.00", nov, cats[3], None, cartao),
+            (date(2026, 10, 10), "7.00", out, cats[6], laura, pix),
+            (date(2026, 10, 16), "25.00", nov, None, erik, cartao),
+            # depois de hoje: fora
+            (date(2026, 10, 17), "999.00", nov, cats[0], erik, cartao),
+        ]
+        for data, valor, comp, cat, pessoa, forma in compras:
+            _t(session, data, valor, comp, categoria=cat, pessoa=pessoa, forma=forma)
+        session.commit()
+
+    @pytest.mark.parametrize(
+        ("competencia", "gasto"),
+        [(OUTUBRO, Decimal("124.00")), (date(2026, 9, 1), Decimal("205.00"))],
+    )
+    def test_pessoas_e_categorias_somam_o_gasto(
+        self, session: Session, virada: None, competencia: date, gasto: Decimal
+    ) -> None:
+        r = _resumo(session, competencia)
+        assert r.gasto == gasto
+        assert sum((p.valor for p in r.pessoas), Decimal(0)) == gasto
+        assert sum((c.valor for c in r.categorias), Decimal(0)) == gasto
+
+    def test_outras_categorias_junta_o_resto(self, session: Session, virada: None) -> None:
+        linhas = [(c.tipo, c.nome, c.valor) for c in _resumo(session).categorias]
+        assert linhas[-2:] == [
+            ("outras", "Outras categorias", Decimal("5.00")),  # Cat 2 (3,00) + Cat 3 (2,00)
+            ("sem_categoria", "Sem categoria", Decimal("25.00")),
+        ]
+        assert [t for t, _, _ in linhas].count("categoria") == 5
+
+    def test_pessoa_removida_com_gasto_continua_na_conta(
+        self, session: Session, virada: None
+    ) -> None:
+        nomes = [p.nome for p in _resumo(session, date(2026, 9, 1)).pessoas]
+        assert "Antiga" in nomes
+        assert "Antiga" not in [p.nome for p in _resumo(session).pessoas]
+
+    def test_caixa_continua_por_competencia(self, session: Session, virada: None) -> None:
+        # A fatura de outubro (27 e 28/09) é o degrau do caixa, não do topo.
+        faturas = _resumo(session).caixa.faturas
+        assert [(f.cartao, f.valor) for f in faturas] == [("Nubank", Decimal("130.00"))]
 
 
 def test_reajuste_vira_aviso(session: Session) -> None:

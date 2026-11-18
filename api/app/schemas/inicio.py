@@ -1,7 +1,11 @@
-"""Schemas da tela Início (D-24).
+"""Schemas da tela Início (D-24, D-31).
 
 Tudo pronto para desenhar: somas, diferenças, percentuais e a previsão vêm
 calculados do banco. Dinheiro sai como `Decimal` (texto no JSON).
+
+**Duas bases, sem mistura (D-31).** O topo de `Inicio` (gasto, comparação,
+receitas, sobra, orçamento, pessoas, categorias e avisos de orçamento) é pela
+**data da compra**. O que sai da conta (D-27) fica todo em `caixa`.
 """
 
 from datetime import date
@@ -92,7 +96,7 @@ class Orcamento(BaseModel):
 
 
 class Previsao(BaseModel):
-    """Fechamento do mês no ritmo atual (só no mês corrente).
+    """Fechamento do caixa do mês no ritmo atual (só no mês corrente).
 
     `comprometido` é o que já está decidido e não se repete, por isso fica
     fora do ritmo: as faturas de cartão que saem da conta no mês (pagas ou
@@ -103,8 +107,6 @@ class Previsao(BaseModel):
 
     valor: Decimal
     comprometido: Decimal
-    #: Previsão menos o orçamento total; nulo sem orçamento.
-    diferenca_orcamento: Decimal | None
 
 
 class LinhaPessoaInicio(BaseModel):
@@ -116,6 +118,9 @@ class LinhaPessoaInicio(BaseModel):
 
 
 class LinhaCategoriaInicio(BaseModel):
+    #: `outras` junta as categorias além das maiores, para as linhas somarem
+    #: o gasto do mês (D-31).
+    tipo: Literal["categoria", "outras", "sem_categoria"]
     categoria_id: int | None
     nome: str
     valor: Decimal
@@ -126,6 +131,8 @@ class LinhaCategoriaInicio(BaseModel):
 
 
 class AvisoOrcamento(BaseModel):
+    """Categoria perto ou acima da meta, pela data da compra (D-31)."""
+
     tipo: Literal["orcamento"] = "orcamento"
     categoria: str
     percentual: Decimal
@@ -144,6 +151,24 @@ class AvisoReajuste(BaseModel):
     valor_atual: Decimal
 
 
+class CaixaMes(BaseModel):
+    """O que sai da conta no mês (D-27): bloco secundário do Início (D-31).
+
+    Base própria: o total é o da competência (D-02), com a fatura de cada
+    cartão no dia em que sai da conta. Nada daqui entra no topo.
+    """
+
+    #: O que já saiu da conta no dia de referência (`serie`); zero sem série.
+    saiu_da_conta: Decimal
+    #: Faturas do mês ainda "a pagar".
+    a_pagar: Decimal
+    previsao: Previsao | None
+    #: Um ponto por dia do mês (vazio no mês futuro).
+    serie: list[PontoAcumulado]
+    #: Degraus de fatura do mês, em ordem de dia (D-27).
+    faturas: list[FaturaMes]
+
+
 class Inicio(BaseModel):
     competencia: date
     situacao: SituacaoMes
@@ -151,37 +176,28 @@ class Inicio(BaseModel):
     #: Até que dia os números valem: hoje no mês corrente, o último dia num
     #: mês fechado, zero num mês futuro.
     dia_referencia: int
-    #: Algum lançamento (de qualquer tipo) com esta competência.
+    #: Algum lançamento (de qualquer tipo) com data no mês ou competência nele.
     tem_dados: bool
 
+    #: Despesas pela data da compra no mês, até o dia de referência (sem
+    #: pendentes, D-28). `pessoas` e `categorias` somam este valor.
     gasto: Decimal
-    #: Gasto do mês anterior até o mesmo dia.
+    #: O mesmo no mês anterior, até o mesmo dia.
     gasto_mes_anterior: Decimal
     #: `gasto - gasto_mes_anterior` (negativo = gastou menos).
     diferenca_mes_anterior: Decimal
+    #: Receitas pela data, até o dia de referência.
     receitas: Decimal
     #: `receitas - gasto`.
     sobra: Decimal
 
-    #: Despesas pela data da compra no mês, até o dia de referência (sem
-    #: pendentes). Difere de `gasto`, que é por competência.
-    gasto_compra: Decimal
-    #: O mesmo no mês anterior, até o mesmo dia.
-    gasto_compra_mes_anterior: Decimal
-    diferenca_compra_mes_anterior: Decimal
-    #: O que já saiu da conta no dia de referência (`serie`); zero sem série.
-    saiu_da_conta: Decimal
-    #: Faturas do mês ainda "a pagar".
-    a_pagar_mes: Decimal
-
+    #: Metas do mês contra `gasto`.
     orcamento: Orcamento | None
-    previsao: Previsao | None
-    #: Um ponto por dia do mês (vazio no mês futuro).
-    serie: list[PontoAcumulado]
-    #: Degraus de fatura do mês, em ordem de dia (D-27).
-    faturas: list[FaturaMes]
-    #: Faturas abertas hoje; não dependem do mês pedido.
-    faturas_abertas: list[FaturaAberta]
     pessoas: list[LinhaPessoaInicio]
     categorias: list[LinhaCategoriaInicio]
     avisos: list[AvisoOrcamento | AvisoReajuste]
+
+    #: O que sai da conta, na base do caixa (D-27).
+    caixa: CaixaMes
+    #: Faturas abertas hoje; não dependem do mês pedido.
+    faturas_abertas: list[FaturaAberta]

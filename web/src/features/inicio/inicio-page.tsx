@@ -10,6 +10,7 @@ import { competenciaDe, mesPorExtenso, somarMeses } from "@/lib/format";
 import { href } from "@/lib/rotas";
 import {
   Avisos,
+  CaixaDoMes,
   CartaoRevisar,
   PorCategoria,
   QuemGastou,
@@ -126,6 +127,7 @@ function Conteudo({
       <div className="flex flex-col gap-7 md:hidden">
         <ResumoCelular i={i} grafico={graficoCelular} />
         <FaturasAbertas i={i} />
+        <CaixaDoMes i={i} />
         <CartaoRevisar resumo={revisar} />
         <QuemGastou i={i} pessoas={pessoas} />
         <PorCategoria i={i} />
@@ -142,6 +144,7 @@ function Conteudo({
           </div>
           <div className="flex flex-col gap-8">
             <CartaoRevisar resumo={revisar} />
+            <CaixaDoMes i={i} />
             <FaturasAbertas i={i} />
             <Avisos avisos={i.avisos} className="flex-1" />
           </div>

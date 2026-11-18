@@ -6,7 +6,7 @@ import { Icone } from "@/components/ui/icone";
 import type { Pessoa } from "@/features/cadastros/types";
 import { corDaChave } from "@/features/filters/baldes";
 import type { RevisarResumo } from "@/features/revisar/types";
-import { inteiro, reais, sinal, toNumero } from "@/lib/format";
+import { inteiro, reais } from "@/lib/format";
 import { href } from "@/lib/rotas";
 import { cn } from "@/lib/utils";
 import { COR_FAIXA, textoComparacao, textoRevisar } from "../textos";
@@ -88,7 +88,7 @@ function CaixaOrcamento({ i, compacta = false }: { i: Inicio; compacta?: boolean
           <>
             {`${i.orcamento.percentual_usado}% já usado`}
             <br />
-            pelo mês da fatura
+            pela data da compra
           </>
         ) : (
           "Nenhuma meta neste mês"
@@ -101,40 +101,51 @@ function CaixaOrcamento({ i, compacta = false }: { i: Inicio; compacta?: boolean
   );
 }
 
-function CaixaSaiu({ i, compacta = false }: { i: Inicio; compacta?: boolean }) {
-  const aPagar = toNumero(i.a_pagar_mes) > 0;
-  const acima = i.previsao ? sinal(i.previsao.diferenca_orcamento) > 0 : false;
+/** Bloco secundário: o que sai da conta, em outra base (D-27, D-31). */
+export function CaixaDoMes({ i }: { i: Inicio }) {
+  const { caixa } = i;
   return (
-    <Caixa
-      rotulo={i.situacao === "corrente" ? "Saiu da conta" : "Saiu da conta no mês"}
-      valor={reais(i.saiu_da_conta, { centavos: false })}
-      apoio={
-        aPagar || i.previsao ? (
-          <>
-            {aPagar ? `+ ${reais(i.a_pagar_mes, { centavos: false })} em faturas a pagar` : null}
-            {aPagar && i.previsao ? <br /> : null}
-            {i.previsao ? `previsão do mês ${reais(i.previsao.valor, { centavos: false })}` : null}
-          </>
-        ) : (
-          "pagamentos, Pix, débito e boleto"
-        )
-      }
-      tom={acima ? "atencao" : "interno"}
-      tamanho={compacta ? "compacto" : "normal"}
-    />
+    <Card className="flex flex-col gap-5 px-9 py-9 md:px-10">
+      <CabecalhoBloco titulo="O que sai da conta" />
+      <p className="text-pequeno text-texto-2 m-0">
+        Outra base: o cartão conta no dia em que a fatura sai da conta.
+      </p>
+      <div className="grid grid-cols-2 gap-4">
+        <Caixa
+          rotulo="Faturas a pagar"
+          valor={reais(caixa.a_pagar, { centavos: false })}
+          tamanho="compacto"
+          className="md:gap-3 md:px-8 md:py-7"
+        />
+        <Caixa
+          rotulo="Já saiu da conta"
+          valor={reais(caixa.saiu_da_conta, { centavos: false })}
+          tamanho="compacto"
+          className="md:gap-3 md:px-8 md:py-7"
+        />
+        {caixa.previsao ? (
+          <Caixa
+            rotulo="Previsão de fechamento"
+            valor={reais(caixa.previsao.valor, { centavos: false })}
+            tamanho="compacto"
+            className="col-span-2 md:gap-3 md:px-8 md:py-7"
+          />
+        ) : null}
+      </div>
+    </Card>
   );
 }
 
-/** As quatro caixas do topo no computador (`InicioDesktop`). */
+/** As três caixas do topo no computador (`InicioDesktop`). */
 export function ResumoComputador({ i }: { i: Inicio }) {
   return (
     <section
       aria-label="Resumo do mês"
-      className="bg-superficie rounded-bloco grid grid-cols-2 gap-4 p-4 xl:grid-cols-4"
+      className="bg-superficie rounded-bloco grid grid-cols-1 gap-4 p-4 md:grid-cols-3"
     >
       <Caixa
         rotulo={i.situacao === "corrente" ? "Gasto até hoje" : "Gasto no mês"}
-        valor={reais(i.gasto_compra)}
+        valor={reais(i.gasto)}
         apoio={
           <>
             {textoComparacao(i)}
@@ -146,7 +157,6 @@ export function ResumoComputador({ i }: { i: Inicio }) {
         tamanho="grande"
       />
       <CaixaOrcamento i={i} />
-      <CaixaSaiu i={i} />
       <Caixa
         rotulo="Receitas do mês"
         valor={<span className="text-receita">{reais(i.receitas, { centavos: false })}</span>}
@@ -156,7 +166,7 @@ export function ResumoComputador({ i }: { i: Inicio }) {
   );
 }
 
-/** O bloco do topo no celular: gasto grande, meta e o que saiu da conta, e o gráfico dos 30 dias. */
+/** O bloco do topo no celular: gasto grande, meta e receitas, e o gráfico dos 30 dias. */
 export function ResumoCelular({ i, grafico }: { i: Inicio; grafico: ReactNode }) {
   return (
     <section
@@ -168,7 +178,7 @@ export function ResumoCelular({ i, grafico }: { i: Inicio; grafico: ReactNode })
           {i.situacao === "corrente" ? "Gasto até hoje" : "Gasto no mês"}
         </span>
         <span className="text-numero-grande leading-none font-bold tracking-[-1.5px]">
-          {reais(i.gasto_compra)}
+          {reais(i.gasto)}
         </span>
         <span className="text-pequeno text-texto-2">
           {textoComparacao(i)}
@@ -178,7 +188,12 @@ export function ResumoCelular({ i, grafico }: { i: Inicio; grafico: ReactNode })
       </div>
       <div className="grid grid-cols-2 gap-4">
         <CaixaOrcamento i={i} compacta />
-        <CaixaSaiu i={i} compacta />
+        <Caixa
+          rotulo="Receitas do mês"
+          valor={<span className="text-receita">{reais(i.receitas, { centavos: false })}</span>}
+          apoio={`${i.situacao === "corrente" ? "Sobra até agora" : "Sobra do mês"}: ${reais(i.sobra)}`}
+          tamanho="compacto"
+        />
       </div>
       <div className="flex flex-col gap-5">{grafico}</div>
     </section>
@@ -319,7 +334,7 @@ export function PorCategoria({ i, className }: { i: Inicio; className?: string }
         <ul className="m-0 flex list-none flex-col gap-6 p-0">
           {i.categorias.map((c) => (
             <li
-              key={c.categoria_id ?? "sem"}
+              key={c.tipo === "categoria" ? c.categoria_id : c.tipo}
               className="text-corpo flex flex-col gap-3 md:grid md:grid-cols-[170px_minmax(0,1fr)_110px_48px] md:items-center md:gap-7"
             >
               <span className="flex justify-between md:contents">
