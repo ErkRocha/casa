@@ -683,7 +683,49 @@ endpoints em `docs/compras/api-notas.md`.
 
 Nesta ordem, sem pular:
 
-1. **Backend: variantes e preço comparável.** Migration nova do `compras`:
+1. **Validação com nota real**, antes de qualquer backend novo. Ler notas
+   reais do RS de pelo menos dois mercados e uma farmácia pelo leitor que já
+   existe; conferir o `leitor_svrs.py`, a URL só com a chave e o total.
+   Pendente do usuário desde 02/11/2026 (`compras/tests/amostras/README.md`).
+   Ela responde três perguntas, e cada resposta muda o desenho:
+
+   - **A página traz código de barras (GTIN) por item?**
+     - *Sim:* a variante casa pelo GTIN em qualquer mercado, sozinha; o
+       apelido de texto fica para o item sem código (pesados, padaria).
+     - *Não, só o código interno do mercado:* a variante passa a ser achada
+       por `(mercado, código)` antes do texto; o mesmo produto em dois
+       mercados nasce como duas variantes, e entra uma ação "juntar
+       variantes"; o unique de `gtin` perde o papel. "Onde é mais barato"
+       passa a depender mais do agregado por produto do que da variante.
+     - *Nenhum código:* só o apelido de texto por mercado, como hoje; a
+       associação manual pesa mais nas primeiras notas, e a tela de
+       associar ganha prioridade no desenho.
+   - **Desconto por item e da nota?**
+     - *Por item e da nota:* desconto de linha direto; o rateio só divide o
+       da nota inteira.
+     - *Só da nota:* todo desconto é rateado, e o preço pago de cada item é
+       uma estimativa, marcada como tal na resposta; a promoção de um item
+       só (leve 3, pague 2) se dilui na nota inteira, e o histórico de preço
+       mostra o preço cheio ao lado.
+     - *Nenhum desconto visível:* o desconto da nota é a soma dos itens
+       menos o total pago; mesmo tratamento do caso anterior.
+   - **Unidade (kg, un) e quantidade pesada?**
+     - *Sim, KG com a quantidade pesada (0,734):* "pesada" é detectado pela
+       unidade e o R$/kg sai direto.
+     - *Só UN e o valor:* o peso precisa vir de outro lugar (descrição, ou
+       valor dividido pelo preço do kg, se a página mostrar), senão o item
+       pesado fica sem preço comparável e cai na fila "sem medida".
+     - *Unidades fora do padrão (PC, CX, LT, BDJ):* uma tabela fixa de
+       unidades no leitor, como a do cardápio, e o resto vai para "sem
+       medida".
+
+   Junto, anotar o que mais a página traz: forma de pagamento (ajuda a
+   ligar à despesa certa, cartão ou Pix) e se a hora da emissão vem.
+
+   **Pronto quando:** as três perguntas estão respondidas no
+   `modelo-notas.md`, o modelo e a API estão ajustados ao que a página traz,
+   e o teste da amostra anonimizada deixa de ser pulado.
+2. **Backend: variantes e preço comparável.** Migration nova do `compras`:
    `variantes`, `variante_id` em `nota_itens` e `apelidos` (com o produto
    mantido por trigger), migração dos itens e apelidos associados para
    variantes, `vw_preco_variante` e a `vw_preco_produto` refeita. Endpoints
@@ -694,7 +736,7 @@ Nesta ordem, sem pular:
    pesado aparece em R$/kg; 1 L e 200 ml do mesmo produto se comparam por
    R$/L; a soma dos preços pagos bate com o total de cada nota; "onde é mais
    barato" ordena os dois mercados.
-2. **Backend: conferência e "aguardando nota".** `fechamento`,
+3. **Backend: conferência e "aguardando nota".** `fechamento`,
    `fechado_*` e `perguntado_em` em `itens_lista`, `item_lista_id` em
    `nota_itens`, `conferida_*` em `notas_fiscais`, `nota` em `origem_item`,
    e a migração dos comprados antigos para `sem_nota`. Prévia e confirmação
@@ -705,23 +747,17 @@ Nesta ordem, sem pular:
    compra simulada (lista com 5 itens, 3 marcados, nota com 4 deles e um
    extra) termina com a lista, a despensa e os fechamentos como a D-33
    descreve.
-3. **Telas.** Desenhadas no Claude Design antes de qualquer código (D-15):
+4. **Telas.** Desenhadas no Claude Design antes de qualquer código (D-15):
    ler a nota (câmera do QR code ou colar a chave), ligar à despesa,
    associar os itens não reconhecidos, a conferência (prévia com as
    perguntas e a confirmação), "aguardando nota" na lista com a pergunta
    dos 7 dias, e o preço do produto (variantes e mercados). Pensadas para o
    celular, em casa.
 
-   **Pronto quando:** o desenho está aprovado e implementado.
-4. **Validação com nota real.** Ler notas reais do RS de pelo menos dois
-   mercados e uma farmácia; conferir o leitor (`leitor_svrs.py`), a URL só
-   com a chave, se a página traz GTIN e desconto por item, e o total.
-   Pendente do usuário desde 02/11/2026 (`compras/tests/amostras/README.md`).
-
-   **Pronto quando:** o "pronto quando" da fase 4 de "Lista de compras" e
-   uma compra real do começo ao fim pelo fluxo da D-33: nota lida, despesa
-   ligada quando a sync trouxer a compra, lista conferida, despensa e
-   preços certos.
+   **Pronto quando:** o desenho está aprovado e implementado, e uma compra
+   real vai do começo ao fim pelo fluxo da D-33: nota lida, despesa ligada
+   (à pendente, e depois à transação sozinha), lista conferida, despensa e
+   preços certos. Inclui o "pronto quando" da fase 4 de "Lista de compras".
 5. **Abastecimento**, depois. Direção registrada na D-33: uma nota de posto
    (litros e R$/L, pelo mesmo fluxo) mais a quilometragem informada, com o
    consumo médio entre abastecimentos. Modelo e tela a decidir no bloco

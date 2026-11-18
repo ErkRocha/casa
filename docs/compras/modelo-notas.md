@@ -156,7 +156,24 @@ vem com a variante.
 |---|---|---|---|
 | conferida_em | timestamptz | **novo** | quando a conferência foi confirmada; nulo = ainda não |
 | conferida_por | text | **novo** | |
-| transacao_id | bigint | existe | sem FK (D-25); confirmado pelo usuário |
+| transacao_id | bigint | existe | sem FK (D-25); confirmado pelo usuário, ou preenchido sozinho quando a pendente ligada consolida |
+| pendente_id_externo | text | **novo** | o id da Pluggy da compra **pendente** do cartão (D-28) a que o usuário ligou a nota; nulo quando ligada direto a uma transação ou sem ligação |
+
+**Ligação com a pendente.** A compra do cartão lida no mesmo dia quase
+sempre ainda é pendente, e a pendente não tem id em `transacoes`: tem o id
+da Pluggy, e a D-28 garante que ela consolida com o **mesmo** id. Por isso a
+nota guarda esse id e a ligação se completa sozinha:
+
+- confirmar uma pendente grava `pendente_id_externo` e deixa
+  `transacao_id` nulo;
+- quando finanças tiver uma transação com aquele id, o `compras` preenche
+  `transacao_id` e limpa `pendente_id_externo`, sem perguntar;
+- se a pendente sumir de finanças sem virar transação (cancelada, ou
+  recriada com outro id), a ligação é desfeita e a nota volta para a fila
+  "sem despesa", com a sugestão por data e valor. É o único caso em que se
+  pergunta de novo.
+
+**Check:** `transacao_id` e `pendente_id_externo` nunca preenchidos juntos.
 
 `mercados` continua com esse nome para farmácia e posto: é "o
 estabelecimento". Renomear a tabela não compra nada.
@@ -231,10 +248,21 @@ mesmo produto somam antes de comparar.
 
 ## Despensa [existe, regra muda]
 
-Toda linha da nota com variante leva o produto para `tem`, **acompanhado ou
-não**: o produto sem linha na despensa passa a ter uma. Com uma proteção: a
-nota só muda a despensa se `emitida_em` for depois do `estado_em` atual. Uma
-nota lida com atraso não desfaz um "acabou" marcado depois da compra.
+A linha da nota com variante leva o produto para `tem` **só se** a
+despensa já acompanha o produto **ou** a linha atendeu um item da lista
+(`item_lista_id`). Neste último caso vale o que acontece hoje ao marcar
+comprado: o produto acompanhado vai para `tem`; o não acompanhado continua
+sem linha.
+
+O **extra** de um produto que a despensa não acompanha fica só no histórico
+de preço. A conferência o mostra com a ação "acompanhar na despensa", que é
+o `PUT /despensa/{produto_id}` de hoje com `tem`. Assim a despensa não passa
+a acompanhar, sem ninguém pedir, tudo o que já se comprou na farmácia e no
+posto.
+
+**Proteção da nota lida com atraso:** a nota só muda a despensa se
+`emitida_em` for depois do `estado_em` atual. Uma nota lida com atraso não
+desfaz um "acabou" marcado depois da compra.
 
 O item "aguardando nota" não mexe na despensa (já está em `tem` desde a
 marcação). "Não comprei" leva para `acabou`, como o desfazer de hoje.

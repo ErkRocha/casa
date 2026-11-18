@@ -36,7 +36,6 @@ leia o motivo — ele costuma ser a parte que não é óbvia.
 - D-29 — Início com gráficos de linha: gastos acumulados e ciclos de fatura
 - D-30 — Cardápio como módulo do serviço `compras`
 - D-31 — Início pela data da compra; o caixa vira bloco secundário
-- D-32 — Gasto até hoje do Início pela fatura atual, com pendentes (registro em andamento)
 - D-33 — Nota fiscal lida em casa como fonte da verdade da compra
 
 ---
@@ -1262,7 +1261,8 @@ atualizar a despensa -> registrar os preços.
     lista;
   - item da nota não reconhecido: pergunta uma vez e aprende (apelido,
     D-09).
-- **Tudo o que veio na nota vira "tem" na despensa.**
+- **Tudo o que veio na nota vira "tem" na despensa.** Revisto nos ajustes
+  abaixo: só o que a despensa já acompanha ou o que veio da lista.
 - **Outros estabelecimentos** (farmácia, posto) seguem o mesmo fluxo; quando
   nada da lista bate, não há conferência.
 - **Abastecimento**, como direção: é uma nota de posto (litros e R$/L) mais
@@ -1293,3 +1293,25 @@ Modelo em `docs/compras/modelo-notas.md`, endpoints em
 `docs/compras/api-notas.md`, subfases no roadmap, seção "Notas fiscais,
 conferência e preços". As telas precisam de desenho aprovado antes do código
 (D-15).
+
+**Ajustes do usuário (18/11/2026):**
+
+- **Marco da conferência pelo fechamento, não por data**, com a proteção
+  de 1 dia: aprovado como proposto (`modelo-notas.md`, "O marco da
+  conferência").
+- **Produtos não são renomeados em massa**: o tamanho vai para a variante
+  conforme as notas chegam. Aprovado.
+- **Ligar à despesa não é obrigatório.** A sugestão procura também nas
+  compras **pendentes** do cartão (D-28), por data e valor. A ligação com
+  uma pendente guarda o id da Pluggy e vira ligação com a transação quando
+  ela consolidar, sem pedir de novo: a D-28 garante que a compra consolida
+  com o mesmo id. Só se a pendente sumir sem consolidar (cancelada, ou
+  recriada com outro id) a nota volta para "sem despesa".
+- **Despensa só para o que ela acompanha ou o que veio da lista.** O extra
+  de um produto que a despensa não acompanha fica só no histórico de
+  preço, com a ação "acompanhar na despensa". Continua a proteção da nota
+  lida com atraso.
+- **Validação com nota real primeiro**, antes do backend de variantes: as
+  respostas sobre a página da SEFAZ-RS (código de barras, desconto e
+  unidade por item) mudam o desenho, e o roadmap lista o que muda em cada
+  caso.

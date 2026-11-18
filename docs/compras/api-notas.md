@@ -34,14 +34,20 @@ despesa dias depois.
 
 | Método | Caminho | O que faz |
 |---|---|---|
-| GET | `/notas/{id}/sugestoes-transacao` | **Muda:** hoje é o mesmo dia e o mesmo valor. Passa a procurar de um dia antes a um dia depois da emissão (a data da Pluggy varia, D-23) e o valor exato; ordena pelo dia mais próximo. Continua só sugestão |
-| PUT | `/notas/{id}/transacao` | Como hoje: `{"transacao_id": 123}` confirma, nulo desfaz |
+| GET | `/notas/{id}/sugestoes-transacao` | **Muda:** hoje é o mesmo dia e o mesmo valor. Passa a procurar de um dia antes a um dia depois da emissão (a data da Pluggy varia, D-23), com o valor exato, **nas transações e nas compras pendentes do cartão** (D-28). Cada sugestão diz o tipo, `{"tipo": "transacao", "transacao_id": 123}` ou `{"tipo": "pendente", "id_externo": "..."}`, com data, valor, descrição e cartão; ordena pelo dia mais próximo. Continua só sugestão |
+| PUT | `/notas/{id}/transacao` | **Muda:** `{"transacao_id": 123}` ou `{"pendente_id_externo": "..."}` confirma (um dos dois); nulo nos dois desfaz. A transação ou a pendente precisa existir em finanças |
+| POST | `/notas/consolidar-ligacoes` | Idempotente. Para cada nota ligada a uma pendente, pergunta a finanças se já há transação com aquele id: se há, preenche `transacao_id` sozinho; pendente sumida sem transação desfaz a ligação (a nota volta à fila). Chamado pela tela de notas ao abrir e, sem bloquear nada, pelo agendador de finanças depois da sync diária |
 
-A compra do cartão lida no mesmo dia quase sempre está **pendente na
-Pluggy** (D-28) e não existe em `transacoes` ainda: não há o que sugerir. A
-nota fica na fila "sem despesa" (`GET /notas?com_transacao=false`) e a
-sugestão aparece quando a sync promover a compra. Ligar a uma pendente não é
-possível nem desejável: ela não tem id estável em finanças.
+**Ligar não é obrigatório.** A nota sem ligação fica na fila "sem despesa"
+(`GET /notas?com_transacao=false`) e não bloqueia a conferência nem os
+preços. A compra do cartão lida no mesmo dia quase sempre ainda é
+pendente: ela aparece na sugestão, e a ligação vira ligação com a transação
+quando a compra consolidar (`modelo-notas.md`, "Ligação com a pendente").
+
+**Do lado de finanças**, dois endpoints de leitura novos, sem schema novo (a
+API de finanças é a dona desses dados, D-25): as compras pendentes do cartão
+por data e valor, e a transação pelo id da Pluggy (pelo item de staging que
+a promoveu).
 
 ## Reconhecer os itens (variantes)
 
@@ -79,7 +85,8 @@ Resposta das duas, igual:
                    "estava": "aguardando_nota"}],
   "marcados":    [{"item_lista_id": 52, "produto": "Pão", "linhas": [7],
                    "aviso": "não estava marcado; marcado como comprado pela nota"}],
-  "extras":      [{"linha": 9, "produto": "Chocolate", "variante": "Chocolate Garoto 90g"}],
+  "extras":      [{"linha": 9, "produto": "Chocolate", "variante": "Chocolate Garoto 90g",
+                   "acompanhado": false, "acao": "acompanhar_na_despensa"}],
   "continuam_pendentes": [{"item_lista_id": 60, "produto": "Café"}],
   "aguardando_nota":     [{"item_lista_id": 33, "produto": "Detergente",
                            "comprado_em": "2026-11-15T10:12:00-03:00", "dias": 3}],
@@ -159,7 +166,11 @@ nome da ferramenta ficam para quando os preços tiverem notas reais.
   dias depois; não confirmado por nota emitida antes da marcação; a pergunta
   aparece só aos 7 dias e só uma vez; "não comprei" com e sem outro pendente
   do produto.
-- **Despensa:** produto não acompanhado passa a ter linha em `tem`; nota
-  lida com atraso não desfaz um "acabou" posterior.
-- **Despesa:** sugestão um dia antes e um dia depois; nota sem sugestão fica
-  na fila e não bloqueia a conferência.
+- **Despensa:** produto acompanhado vai para `tem`; produto da lista vai
+  como ao marcar comprado; extra não acompanhado não ganha linha e vem com
+  "acompanhar na despensa"; nota lida com atraso não desfaz um "acabou"
+  posterior.
+- **Despesa:** sugestão um dia antes e um dia depois, nas transações e nas
+  pendentes; nota ligada a uma pendente passa para a transação sozinha
+  quando ela consolida, sem nova pergunta; pendente cancelada devolve a nota
+  à fila; nota sem ligação não bloqueia a conferência.
