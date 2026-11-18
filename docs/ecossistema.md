@@ -47,13 +47,16 @@ Todas as portas publicadas só em `127.0.0.1`. Volume do banco:
   mcp-servidor.
 - Acesso remoto pela Tailscale (D-18).
 
-## Qual base cada tela do financeiro usa (D-31)
+## Qual base cada tela do financeiro usa (D-31, D-32)
 
 Um gasto no cartão tem duas datas: a da compra e a da fatura em que caiu
 (competência, D-02). O **Início** responde "quanto a gente gastou este mês?"
 pela **data da compra**: gasto até hoje, comparação com o mês anterior,
 receitas, sobra, orçamento, avisos de orçamento, quem gastou e por categoria
-(as partes somam o gasto). O bloco **"O que sai da conta"** do Início (faturas
+(as partes somam o gasto). No cartão, o Início conta a **fatura atual**
+de cada cartão, desde o último fechamento, com as compras ainda pendentes no
+banco (D-32), e diz quanto do número é pendente; Pix, débito e boleto vão
+pela data, no mês. É a única tela que soma pendentes. O bloco **"O que sai da conta"** do Início (faturas
 a pagar, já saiu da conta, previsão de fechamento) é a outra base, a do caixa
 (D-27): competência, com a fatura no dia em que sai da conta; faturas
 abertas e os dois gráficos seguem a D-27/D-29. As **Análises** têm o seletor,

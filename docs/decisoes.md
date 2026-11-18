@@ -36,6 +36,7 @@ leia o motivo — ele costuma ser a parte que não é óbvia.
 - D-29 — Início com gráficos de linha: gastos acumulados e ciclos de fatura
 - D-30 — Cardápio como módulo do serviço `compras`
 - D-31 — Início pela data da compra; o caixa vira bloco secundário
+- D-32 — Gasto até hoje do Início pela fatura atual, com as pendentes
 - D-33 — Nota fiscal lida em casa como fonte da verdade da compra
 
 ---
@@ -988,6 +989,9 @@ gasto do mês **pela data da compra**, só com o que foi lançado; o que já
 saiu da conta e o que está em faturas a pagar ficam num cartão separado.
 Pessoas, categorias e orçamento continuam por competência (D-02).
 **Revisto em 18/11/2026 pela D-31:** passaram a ser pela data da compra.
+**Revisto em 18/11/2026 pela D-32:** o "gasto até hoje" do Início (e as
+partes dele) inclui as pendentes da fatura atual; fora dele, a pendente
+continua só exibida.
 
 **Faturas abertas** (D-27) somam lançadas e pendentes do ciclo atual e dizem
 quanto é pendente.
@@ -1167,7 +1171,8 @@ caixa "Saiu da conta" comparava a previsão do caixa com o orçamento. Os
 números lado a lado não somavam, e não dava para dizer de onde vinha cada um.
 
 **A base do Início é a data da compra.** Valem por ela, só com o que foi
-lançado (a pendente da D-28 continua fora) e até o dia de referência:
+lançado (a pendente da D-28 continua fora) e até o dia de referência
+(**revisto pela D-32:** no cartão, a fatura atual com as pendentes):
 
 - gasto até hoje e a comparação com o mês anterior no mesmo dia;
 - receitas e a sobra (receitas menos gastos);
@@ -1211,6 +1216,66 @@ números podem diferir dos do Início.
 
 **Fica de fora.** O relatório não muda de base. O gráfico dos 30 dias e o de
 faturas (D-29) não mudam.
+
+---
+
+## D-32 — Gasto até hoje do Início pela fatura atual, com as pendentes
+
+Decisão do usuário, 18/11/2026. Ajusta a D-31 (base do Início) e a D-28 (a
+pendente passa a entrar numa visão, a do Início).
+
+**Por quê.** Pela D-31, o "gasto até hoje" era só o que o banco já lançou,
+pela data da compra. Com o cartão isso quase não diz nada no meio do mês: o
+Nubank, por exemplo, mantém as compras do ciclo aberto como pendentes até
+fechar a fatura, e no meio de novembro de 2026 o Início mostrava uma
+fração pequena do que já tinha sido gasto no cartão. O casal quer ver o que já gastou, mesmo que o
+banco ainda não tenha consolidado.
+
+**O "gasto até hoje" do Início é:**
+
+- **cartão:** as compras da fatura **atual** de cada cartão, desde o último
+  fechamento dele (as datas da D-27: fatura da Pluggy, dia de fechamento
+  cadastrado ou a conta de crédito), pela data da compra, as lançadas **e
+  as pendentes** (D-28);
+- **mais Pix, débito, boleto e o resto**, pela data, no mês e até hoje.
+
+**Cada compra conta uma vez só.** A compra antes do fechamento é da fatura
+anterior, contada no mês anterior. Para isso, cada ciclo do cartão é **do
+mês em que cai a maior parte dele**: o mês do fechamento mais 15 dias
+(`DIAS_ATE_O_MEIO_DO_CICLO` em `api/app/services/inicio.py`). Com os cartões
+de hoje (fecham nos dias 2 e 3), isso é exatamente "desde o último
+fechamento"; um cartão que fechasse no dia 28 teria o ciclo de 29/10 a 28/11
+contado em novembro. Cartão sem nenhuma data de fechamento vai pela data da
+compra no mês, como o Pix.
+
+- O número diz quanto dele ainda é pendente: **"inclui R$ X pendente no
+  banco"** (`gasto_pendente` na API).
+- A comparação com o mês anterior usa a mesma regra, até o mesmo dia.
+- **Quem gastou e por categoria** seguem a mesma base e continuam somando o
+  número. A pendente não tem categoria: entra em "Sem categoria". A pessoa
+  dela é o titular do cartão (o da forma de pagamento, senão o da conta).
+- O orçamento e os avisos de orçamento do Início usam o mesmo número, para
+  o topo não misturar bases.
+
+**As pendentes continuam fora** de `transacoes`, do orçamento oficial, das
+Análises, do relatório e do MCP (D-28). Só entram nesta visão do Início.
+Pendente que consolidou não conta duas vezes: toda leitura ignora pendente
+cujo id já está no staging (D-28).
+
+**Avisos de reajuste**, na mesma tarefa: só para cobrança recorrente de
+valor quase fixo. O mesmo estabelecimento, com **uma** cobrança por mês, em
+pelo menos 3 meses **seguidos**, chegando até o mês do relatório ou o
+anterior; valor estável antes do aumento (variação de até 5%); aumento entre
+2% e 50% do mês anterior para o último. Nunca Pix nem transferência (o
+"estabelecimento" é uma pessoa), nem parcelamento. Mercado, restaurante e
+gasto variável ficam de fora por variarem ou aparecerem mais de uma vez no
+mês. Constantes em `api/app/insights/tools.py`. Com os dados de novembro de
+2026, a regra antiga dava 18 avisos (10 exibidos), quase todos de mercado,
+restaurante, farmácia, combustível e Pix, e a nova não dá nenhum: ela
+reconhece as assinaturas da casa, e nenhuma subiu.
+
+**Sem schema novo.** Tudo é consulta sobre `vw_transacoes_completa`,
+`pluggy_pendentes` e as datas que a D-27 já lê.
 
 ---
 
