@@ -36,6 +36,8 @@ leia o motivo — ele costuma ser a parte que não é óbvia.
 - D-29 — Início com gráficos de linha: gastos acumulados e ciclos de fatura
 - D-30 — Cardápio como módulo do serviço `compras`
 - D-31 — Início pela data da compra; o caixa vira bloco secundário
+- D-32 — Gasto até hoje do Início pela fatura atual, com pendentes (registro em andamento)
+- D-33 — Nota fiscal lida em casa como fonte da verdade da compra
 
 ---
 
@@ -1210,3 +1212,84 @@ números podem diferir dos do Início.
 
 **Fica de fora.** O relatório não muda de base. O gráfico dos 30 dias e o de
 faturas (D-29) não mudam.
+
+---
+
+## D-33 — Nota fiscal lida em casa como fonte da verdade da compra
+
+Decisão do usuário, 18/11/2026. Ajusta a D-25 (fase 4 de compras: nota e
+preços) e responde, para a nota, aos riscos em aberto do roadmap ("Leitura
+da NFC-e do RS" e "Ligação da nota com a transação"). Só planejamento: nada
+foi implementado.
+
+**Por quê.** A lista diz o que se *pretendia* comprar e a marcação no
+mercado diz o que alguém *achou* que pôs no carrinho; a despesa de finanças
+diz quanto saiu, mas não o quê. Só a NFC-e diz o que foi comprado, de qual
+marca, em que tamanho e a que preço. Hoje cada pedaço vive sozinho: a nota
+lida não mexe na lista nem na despensa, e o histórico de preço é por
+produto genérico, sem distinguir o leite de 1 L do de 200 ml nem o tomate
+pesado na hora. Ler a nota em casa, com calma, depois da compra (e não no
+caixa) é o que torna possível conferir tudo de uma vez e com confirmação do
+casal.
+
+**O fluxo:** ler a nota -> ligar à despesa (sugestão por data e valor,
+confirmada pelo usuário) -> reconhecer os itens -> conferir a lista ->
+atualizar a despensa -> registrar os preços.
+
+- **Dois níveis de item.** *Produto* é o genérico que a lista, a despensa e
+  o cardápio usam ("leite"). *Variante* é o item exato, com marca e tamanho
+  ("Leite Italac Integral 1L"), pelo código de barras quando a nota traz,
+  ligada a um produto. A lista continua pedindo produto; a nota registra
+  variante. O histórico de preço é por variante, com consulta agregada por
+  produto.
+- **Preço comparável por unidade de medida**: R$/kg, R$/L ou R$/un,
+  incluindo o item pesado na hora. De cada item ficam o preço cheio, o
+  desconto e o preço pago.
+- **Conferência da lista**, com os itens pendentes e os comprados que ainda
+  não tiveram nota:
+  - na lista, marcado e na nota: confirma;
+  - na lista, não marcado e na nota: marca comprado e avisa;
+  - na nota e fora da lista: registra como extra;
+  - na lista, não marcado e fora da nota: continua pendente;
+  - marcado e fora da nota: fica **"comprado, aguardando nota"**, visível na
+    lista, e é confirmado sozinho quando aparecer em qualquer nota seguinte,
+    de qualquer estabelecimento. Depois de 7 dias sem aparecer, pergunta
+    uma vez: "comprei sem nota" (fecha como comprado) ou "não comprei"
+    (volta à lista como pendente). O casal pode resolver antes, a qualquer
+    momento. A despensa não muda nesse estado (já está "tem" desde a
+    marcação);
+  - quantidade menor que a pedida: pergunta se a diferença volta para a
+    lista;
+  - item da nota não reconhecido: pergunta uma vez e aprende (apelido,
+    D-09).
+- **Tudo o que veio na nota vira "tem" na despensa.**
+- **Outros estabelecimentos** (farmácia, posto) seguem o mesmo fluxo; quando
+  nada da lista bate, não há conferência.
+- **Abastecimento**, como direção: é uma nota de posto (litros e R$/L) mais
+  a quilometragem informada. Não detalhado agora.
+- **Voz**, como direção: uma ferramenta futura do MCP do vault para consultar
+  preço ("onde o leite está mais barato?"), cliente da API de preços.
+
+**Por que variante e não só produto.** O produto precisa ser genérico para a
+lista funcionar ("leite" serve qualquer marca) e o preço precisa ser exato
+para comparar. Com um nível só, ou a lista vira uma lista de marcas, ou o
+preço mistura 1 L com 200 ml. A unidade comparável resolve a outra metade:
+duas variantes de tamanhos diferentes se comparam pelo R$/L.
+
+**Por que "aguardando nota" em vez de confirmar ou desfazer na hora.** A
+compra pode chegar em mais de uma nota (dois mercados no mesmo dia, a nota
+da farmácia lida dias depois), e a nota pode se perder. Desfazer a marcação
+por não estar *nesta* nota devolveria à lista algo que já está em casa;
+confirmar sem nota apagaria a diferença entre "comprado" e "comprado e
+conferido". Esperar uma semana e perguntar uma vez é o meio-termo que não
+exige nada do casal no caso comum.
+
+**O que continua valendo.** A D-25 inteira: produto, apelido e preço moram
+só no `compras`, e a ligação com finanças é o `transacao_id` sem FK, pela
+API. A nota não cria nem altera transação em finanças. O pendente único da
+lista e o ciclo da despensa continuam no service, na mesma transação.
+
+Modelo em `docs/compras/modelo-notas.md`, endpoints em
+`docs/compras/api-notas.md`, subfases no roadmap, seção "Notas fiscais,
+conferência e preços". As telas precisam de desenho aprovado antes do código
+(D-15).

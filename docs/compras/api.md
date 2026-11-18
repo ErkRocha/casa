@@ -1,6 +1,8 @@
 # API — `compras`, fase de lista e despensa
 
 Implementado (D-25): lista e despensa, e o backend da nota fiscal e preços. Modelo em `modelo-dados.md`.
+O plano da D-33 (variantes, conferência, preços comparáveis) está em
+`api-notas.md`.
 
 ## Endereço
 

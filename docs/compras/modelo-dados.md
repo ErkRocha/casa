@@ -9,6 +9,10 @@ as do serviço e o que muda em relação a `docs/modelo-dados.md`.
 O módulo de cardápio (D-30, implementado na migration 0004) fica em `modelo-cardapio.md`; ele
 acrescenta duas colunas a `produtos` e o valor `cardapio` a `origem_item`.
 
+A D-33 (planejada, não implementada) muda a parte de nota fiscal e preços:
+variantes, preço comparável, conferência da lista e "aguardando nota". O
+plano está em `modelo-notas.md`; o que está abaixo é o que existe hoje.
+
 ## Convenções
 
 - **Schema e role.** Todas as tabelas, enums, views e triggers ficam no

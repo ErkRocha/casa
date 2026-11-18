@@ -536,6 +536,9 @@ Nesta ordem, sem pular:
    fornecer, anonimizada: `compras/tests/amostras/README.md`. Até lá o
    teste da amostra fica pulado.
 
+   **Continua na seção "Notas fiscais, conferência e preços" (D-33)**:
+   variantes, preço comparável, conferência da lista e despensa pela nota.
+
    **Pronto quando:** a nota de uma compra real vira itens com o total
    batendo com o da nota; ler o mesmo QR code de novo não cria outra nota;
    a segunda nota do mesmo mercado já vem com os itens associados pelo que a
@@ -665,8 +668,67 @@ Registrado, sem decisão nem modelo ainda:
   de desenho aprovado (D-15).
 - **Abastecimento.** Registro de cada abastecimento: litros, preço por
   litro e quilometragem, com o consumo médio (km/L) entre abastecimentos.
-  Em que serviço mora e se nasce da transação do posto: decidir junto com
-  a tela de detalhe da despesa (D-30).
+  Direção decidida na D-33: nasce da nota do posto, mais a quilometragem
+  informada (seção "Notas fiscais, conferência e preços", passo 5).
+
+---
+
+## Notas fiscais, conferência e preços (D-33)
+
+A NFC-e, lida em casa, é a fonte da verdade do que foi comprado: ler a nota
+-> ligar à despesa -> reconhecer os itens -> conferir a lista -> atualizar
+a despensa -> registrar os preços. Continua a fase 4 de "Lista de compras",
+cujo backend de leitura já existe. Modelo em `docs/compras/modelo-notas.md`,
+endpoints em `docs/compras/api-notas.md`.
+
+Nesta ordem, sem pular:
+
+1. **Backend: variantes e preço comparável.** Migration nova do `compras`:
+   `variantes`, `variante_id` em `nota_itens` e `apelidos` (com o produto
+   mantido por trigger), migração dos itens e apelidos associados para
+   variantes, `vw_preco_variante` e a `vw_preco_produto` refeita. Endpoints
+   de variantes, associação por variante e as consultas de preço.
+
+   **Pronto quando:** pelo `/api/compras/docs`, duas notas de teste em
+   mercados diferentes com o mesmo GTIN caem na mesma variante; um item
+   pesado aparece em R$/kg; 1 L e 200 ml do mesmo produto se comparam por
+   R$/L; a soma dos preços pagos bate com o total de cada nota; "onde é mais
+   barato" ordena os dois mercados.
+2. **Backend: conferência e "aguardando nota".** `fechamento`,
+   `fechado_*` e `perguntado_em` em `itens_lista`, `item_lista_id` em
+   `nota_itens`, `conferida_*` em `notas_fiscais`, `nota` em `origem_item`,
+   e a migração dos comprados antigos para `sem_nota`. Prévia e confirmação
+   da conferência, `fechar` e `dispensar-pergunta`, a despensa pela nota e a
+   sugestão de despesa com um dia de folga.
+
+   **Pronto quando:** os casos de teste de `api-notas.md` passam, e uma
+   compra simulada (lista com 5 itens, 3 marcados, nota com 4 deles e um
+   extra) termina com a lista, a despensa e os fechamentos como a D-33
+   descreve.
+3. **Telas.** Desenhadas no Claude Design antes de qualquer código (D-15):
+   ler a nota (câmera do QR code ou colar a chave), ligar à despesa,
+   associar os itens não reconhecidos, a conferência (prévia com as
+   perguntas e a confirmação), "aguardando nota" na lista com a pergunta
+   dos 7 dias, e o preço do produto (variantes e mercados). Pensadas para o
+   celular, em casa.
+
+   **Pronto quando:** o desenho está aprovado e implementado.
+4. **Validação com nota real.** Ler notas reais do RS de pelo menos dois
+   mercados e uma farmácia; conferir o leitor (`leitor_svrs.py`), a URL só
+   com a chave, se a página traz GTIN e desconto por item, e o total.
+   Pendente do usuário desde 02/11/2026 (`compras/tests/amostras/README.md`).
+
+   **Pronto quando:** o "pronto quando" da fase 4 de "Lista de compras" e
+   uma compra real do começo ao fim pelo fluxo da D-33: nota lida, despesa
+   ligada quando a sync trouxer a compra, lista conferida, despensa e
+   preços certos.
+5. **Abastecimento**, depois. Direção registrada na D-33: uma nota de posto
+   (litros e R$/L, pelo mesmo fluxo) mais a quilometragem informada, com o
+   consumo médio entre abastecimentos. Modelo e tela a decidir no bloco
+   dele.
+6. **Voz, futuro.** Ferramenta do MCP do vault para consultar preço ("onde
+   o leite está mais barato?"), cliente de `GET /precos/onde-mais-barato`.
+   Sem detalhe até os preços terem notas reais.
 
 ---
 

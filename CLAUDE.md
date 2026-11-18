@@ -1,7 +1,7 @@
 # controle-casa — finanças e compras da casa
 
 Sistema local (Docker, uso de um casal, sem internet nem multi-tenant).
-Decisões já tomadas estão em docs/decisoes.md (D-01..D-31): se algo parecer
+Decisões já tomadas estão em docs/decisoes.md (D-01..D-33): se algo parecer
 faltando, pergunte, não invente. Containers, portas e mcp-servidor:
 docs/ecossistema.md.
 
@@ -84,6 +84,7 @@ backups/ faturas/ pluggy_amostras/   dados reais, fora do git
 - fase ou escopo → docs/roadmap.md
 - ingestão ou insights com LLM → docs/llm.md
 - compras → docs/compras/api.md, docs/compras/modelo-dados.md
+- nota fiscal, conferência e preços (D-33) → docs/compras/modelo-notas.md, docs/compras/api-notas.md
 - cardápio → docs/compras/modelo-cardapio.md, docs/compras/api-cardapio.md
 - telas → docs/design/README.md, docs/design/COMPRAS.md, docs/design/CARDAPIO.md
 - progresso → notas/progresso.md
