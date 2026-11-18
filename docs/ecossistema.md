@@ -47,6 +47,22 @@ Todas as portas publicadas só em `127.0.0.1`. Volume do banco:
   mcp-servidor.
 - Acesso remoto pela Tailscale (D-18).
 
+## Qual base cada tela do financeiro usa (D-31)
+
+Um gasto no cartão tem duas datas: a da compra e a da fatura em que caiu
+(competência, D-02). O **Início** responde "quanto a gente gastou este mês?"
+pela **data da compra**: gasto até hoje, comparação com o mês anterior,
+receitas, sobra, orçamento, avisos de orçamento, quem gastou e por categoria
+(as partes somam o gasto). O bloco **"O que sai da conta"** do Início (faturas
+a pagar, já saiu da conta, previsão de fechamento) é a outra base, a do caixa
+(D-27): competência, com a fatura no dia em que sai da conta; faturas
+abertas e os dois gráficos seguem a D-27/D-29. As **Análises** têm o seletor,
+com "pela data da compra" como padrão; o orçamento delas segue o seletor. O
+**relatório mensal** e o MCP de finanças são por **competência**, e o
+relatório diz isso no fim do texto. Faixas de orçamento (80% atenção, 100%
+estourado) e a média mensal (sem os meses sem lançamento) são as mesmas em
+todas as telas: `api/app/faixas_orcamento.py` e `api/app/medias.py`.
+
 ## Roles do Postgres
 
 - `casa_financas` — API de finanças (sem superusuário, D-26)

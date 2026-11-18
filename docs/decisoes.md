@@ -35,6 +35,7 @@ leia o motivo — ele costuma ser a parte que não é óbvia.
 - D-28 — Compras pendentes do cartão só para exibição
 - D-29 — Início com gráficos de linha: gastos acumulados e ciclos de fatura
 - D-30 — Cardápio como módulo do serviço `compras`
+- D-31 — Início pela data da compra; o caixa vira bloco secundário
 
 ---
 
@@ -915,13 +916,17 @@ tracejado do gráfico para o que ainda vai sair. Nenhum token ou padrão novo.
 
 **Análises.** Seletor "o que sai da conta" (padrão, competência) ou "pela
 data da compra" (mês da `data`), para os gráficos da tela. O orçamento fica
-sempre na base da D-02.
+sempre na base da D-02. **Revisto em 18/11/2026 pela D-31:** "pela data da
+compra" virou o padrão, e o orçamento segue o seletor.
 
 **Fica de fora.**
 - Gasto até hoje, pessoas, categorias e orçamento do Início continuam por
   competência (D-02). Só o gráfico e a previsão mudam. **Revisto em
   05/11/2026 pela D-28:** o gráfico passou a ser o dos últimos 30 dias, e
-  "Gasto até hoje" passou a ser pela data da compra.
+  "Gasto até hoje" passou a ser pela data da compra. **Revisto em
+  18/11/2026 pela D-31:** todo o topo (pessoas, categorias, orçamento,
+  receitas e sobra) passou a ser pela data da compra; o caixa (faturas a
+  pagar, saiu da conta, previsão) virou um bloco secundário.
 - Cartão sem conexão com a Pluggy e sem compras no sistema não tem degrau: o
   pagamento dele continua rejeitado como transferência (D-22) e não aparece.
 
@@ -981,6 +986,7 @@ pendente. O gráfico não depende do mês escolhido na tela. **Revisto em 06/11/
 gasto do mês **pela data da compra**, só com o que foi lançado; o que já
 saiu da conta e o que está em faturas a pagar ficam num cartão separado.
 Pessoas, categorias e orçamento continuam por competência (D-02).
+**Revisto em 18/11/2026 pela D-31:** passaram a ser pela data da compra.
 
 **Faturas abertas** (D-27) somam lançadas e pendentes do ciclo atual e dizem
 quanto é pendente.
@@ -1059,7 +1065,8 @@ seguem em SVG feito à mão, como os anteriores.
 comprovantes da sync, como na D-27.
 
 **Fica de fora.** Os cartões do topo, pessoas, categorias e orçamento não
-mudam (D-02, D-28). Pendente de conta corrente continua ignorada.
+mudam (D-02, D-28). **Revisto em 18/11/2026 pela D-31:** passaram todos a ser
+pela data da compra. Pendente de conta corrente continua ignorada.
 
 ---
 
@@ -1144,3 +1151,62 @@ aprovadas:
   e receita, se foi feito, por quem e quando. O roteiro continua calculado;
   a tabela só marca o que foi concluído, e a marcação chega ao outro
   celular pelo mesmo polling da lista (`/mudancas`).
+
+---
+
+## D-31 — Início pela data da compra; o caixa vira bloco secundário
+
+Decisão do usuário, 18/11/2026. Ajusta a D-27 e revê a D-28 e a D-29 no
+que diz respeito ao topo do Início e às Análises.
+
+O Início responde **"quanto a gente gastou este mês?"**. Até aqui o topo
+misturava bases: "Gasto até hoje" já era pela data da compra (D-28), mas o
+orçamento, quem gastou e por categoria seguiam por competência (D-02), e a
+caixa "Saiu da conta" comparava a previsão do caixa com o orçamento. Os
+números lado a lado não somavam, e não dava para dizer de onde vinha cada um.
+
+**A base do Início é a data da compra.** Valem por ela, só com o que foi
+lançado (a pendente da D-28 continua fora) e até o dia de referência:
+
+- gasto até hoje e a comparação com o mês anterior no mesmo dia;
+- receitas e a sobra (receitas menos gastos);
+- orçamento (as metas do mês contra o gasto pela data) e os avisos de
+  orçamento por categoria;
+- quem gastou e por categoria. **As partes somam o número principal:**
+  as categorias além das cinco maiores entram numa linha "Outras
+  categorias", e pessoa removida que tem gasto no mês continua listada.
+
+Nenhum número do topo mistura as duas bases. Os avisos de reajuste
+continuam das detecções do relatório (competência): eles falam de
+recorrência, não do total do mês.
+
+**O caixa vira um bloco secundário**, "O que sai da conta", rotulado como
+outra base: faturas a pagar, o que já saiu da conta e a previsão de
+fechamento, todos pela regra da D-27 (competência, com a fatura no dia em
+que sai da conta). A previsão não é mais comparada com o orçamento: as
+bases são diferentes. Faturas abertas e o gráfico de faturas (D-27, D-29)
+continuam como estão. Na API, tudo isso fica no objeto `caixa`.
+
+**Análises.** O seletor continua, agora com "pela data da compra" primeiro
+e como padrão. O orçamento das Análises passa a seguir o seletor (o que a
+D-27 deixava sempre por competência): pela data da compra, até hoje, ele
+bate com o do Início; por competência, com o do relatório.
+
+**Relatório mensal.** Continua por competência (D-02). Todo relatório, com
+ou sem modelo, termina com uma nota dizendo qual base usa e que por isso os
+números podem diferir dos do Início.
+
+**Junto com esta decisão** (mesma tarefa, sem decisão própria):
+
+- Faixas de orçamento numa regra só (`api/app/faixas_orcamento.py`): a
+  partir de 80% "atenção", a partir de 100% "estourado", no painel, nos
+  avisos e no relatório. Antes o painel usava 90% e o relatório 80%.
+- Média mensal numa função só (`api/app/medias.py`), usada pelas Análises e
+  pelo relatório: meses sem nenhum lançamento ficam fora da média; mês com
+  lançamento e sem despesa conta como zero.
+
+**Sem schema novo.** Tudo é consulta sobre `vw_transacoes_completa`,
+`orcamentos` e as datas que a D-27 já lê.
+
+**Fica de fora.** O relatório não muda de base. O gráfico dos 30 dias e o de
+faturas (D-29) não mudam.
