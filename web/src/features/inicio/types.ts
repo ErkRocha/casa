@@ -2,7 +2,7 @@
 
 export type Dinheiro = string;
 
-export type FaixaOrcamento = "ok" | "perto" | "estourado";
+export type FaixaOrcamento = "ok" | "atencao" | "estourado";
 export type SituacaoMes = "corrente" | "passado" | "futuro";
 
 export type OrigemDatas = "pluggy_fatura" | "pluggy_conta" | "cadastro";

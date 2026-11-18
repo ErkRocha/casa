@@ -14,9 +14,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-#: Faixa de orçamento do README do desenho: até 90% azul, 90–100% âmbar,
-#: acima de 100% estourado.
-FaixaOrcamento = Literal["ok", "perto", "estourado"]
+#: Faixa de orçamento: regra e limiares em `app.faixas_orcamento`.
+from app.faixas_orcamento import FaixaOrcamento
 
 #: Mês corrente, já fechado ou ainda por vir — cada um tem estado próprio.
 SituacaoMes = Literal["corrente", "passado", "futuro"]

@@ -29,7 +29,7 @@ Cores:
 - destaque (azul) `#1F4FBF`, hover `#163A8F`, fundo de destaque `#EAF0FD`
 - receita/positivo `#1C7A55`, fundo `#E3F3EC`, texto sobre ele `#145C40`
 - atenção (âmbar) fundo `#FFF3D6` / `#FFF8E8`, texto `#5C3D00`, selo sólido `#8A5A00`, borda tracejada `#C99A3A`/`#E5C27A`
-- orçamento: até 90% azul `#1F4FBF`; 90–100% `#C98A12`; estourado `#B4540A`
+- orçamento: abaixo de 80% azul `#1F4FBF`; a partir de 80% "atenção" `#C98A12`; a partir de 100% "estourado" `#B4540A` (limiares em `api/app/faixas_orcamento.py`, os mesmos do painel, dos avisos e do relatório)
 - pessoas (diferem por claridade, não só tom): Erik `#1E3A8A`, Laura `#6F93E6`, Juntos `#B9C2D0`
 
 Séries de gráfico (D-29): Okabe-Ito adaptada para o fundo branco. Validada com

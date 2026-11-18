@@ -7,7 +7,7 @@ import type { FaixaOrcamento, Inicio } from "./types";
 /** Cor da barra de orçamento pela faixa que a API calculou (README). */
 export const COR_FAIXA: Record<FaixaOrcamento, string> = {
   ok: "bg-orcamento-ok",
-  perto: "bg-orcamento-perto",
+  atencao: "bg-orcamento-perto",
   estourado: "bg-orcamento-estourado",
 };
 

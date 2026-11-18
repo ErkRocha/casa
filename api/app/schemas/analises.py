@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from app.schemas.inicio import FaixaOrcamento
+from app.faixas_orcamento import FaixaOrcamento
 
 #: Este mês, os últimos 3 ou os últimos 12, sempre terminando no mês corrente.
 Periodo = Literal["mes", "3m", "12m"]
@@ -67,7 +67,7 @@ class LinhaOrcamentoAnalise(BaseModel):
     gasto: Decimal
     meta: Decimal
     percentual: int
-    #: Faixas do README: até 90%, de 90% a 100%, acima de 100%.
+    #: `app.faixas_orcamento`: a partir de 80% atenção, a partir de 100% estourado.
     faixa: FaixaOrcamento
     #: Largura da barra, limitada a 100.
     largura: int

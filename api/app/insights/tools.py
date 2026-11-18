@@ -19,10 +19,12 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.faixas_orcamento import faixa_orcamento
 from app.schemas.insights import (
     Cobertura,
     ComparacaoCategoria,
@@ -51,11 +53,6 @@ SEM_CATEGORIA = "Sem categoria"
 #: Janela padrão de comparação. Doze meses cobre sazonalidade (IPTU, material
 #: escolar, seguro) sem virar arqueologia.
 JANELA_PADRAO = 12
-
-#: Acima disso a categoria acende amarelo no orçamento; acima de 100, vermelho.
-#: Mesmo limiar da tela de analytics — dois números diferentes para "atenção"
-#: fariam o relatório contradizer o painel.
-LIMIAR_ATENCAO = Decimal("80")
 
 #: Quantos desvios absolutos medianos acima da mediana tornam um gasto
 #: atípico. Três é conservador de propósito: relatório que grita todo mês
@@ -361,12 +358,12 @@ def status_orcamento(
         text(consulta), {"competencia": competencia, "ate": pela_compra_ate}
     ).all()
 
-    def situacao(percentual: Decimal) -> str:
-        if percentual > 100:
-            return "estourado"
-        if percentual >= LIMIAR_ATENCAO:
-            return "atencao"
-        return "ok"
+    def situacao(linha: Any) -> str:
+        # Pela razão exata, não pelo percentual arredondado da view: 99,96%
+        # ainda não estourou.
+        if _dec(linha.valor_meta) == 0:
+            return "ok"
+        return faixa_orcamento(_dec(linha.realizado) / _dec(linha.valor_meta) * 100)
 
     montadas = [
         LinhaOrcamento(
@@ -374,7 +371,7 @@ def status_orcamento(
             meta=_dec(linha.valor_meta),
             realizado=_dec(linha.realizado),
             percentual=_dec(linha.percentual),
-            situacao=situacao(_dec(linha.percentual)),
+            situacao=situacao(linha),
         )
         for linha in linhas
     ]

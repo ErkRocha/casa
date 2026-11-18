@@ -95,7 +95,7 @@ def dados(session: Session) -> dict[str, Any]:
 
     session.add_all(
         [
-            # 60 de 65 = 92,3%: "perto". 120 de 100: estourado. 0 de 100: ok.
+            # 60 de 65 = 92,3%: "atencao". 120 de 100: estourado. 0 de 100: ok.
             Orcamento(categoria_id=alimentacao.id, competencia=OUT, valor_meta=Decimal("65")),
             Orcamento(categoria_id=casa.id, competencia=OUT, valor_meta=Decimal("100")),
             Orcamento(categoria_id=lazer.id, competencia=OUT, valor_meta=Decimal("100")),
@@ -163,7 +163,7 @@ def test_orcamento_nas_faixas_do_readme(session: Session, dados: dict[str, Any])
         (o.nome, o.gasto, o.meta, o.percentual, o.faixa, o.largura, o.excesso) for o in orcamento
     ] == [
         ("Casa", Decimal("120"), Decimal("100"), 120, "estourado", 100, Decimal("20")),
-        ("Alimentação", Decimal("60"), Decimal("65"), 92, "perto", 92, None),
+        ("Alimentação", Decimal("60"), Decimal("65"), 92, "atencao", 92, None),
         ("Lazer", Decimal("0"), Decimal("100"), 0, "ok", 0, None),
     ]
 

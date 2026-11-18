@@ -26,6 +26,7 @@ from typing import Any
 from sqlalchemy import Row, text
 from sqlalchemy.orm import Session
 
+from app.faixas_orcamento import sql_faixa
 from app.schemas.analises import (
     Analises,
     BaseAnalise,
@@ -210,7 +211,7 @@ _ORCAMENTO = f"""
       gasto,
       meta,
       round(razao)::int AS percentual,
-      CASE WHEN razao > 100 THEN 'estourado' WHEN razao > 90 THEN 'perto' ELSE 'ok' END AS faixa,
+      {sql_faixa("razao")} AS faixa,
       least(100, round(razao))::int AS largura,
       CASE WHEN gasto > meta THEN gasto - meta END AS excesso
     FROM calculo

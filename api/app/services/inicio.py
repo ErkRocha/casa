@@ -32,6 +32,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.faixas_orcamento import sql_faixa
 from app.insights import tools
 from app.schemas.inicio import (
     AvisoOrcamento,
@@ -174,7 +175,7 @@ _TOTAIS = f"""
       receitas - gasto AS sobra,
       meta,
       round(razao)::int AS percentual_usado,
-      CASE WHEN razao > 100 THEN 'estourado' WHEN razao > 90 THEN 'perto' ELSE 'ok' END AS faixa,
+      {sql_faixa("razao")} AS faixa,
       (SELECT count(*) FROM vw_transacoes_completa t
        WHERE t.competencia = :c
           OR (t.data >= CAST(:c AS date)

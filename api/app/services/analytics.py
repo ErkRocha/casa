@@ -19,6 +19,7 @@ from sqlalchemy import ColumnElement, Date, Text, and_, cast, func, select
 from sqlalchemy.orm import Session
 
 from app.enums import StatusItem, TipoPagamento, TipoTransacao
+from app.faixas_orcamento import faixa_orcamento
 from app.models import Categoria, Conta, FormaPagamento, Importacao, ImportacaoItem, Pessoa
 from app.schemas.analytics import (
     AnalyticsResumo,
@@ -45,9 +46,6 @@ from app.views import vw_orcamento_mes as VO
 from app.views import vw_transacoes_completa as V
 
 ZERO = Decimal("0.00")
-
-#: Acima disso a categoria acende amarelo; acima de 100 acende vermelho.
-LIMIAR_ATENCAO = Decimal("80")
 
 #: Quantos meses a evolução mensal mostra quando o filtro não diz outra coisa.
 JANELA_MESES = 12
@@ -390,11 +388,7 @@ class AnalyticsService:
 
     @staticmethod
     def _status_orcamento(percentual: Decimal) -> str:
-        if percentual > 100:
-            return "estourado"
-        if percentual >= LIMIAR_ATENCAO:
-            return "atencao"
-        return "ok"
+        return faixa_orcamento(percentual)
 
     # ------------------------------------------------------------------
     # Comparativo entre períodos

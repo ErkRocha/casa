@@ -185,16 +185,22 @@ class TestMesCorrente:
         assert aviso.situacao == "atencao"
         assert aviso.dias_restantes == 15
 
-    def test_faixa_perto_e_estourado(self, session: Session, mes: dict[str, Any]) -> None:
-        orcamentos = session.query(Orcamento).all()
-        for o in orcamentos:
-            o.valor_meta = Decimal("42.50")  # 80 / 85 = 94,1%
+    @pytest.mark.parametrize(
+        ("meta_cada", "faixa"),
+        [
+            ("50.01", "ok"),  # 80 / 100,02 = 79,98%
+            ("50", "atencao"),  # 80 / 100 = 80%: a partir de 80%
+            ("40.01", "atencao"),  # 80 / 80,02 = 99,98%
+            ("40", "estourado"),  # 80 / 80 = 100%: a partir de 100%
+        ],
+    )
+    def test_faixas_nos_limiares(
+        self, session: Session, mes: dict[str, Any], meta_cada: str, faixa: str
+    ) -> None:
+        for o in session.query(Orcamento).all():
+            o.valor_meta = Decimal(meta_cada)
         session.commit()
-        assert _resumo(session).orcamento.faixa == "perto"  # type: ignore[union-attr]
-        for o in orcamentos:
-            o.valor_meta = Decimal("35")  # 80 / 70
-        session.commit()
-        assert _resumo(session).orcamento.faixa == "estourado"  # type: ignore[union-attr]
+        assert _resumo(session).orcamento.faixa == faixa  # type: ignore[union-attr]
 
 
 class TestOutrosMeses:
