@@ -107,8 +107,8 @@ def dados(session: Session) -> dict[str, Any]:
     return {"erik": erik, "mercado": mercado, "alimentacao": alimentacao, "casa": casa}
 
 
-def _resumo(session: Session, periodo: Any, pessoa: str | None = None) -> Any:
-    return AnalisesService(session, hoje=HOJE).resumo(periodo, pessoa)
+def _resumo(session: Session, periodo: Any, pessoa: str | None = None, base: Any = "caixa") -> Any:
+    return AnalisesService(session, hoje=HOJE).resumo(periodo, pessoa, base)
 
 
 def test_tres_meses(session: Session, dados: dict[str, Any]) -> None:
@@ -283,17 +283,36 @@ def test_base_compra_pix_igual_nas_duas(session: Session, dados: dict[str, Any])
     ]
 
 
-def test_base_compra_nao_muda_o_orcamento(session: Session, dados: dict[str, Any]) -> None:
-    _compra_de_cartao(session)
-    caixa = _resumo(session, "3m")
-    compra = AnalisesService(session, hoje=HOJE).resumo("3m", None, "compra")
-    assert caixa.orcamento == compra.orcamento
+def test_orcamento_segue_a_base(session: Session, dados: dict[str, Any]) -> None:
+    """D-31: pela data da compra (padrão) o orçamento bate com o do Início."""
+    for data, valor in ((date(2026, 9, 30), "40"), (date(2026, 10, 20), "9")):
+        session.add(
+            Transacao(
+                data=data,
+                competencia=OUT,  # cartão: 30/09 cai na fatura de outubro
+                valor=Decimal(valor),
+                tipo=TipoTransacao.DESPESA,
+                descricao=f"cartão {data}",
+                descricao_original=f"CARTAO {data}",
+                categoria_id=dados["alimentacao"].id,
+            )
+        )
+    session.commit()
+    gasto = {
+        base: next(
+            o.gasto for o in _resumo(session, "3m", base=base).orcamento if o.nome == "Alimentação"
+        )
+        for base in ("caixa", "compra")
+    }
+    # Competência: 60 + 40 + 9. Data da compra, até hoje (16/10): só os 60.
+    assert gasto == {"caixa": Decimal("109"), "compra": Decimal("60")}
+    assert AnalisesService(session, hoje=HOJE).resumo("3m").base == "compra"
 
 
 def test_endpoint_valida_base(client: TestClient) -> None:
     padrao = client.get("/analytics/analises")
     assert padrao.status_code == 200, padrao.text
-    assert padrao.json()["base"] == "caixa"
-    compra = client.get("/analytics/analises", params={"base": "compra"})
-    assert compra.status_code == 200 and compra.json()["base"] == "compra"
+    assert padrao.json()["base"] == "compra"  # D-31: data da compra por padrão
+    caixa = client.get("/analytics/analises", params={"base": "caixa"})
+    assert caixa.status_code == 200 and caixa.json()["base"] == "caixa"
     assert client.get("/analytics/analises", params={"base": "outra"}).status_code == 422

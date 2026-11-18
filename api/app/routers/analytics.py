@@ -148,8 +148,8 @@ def analises(
     ] = None,
     base: Annotated[
         BaseAnalise,
-        Query(description="caixa (o que sai da conta) ou compra (data da compra)"),
-    ] = "caixa",
+        Query(description="compra (data da compra, padrão; D-31) ou caixa (o que sai da conta)"),
+    ] = "compra",
 ) -> Any:
     """A tela Análises (D-24): receitas e despesas por mês, categorias pela
     média dos meses fechados, o que mais mudou contra a média e o orçamento
@@ -164,8 +164,8 @@ def por_banco(
     filtros: FiltrosDep,
     base: Annotated[
         BaseAnalise,
-        Query(description="caixa (o que sai da conta) ou compra (data da compra)"),
-    ] = "caixa",
+        Query(description="compra (data da compra, padrão; D-31) ou caixa (o que sai da conta)"),
+    ] = "compra",
 ) -> Any:
     """Despesa por banco e forma, com o cartão separado do que saiu da conta
     e o que ainda está na revisão das importações no mesmo período.

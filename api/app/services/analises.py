@@ -14,7 +14,7 @@ categorias mostram o próprio mês e não há comparação com a média.
 **Orçamento pela categoria raiz**, a mesma regra de `vw_orcamento_mes` (o
 gasto da raiz soma as subcategorias), para Análises, Início e relatório
 dizerem o mesmo. A pessoa, quando escolhida, filtra o gasto; a meta é da
-casa.
+casa. A base padrão é a data da compra, a mesma do Início (D-31).
 """
 
 from __future__ import annotations
@@ -173,7 +173,9 @@ _MUDANCAS = f"""
     LIMIT :limite
 """
 
-#: Orçamento fica SEMPRE por competência (D-27): não usa `__MES__`.
+#: Orçamento na base escolhida (D-31): pela data da compra, o padrão, ele
+#: bate com o do Início (só até hoje, como lá); por competência, com o do
+#: relatório.
 _ORCAMENTO = f"""
     WITH metas AS (
       SELECT o.categoria_id, c.nome, o.valor_meta
@@ -184,7 +186,8 @@ _ORCAMENTO = f"""
     gastos AS (
       SELECT t.categoria_raiz_id AS categoria_id, sum(t.valor) AS gasto
       FROM vw_transacoes_completa t
-      WHERE t.tipo = 'despesa' AND t.competencia = CAST(:fim AS date)
+      WHERE t.tipo = 'despesa' AND __MES__ = CAST(:fim AS date)
+        AND (NOT CAST(:so_ate_hoje AS boolean) OR t.data <= CAST(:hoje AS date))
         {_PESSOA}
       GROUP BY t.categoria_raiz_id
     ),
@@ -223,7 +226,7 @@ class AnalisesService:
         self.hoje = hoje or date.today()
 
     def resumo(
-        self, periodo: Periodo, pessoa: str | None = None, base: BaseAnalise = "caixa"
+        self, periodo: Periodo, pessoa: str | None = None, base: BaseAnalise = "compra"
     ) -> Analises:
         fim = primeiro_dia_do_mes(self.hoje)
         quantos = MESES_DO_PERIODO[periodo]
@@ -283,7 +286,10 @@ class AnalisesService:
             mudancas=self._mudancas(params, inicio, fim, fechados, base),
             orcamento=[
                 LinhaOrcamentoAnalise.model_validate(dict(linha._mapping))
-                for linha in self.session.execute(text(_ORCAMENTO), params)
+                for linha in self.session.execute(
+                    text(_sql(_ORCAMENTO, base)),
+                    {**params, "hoje": self.hoje, "so_ate_hoje": base == "compra"},
+                )
             ],
         )
 

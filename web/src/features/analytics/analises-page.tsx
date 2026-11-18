@@ -21,8 +21,8 @@ const PERIODOS: Array<{ id: Periodo; rotulo: string }> = [
 ];
 
 const BASES: Array<{ id: BaseAnalise; rotulo: string }> = [
-  { id: "caixa", rotulo: "O que sai da conta" },
   { id: "compra", rotulo: "Pela data da compra" },
+  { id: "caixa", rotulo: "O que sai da conta" },
 ];
 
 const LEGENDA_BASE: Record<BaseAnalise, string> = {
@@ -41,7 +41,7 @@ type Quem = "todos" | "conjunto" | number;
 export function AnalisesPage() {
   const [periodo, setPeriodo] = useState<Periodo>("12m");
   const [quem, setQuem] = useState<Quem>("todos");
-  const [base, setBase] = useState<BaseAnalise>("caixa");
+  const [base, setBase] = useState<BaseAnalise>("compra");
   const { data: pessoas = [] } = usePessoas();
   const balde: BaldePessoa | null = quem === "todos" ? null : quem;
   const analises = useAnalises(periodo, balde, base);
@@ -79,7 +79,7 @@ export function AnalisesPage() {
 
       <div className="flex flex-col gap-2">
         <Segmentado
-          rotulo="Base dos gráficos"
+          rotulo="Base dos números"
           opcoes={BASES}
           atual={base}
           onMudar={setBase}
