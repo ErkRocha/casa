@@ -102,8 +102,12 @@ dossie: ## Imprime os números do mês em JSON, sem gerar relatório
 # Docker para o testcontainers. As senhas das roles vêm do .env (api-admin e
 # compras-role já as têm): a role é do cluster, e uma senha de teste trocaria
 # a da produção (D-26).
+# Sem JIT no casa_test: as tabelas recém-truncadas não têm estatística, o
+# planejador estima custos enormes e o JIT gasta ~30 s compilando cada
+# consulta das faturas (D-27) que roda em milissegundos sem ele.
 test-db:
 	@$(COMPOSE) exec -T db sh -c 'psql -U "$$POSTGRES_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '"'"'casa_test'"'"'" | grep -q 1 || createdb -U "$$POSTGRES_USER" casa_test'
+	@$(COMPOSE) exec -T db sh -c 'psql -U "$$POSTGRES_USER" -d postgres -qc "ALTER DATABASE casa_test SET jit = off"'
 
 test: test-db ## Roda o pytest (no banco casa_test) — use: make test [alvo=tests/test_x.py]
 	$(COMPOSE) run --rm api-admin sh -c 'TEST_DATABASE_URL="$${DATABASE_ADMIN_URL%/*}/casa_test" pytest $(alvo)'
