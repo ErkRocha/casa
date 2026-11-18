@@ -12,7 +12,7 @@ O fluxo da D-33 e o endpoint de cada passo:
 | passo | endpoint |
 |---|---|
 | ler a nota | `POST /notas` [existe] |
-| ligar à despesa | `GET /notas/{id}/sugestoes-transacao` [muda], `PUT /notas/{id}/transacao` [existe] |
+| ligar à despesa | `GET /notas/{id}/sugestoes-transacao` [muda], `PUT /notas/{id}/transacao` [existe], `POST /notas/{id}/lancar-despesa` [novo] |
 | reconhecer os itens | `PUT /notas/{id}/itens/{item_id}/variante` [novo] |
 | conferir a lista | `GET` (prévia) e `POST` (confirmação) `/notas/{id}/conferencia` [novo] |
 | atualizar a despensa | na confirmação da conferência |
@@ -36,7 +36,9 @@ despesa dias depois.
 |---|---|---|
 | GET | `/notas/{id}/sugestoes-transacao` | **Muda:** hoje é o mesmo dia e o mesmo valor. Passa a procurar de um dia antes a um dia depois da emissão (a data da Pluggy varia, D-23), com o valor exato, **nas transações e nas compras pendentes do cartão** (D-28). Cada sugestão diz o tipo, `{"tipo": "transacao", "transacao_id": 123}` ou `{"tipo": "pendente", "id_externo": "..."}`, com data, valor, descrição e cartão; ordena pelo dia mais próximo. Continua só sugestão |
 | PUT | `/notas/{id}/transacao` | **Muda:** `{"transacao_id": 123}` ou `{"pendente_id_externo": "..."}` confirma (um dos dois); nulo nos dois desfaz. A transação ou a pendente precisa existir em finanças |
-| POST | `/notas/consolidar-ligacoes` | Idempotente. Para cada nota ligada a uma pendente, pergunta a finanças se já há transação com aquele id: se há, preenche `transacao_id` sozinho; pendente sumida sem transação desfaz a ligação (a nota volta à fila). Chamado pela tela de notas ao abrir e, sem bloquear nada, pelo agendador de finanças depois da sync diária |
+| POST | `/notas/consolidar-ligacoes` | Idempotente. Para cada nota ligada a uma pendente, pergunta a finanças se já há transação com aquele id: se há, preenche `transacao_id` sozinho; pendente sumida sem transação desfaz a ligação (a nota volta à fila). Para cada nota ligada a uma transação apagada com `substituida_por_id` (a lançada pela nota que a revisão juntou com a do banco), passa a ligação para a substituta. Chamado pela tela de notas ao abrir e, sem bloquear nada, pelo agendador de finanças depois da sync diária |
+| GET | `/notas/{id}/lancar-despesa` | **Novo.** A prévia do lançamento: valor e data da nota, o mercado, a forma da página (`forma_pagamento_nota`), a categoria sugerida pelos itens e as formas de pagamento de finanças para escolher. Nota já ligada: 409 |
+| POST | `/notas/{id}/lancar-despesa` | **Novo.** `{"data", "valor", "descricao", "pessoa_id", "forma_pagamento_id", "categoria_id"}`, tudo escolhido ou confirmado pelo usuário. Cria a transação em finanças pelo `POST /api/transacoes` com `lancada_pela_nota = true`, liga a nota a ela e grava `despesa_lancada_pela_nota`. Nota já ligada: 409. Finanças fora do ar: 503, nada gravado |
 
 **Ligar não é obrigatório.** A nota sem ligação fica na fila "sem despesa"
 (`GET /notas?com_transacao=false`) e não bloqueia a conferência nem os
@@ -44,10 +46,25 @@ preços. A compra do cartão lida no mesmo dia quase sempre ainda é
 pendente: ela aparece na sugestão, e a ligação vira ligação com a transação
 quando a compra consolidar (`modelo-notas.md`, "Ligação com a pendente").
 
+**Sugestão e forma de pagamento.** A página traz a forma ("Cartão de
+Crédito", "Pix"); a sugestão põe primeiro as candidatas do mesmo tipo de
+forma e depois ordena pelo dia mais próximo. Não filtra.
+
+**Nota sem despesa que não vai chegar** (cartão fora da Pluggy):
+"lançar despesa pela nota" cria a transação com o que o usuário escolher
+(`modelo-notas.md`, "Nota sem despesa"). A forma de pagamento, como "Cartão
+da Laura", precisa estar cadastrada em Contas e cartões; a ação não cria
+forma.
+
 **Do lado de finanças**, dois endpoints de leitura novos, sem schema novo (a
 API de finanças é a dona desses dados, D-25): as compras pendentes do cartão
 por data e valor, e a transação pelo id da Pluggy (pelo item de staging que
-a promoveu).
+a promoveu). Para o lançamento pela nota, finanças ganha uma migration:
+`transacoes.lancada_pela_nota` e `transacoes.substituida_por_id`. O
+`POST /api/transacoes` aceita a marca, a leitura de uma transação apagada
+devolve o `substituida_por_id`, e a sync põe na revisão, como possível
+duplicata, o item da Pluggy com a mesma data, valor e forma de uma transação
+lançada pela nota. "Juntar" na revisão de duplicata mantém a do banco.
 
 ## Reconhecer os itens (variantes)
 
@@ -153,11 +170,15 @@ nome da ferramenta ficam para quando os preços tiverem notas reais.
 ## Casos que a fase precisa cobrir nos testes
 
 - **Variante:** dois itens com o mesmo GTIN em mercados diferentes caem na
-  mesma variante; um item pesado em KG dá R$/kg; um leite de 1 L e um de
+  mesma variante; dois itens com o mesmo código interno no mesmo mercado
+  caem na mesma variante, e o mesmo código em outro mercado não; "juntar
+  variantes" leva códigos, apelidos e itens; a sugestão de medida lê
+  "450G" e "1,5L" e não sugere nada com dois tamanhos na descrição; um item pesado em KG dá R$/kg; um leite de 1 L e um de
   200 ml do mesmo produto se comparam por R$/L; variante sem medida não
   entra no comparável e aparece na contagem.
 - **Preço:** desconto de linha e desconto da nota inteira rateado; a soma
-  dos preços pagos bate com o total da nota, centavo a centavo.
+  dos preços pagos bate com o total da nota, centavo a centavo; item que
+  recebeu desconto rateado vem com `preco_pago_estimado`.
 - **Conferência:** os seis casos da D-33 (marcado e na nota; não marcado e
   na nota; extra; pendente fora da nota; marcado fora da nota; quantidade
   menor com "volta" e sem); prévia e confirmação com o mesmo resultado;
@@ -173,4 +194,8 @@ nome da ferramenta ficam para quando os preços tiverem notas reais.
 - **Despesa:** sugestão um dia antes e um dia depois, nas transações e nas
   pendentes; nota ligada a uma pendente passa para a transação sozinha
   quando ela consolida, sem nova pergunta; pendente cancelada devolve a nota
-  à fila; nota sem ligação não bloqueia a conferência.
+  à fila; nota sem ligação não bloqueia a conferência; a forma da nota
+  ordena a sugestão; "lançar despesa pela nota" cria a transação marcada e
+  liga; o item da Pluggy igual em data, valor e forma vai para a revisão e
+  não é promovido; juntar mantém a do banco e a nota passa para ela pelo
+  `consolidar-ligacoes`.

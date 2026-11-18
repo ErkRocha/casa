@@ -1380,3 +1380,36 @@ conferência e preços". As telas precisam de desenho aprovado antes do código
   respostas sobre a página da SEFAZ-RS (código de barras, desconto e
   unidade por item) mudam o desenho, e o roadmap lista o que muda em cada
   caso.
+
+**Validação com nota real (18/11/2026).** A Consulta Completa da SEFAZ-RS
+não traz código de barras (só o código interno do mercado), mostra só o
+desconto da nota inteira e traz o peso em KG. Ramos escolhidos: variante
+por mercado e código interno, com "juntar variantes"; desconto sempre
+rateado, com o preço pago marcado como estimativa. A forma de pagamento da
+página ordena a sugestão de despesa, e o tamanho na descrição vira
+sugestão de medida da variante (`modelo-notas.md`, "Validação com nota
+real").
+
+**Lançar despesa pela nota (ajuste do usuário, 18/11/2026).** Caso real:
+compra paga com um cartão que não está ligado à Pluggy, e por isso sem
+despesa que vá chegar sozinha. Revê o "a nota não cria nem altera
+transação" acima:
+
+- a nota sem despesa ganha a ação **"lançar despesa pela nota"**: cria a
+  transação em finanças, pela API de finanças, com valor, data,
+  estabelecimento, pessoa e forma de pagamento escolhidos pelo usuário
+  (por exemplo a forma "Cartão da Laura") e a categoria sugerida pelos
+  itens. A transação fica marcada como **lançada pela nota**. A nota
+  continua sem alterar nem apagar transação;
+- quando a mesma compra chegar depois pela Pluggy (a dona do cartão
+  conectando a conta, por exemplo), com a mesma data, valor e forma de
+  pagamento, o item vai para a revisão como **possível duplicata**, nunca
+  promovido sozinho. Ao juntar, fica a transação **do banco** e a ligação
+  da nota passa para ela;
+- cadastrar a forma de pagamento (como "Cartão da Laura") é com o usuário,
+  na tela de Contas e cartões. Ao conectar a conta depois, o cartão da
+  Pluggy precisa ser mapeado para essa mesma forma, senão o casamento não
+  acontece.
+
+Pede migration em finanças (`transacoes.lancada_pela_nota` e
+`substituida_por_id`), descrita em `modelo-notas.md`, "Nota sem despesa".

@@ -13,7 +13,8 @@ seria criado; **[muda]** existe e ganha coluna, check ou significado.
 ## O que muda, em uma frase cada
 
 1. **Variante** entre o produto e o item da nota: o item exato, com marca e
-   tamanho. O apelido e o GTIN passam a apontar para ela. **[novo]**
+   tamanho. O apelido, o GTIN e o código interno do mercado passam a
+   apontar para ela. **[novo]**
 2. **Unidade comparável**: cada variante diz quanto tem (1000 ml, 500 g,
    1 un) ou que é pesada na hora; o preço sai em R$/kg, R$/L ou R$/un.
    **[novo]**
@@ -36,6 +37,36 @@ medida_base       : g | ml | un                           [existe, D-30]
 
 `origem_item = nota` marca o item que a conferência criou: a diferença de
 quantidade que volta para a lista. É o mesmo papel do `cardapio` da D-30.
+
+## Validação com nota real (18/11/2026) [respondida]
+
+Uma NFC-e real de supermercado do RS (24 itens, 15/11/2026), lida pela
+consulta por chave da SEFAZ-RS, que devolve a página "Consulta Completa da
+NFC-e". A amostra anonimizada está em
+`compras/tests/amostras/nfce_rs_anonimizada.html`. O layout do QR code
+(portal SVRS) ainda não foi visto com nota real; se ele trouxer algo a mais,
+entra aqui como diferença.
+
+| pergunta | resposta | ramo escolhido |
+|---|---|---|
+| código de barras por item? | **não**: só o código interno do mercado (18 dígitos com zeros à esquerda) | **sem código de barras**: variante por `(mercado, código interno)`, com "juntar variantes" |
+| desconto por item e da nota? | **só o da nota** ("Valor descontos R$") | **desconto só da nota**: rateado, preço pago marcado como estimativa |
+| unidade e quantidade pesada? | **sim**: `KG` com 4 casas (0,5119 kg × 15,90 = 8,14) e `UN` | pesada pela unidade, R$/kg direto |
+
+A página traz também:
+
+- **a forma de pagamento** com o valor ("Cartão de Crédito 398,56"): entra
+  na ligação com a despesa;
+- **a hora da emissão** (dd/mm/aaaa hh:mm:ss);
+- **o tamanho na descrição** de boa parte dos itens ("IOG GREGO BATAVO TRAD
+  450G", "SUCO ... 1,5L", "250ML", "GF1KG"): o leitor sugere a medida da
+  variante;
+- **o CPF do consumidor**, quando informado no caixa: nunca é lido para o
+  modelo nem vai para amostra sem anonimizar.
+
+O que isso muda, em resumo: a identidade da variante sem GTIN é o código do
+mercado; o desconto é sempre rateado; a sugestão de medida vem da descrição;
+a forma de pagamento ajuda a escolher a despesa.
 
 ---
 
@@ -67,7 +98,7 @@ tem quantas variantes o casal já comprou.
 | nome | text not null | "Leite Italac Integral 1L"; nasce da descrição da nota, editável |
 | nome_normalizado | text not null | busca |
 | marca | text | opcional; a nota raramente separa |
-| gtin | text | código de barras (8, 12, 13 ou 14 dígitos); nulo quando a nota não traz |
+| gtin | text | código de barras (8, 12, 13 ou 14 dígitos); nulo quando a nota não traz, que é o caso da Consulta Completa da SEFAZ-RS |
 | medida_base | medida_base | `g`, `ml` ou `un`: em que o preço é comparado |
 | conteudo | numeric(12,3) | quanto de `medida_base` tem **uma unidade** da variante (1000 ml, 500 g, 12 un). Nulo na pesada |
 | pesada | boolean not null default false | vendida por peso no caixa (hortifrúti, frios, carne): a quantidade da nota já é o peso |
@@ -82,6 +113,46 @@ cardápio).
 
 **Unique parcial** em `gtin` para linha viva: um código de barras, uma
 variante. Sem unique no nome: duas marcas podem abreviar igual.
+
+## `variante_codigos` [novo] — ramo "sem código de barras"
+
+A nota real não traz GTIN: traz o **código interno do mercado**, estável
+para o mesmo item naquele mercado. Ele é a identidade da variante sem GTIN,
+mas só dentro do mercado, e uma variante pode ter um código em cada mercado
+onde foi comprada. Por isso fica numa tabela à parte.
+
+| coluna | tipo | notas |
+|---|---|---|
+| variante_id | fk variantes not null | |
+| mercado_id | fk mercados not null | |
+| codigo | text not null | sem os zeros à esquerda ("1077397") |
+| criado_por | text not null | |
+| deleted_em | timestamptz | |
+
+**Unique parcial** em `(mercado_id, codigo)` para linha viva.
+
+**Ordem de casamento** do item da nota: GTIN (quando houver) ->
+`(mercado, código)` -> apelido de texto no mesmo mercado -> texto em outros
+mercados, só se todos concordam (como hoje). O código ganha do texto porque
+o mercado abrevia a mesma coisa de jeitos diferentes ao longo do tempo, e o
+código não muda.
+
+**Juntar variantes.** Sem código de barras, o mesmo produto comprado em dois
+mercados nasce como **duas variantes**, uma por código. Quando o casal diz
+que são a mesma coisa, a ação "juntar variantes" mantém uma, move para ela os
+`variante_codigos`, os apelidos e os itens de nota da outra, e apaga a outra
+(soft delete). Juntar não mexe na nota nem no preço pago: só no agrupamento.
+O "onde é mais barato" depende disso para comparar a variante entre
+mercados; até juntar, a comparação entre mercados vem do agregado por
+produto, em R$/kg, R$/L ou R$/un.
+
+**Sugestão de medida pela descrição.** Ao criar a variante, o leitor procura
+na descrição o tamanho no fim de uma palavra ou sozinho: `450G`, `1KG`,
+`1,5L`, `250ML`, `C/12`. Achou um só: sugere `medida_base` e `conteudo`
+(450G -> `g`, 450; 1,5L -> `ml`, 1500). Achou nenhum ou mais de um: a
+variante nasce sem medida e vai para a fila "sem medida". A sugestão é só
+sugestão: quem grava é a associação, com confirmação. Unidade `KG` na nota
+marca a variante como pesada, sem perguntar.
 
 **Por que a medida é da variante e não do item da nota.** O tamanho é do
 produto na prateleira, não da compra: cadastrado uma vez, vale para todas as
@@ -116,9 +187,15 @@ depende da nota inteira e muda se uma linha for corrigida. A soma dos preços
 pagos de uma nota é igual ao `valor_total` dela (o resto do arredondamento
 vai para a linha de maior valor).
 
-Ponto a validar com nota real: o portal SVRS pode mostrar só o desconto da
-nota inteira, sem o de cada item. Nesse caso `desconto` de linha fica zero e
-o rateio faz todo o trabalho.
+**Ramo "desconto só da nota" (validado em 18/11/2026).** A Consulta
+Completa mostra só o desconto da nota inteira. Então o `desconto` de linha
+fica zero e o rateio faz todo o trabalho: o preço pago de cada item numa
+nota com desconto é uma **estimativa**, e a view diz isso
+(`preco_pago_estimado = true` quando o item recebeu parte de um desconto da
+nota). Uma promoção de um item só ("leve 3, pague 2") se dilui na nota
+inteira; por isso o histórico de preço mostra o preço cheio ao lado do
+pago. Se o layout do QR code trouxer desconto por item, a coluna de linha
+passa a ser preenchida e o rateio só divide o resto, sem mudar o modelo.
 
 **Quantidade comparável** também é calculada, não guardada:
 
@@ -136,9 +213,9 @@ float.
 
 ## `apelidos` [existe, muda]
 
-Passa a apontar para a variante. A ordem de casamento não muda: GTIN, texto
-no mesmo mercado, texto em qualquer mercado (`api.md`, "Associação
-automática").
+Passa a apontar para a variante. A ordem de casamento ganha o código do
+mercado: GTIN, `(mercado, código)` (`variante_codigos`), texto no mesmo
+mercado, texto em qualquer mercado (`api.md`, "Associação automática").
 
 | coluna | situação | notas |
 |---|---|---|
@@ -158,6 +235,8 @@ vem com a variante.
 | conferida_por | text | **novo** | |
 | transacao_id | bigint | existe | sem FK (D-25); confirmado pelo usuário, ou preenchido sozinho quando a pendente ligada consolida |
 | pendente_id_externo | text | **novo** | o id da Pluggy da compra **pendente** do cartão (D-28) a que o usuário ligou a nota; nulo quando ligada direto a uma transação ou sem ligação |
+| forma_pagamento_nota | text | **novo** | a forma como a página mostra ("Cartão de Crédito", "Pix", "Dinheiro"); com mais de uma, a de maior valor. Só ajuda a ligação; não é a forma de finanças |
+| despesa_lancada_pela_nota | boolean not null default false | **novo** | a transação ligada foi criada por "lançar despesa pela nota" |
 
 **Ligação com a pendente.** A compra do cartão lida no mesmo dia quase
 sempre ainda é pendente, e a pendente não tem id em `transacoes`: tem o id
@@ -174,6 +253,53 @@ nota guarda esse id e a ligação se completa sozinha:
   pergunta de novo.
 
 **Check:** `transacao_id` e `pendente_id_externo` nunca preenchidos juntos.
+
+**Forma de pagamento na ligação.** A sugestão de despesa ordena primeiro as
+candidatas cuja forma é do mesmo tipo que a da nota (cartão de crédito com
+cartão de crédito, Pix com Pix), depois pelo dia mais próximo. Não filtra:
+o mercado às vezes registra débito como crédito.
+
+**Nota sem despesa: "lançar despesa pela nota".** Caso real (18/11/2026):
+compra paga com um cartão que não está ligado à Pluggy, então nenhuma
+despesa vai chegar sozinha. A nota sem ligação oferece criar a transação em
+finanças, com o que o usuário escolhe:
+
+- **valor** e **data**: os da nota (total e dia da emissão), editáveis;
+- **estabelecimento**: o mercado da nota (vira o local e a descrição);
+- **pessoa**: quem pagou, ou conjunto;
+- **forma de pagamento**: uma forma cadastrada em finanças, por exemplo
+  "Cartão da Laura". Cadastrar a forma é com o usuário, na tela de Contas e
+  cartões; a ação só lista as que existem;
+- **categoria**: sugerida pelos itens. Cada seção do `compras` tem uma
+  categoria de finanças (`secoes.categoria_id_financas`, bigint sem FK,
+  D-25, nulo = sem sugestão); a sugestão é a categoria com mais valor entre
+  os itens associados. Sem item associado, a categoria da última despesa
+  ligada a uma nota do mesmo mercado. O usuário confirma.
+
+Quem grava é **finanças**, pelo endpoint de lançamento manual que já existe
+(`POST /api/transacoes`, `importacao_id` nulo), com uma marca nova
+`transacoes.lancada_pela_nota boolean` (migration de finanças). A transação
+nasce ligada à nota, com `despesa_lancada_pela_nota = true`.
+
+**Quando a mesma compra chega depois pela Pluggy** (a dona do cartão conecta
+a conta, por exemplo): um item da Pluggy com **a mesma data, o mesmo valor e
+a mesma forma de pagamento** de uma transação `lancada_pela_nota` viva não é
+promovido sozinho (D-21, "sem suspeita de duplicata"): vai para a revisão
+como **possível duplicata**, com a observação "lançada pela nota". Na
+revisão:
+
+- **juntar**: fica a transação **do banco** (a promovida do item da Pluggy),
+  a lançada pela nota é apagada (soft delete) com
+  `transacoes.substituida_por_id` apontando para a do banco (migration de
+  finanças), e a ligação da nota passa para ela. Quem move a ligação é o
+  `POST /notas/consolidar-ligacoes` (nota cuja transação foi substituída
+  segue o `substituida_por_id`), sem perguntar de novo;
+- **são duas**: as duas ficam, como hoje na revisão de duplicata.
+
+O casamento pela forma só funciona se, ao conectar a conta, o cartão da
+Pluggy for mapeado para a **mesma** forma que o usuário cadastrou ("Cartão
+da Laura"), e não para uma nova. A tela de mapeamento oferece as formas que
+já existem.
 
 `mercados` continua com esse nome para farmácia e posto: é "o
 estabelecimento". Renomear a tabela não compra nada.
@@ -286,7 +412,8 @@ Continuam views comuns: o volume de uma casa não pede materializada.
 - `notas_fiscais.conteudo_original`, `leitor_versao`, a deduplicação pela
   chave e o `reler`.
 - O `transacao_id` sem FK e resolvido pela API de finanças (D-25).
-- Nada em finanças: a nota não cria, não altera e não apaga transação.
+- Em finanças, a nota só cria transação por pedido explícito ("lançar
+  despesa pela nota"), pela API de finanças, e nunca altera nem apaga uma.
 
 ## Fora deste modelo, de propósito
 

@@ -686,7 +686,7 @@ Nesta ordem, sem pular:
 1. **Validação com nota real**, antes de qualquer backend novo. Ler notas
    reais do RS de pelo menos dois mercados e uma farmácia pelo leitor que já
    existe; conferir o `leitor_svrs.py`, a URL só com a chave e o total.
-   Pendente do usuário desde 02/11/2026 (`compras/tests/amostras/README.md`).
+   Pendente do usuário desde 02/11/2026; respondida em 18/11/2026 (abaixo).
    Ela responde três perguntas, e cada resposta muda o desenho:
 
    - **A página traz código de barras (GTIN) por item?**
@@ -722,6 +722,28 @@ Nesta ordem, sem pular:
    Junto, anotar o que mais a página traz: forma de pagamento (ajuda a
    ligar à despesa certa, cartão ou Pix) e se a hora da emissão vem.
 
+   **Respondida em 18/11/2026** com uma nota real de supermercado, lida
+   pela consulta por chave (página "Consulta Completa"; detalhes em
+   `modelo-notas.md`, "Validação com nota real"):
+
+   - código de barras: **não**, só o código interno do mercado. Ramo
+     escolhido: variante por `(mercado, código)` (`variante_codigos`), com
+     "juntar variantes";
+   - desconto: **só o da nota**. Ramo escolhido: rateado, com o preço pago
+     marcado como estimativa;
+   - unidade: **sim**, `KG` com o peso em 4 casas e `UN`: pesada pela
+     unidade;
+   - a página traz a forma de pagamento (ordena a sugestão de despesa) e a
+     hora; a descrição traz o tamanho ("450G", "1,5L"), de onde sai a
+     sugestão de medida da variante.
+
+   A leitura pela chave foi corrigida junto: a URL montada só com a chave
+   respondia erro 902; agora o serviço abre o formulário da Consulta
+   Completa e o leitor aceita essa página e o layout do QR code. Falta ver
+   o layout do QR code com uma nota real: se trouxer código de barras ou
+   desconto por item, a diferença entra no `modelo-notas.md`. Farmácia e
+   segundo mercado continuam bem-vindos, mas não bloqueiam o passo 2.
+
    **Pronto quando:** as três perguntas estão respondidas no
    `modelo-notas.md`, o modelo e a API estão ajustados ao que a página traz,
    e o teste da amostra anonimizada deixa de ser pulado.
@@ -741,7 +763,12 @@ Nesta ordem, sem pular:
    `nota_itens`, `conferida_*` em `notas_fiscais`, `nota` em `origem_item`,
    e a migração dos comprados antigos para `sem_nota`. Prévia e confirmação
    da conferência, `fechar` e `dispensar-pergunta`, a despensa pela nota e a
-   sugestão de despesa com um dia de folga.
+   sugestão de despesa com um dia de folga, ordenada pela forma de
+   pagamento da nota. **"Lançar despesa pela nota"** para a nota sem
+   despesa (cartão fora da Pluggy), com a migration de finanças
+   (`transacoes.lancada_pela_nota` e `substituida_por_id`), a possível
+   duplicata na sync quando a mesma compra chegar pela Pluggy e o "juntar"
+   que mantém a do banco e move a ligação da nota.
 
    **Pronto quando:** os casos de teste de `api-notas.md` passam, e uma
    compra simulada (lista com 5 itens, 3 marcados, nota com 4 deles e um
