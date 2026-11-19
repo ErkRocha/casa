@@ -20,6 +20,16 @@ class OrigemItem(StrEnum):
     VOZ = "voz"
     #: Posto pela geração da lista a partir do cardápio (D-30).
     CARDAPIO = "cardapio"
+    #: Criado pela conferência da nota: a diferença de quantidade que volta (D-33).
+    NOTA = "nota"
+
+
+class FechamentoItem(StrEnum):
+    """Como o item comprado deixou de esperar nota (migration 0006, D-33)."""
+
+    NOTA = "nota"
+    SEM_NOTA = "sem_nota"
+    NAO_COMPREI = "nao_comprei"
 
 
 class OrigemAssociacao(StrEnum):

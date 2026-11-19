@@ -47,9 +47,11 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 from alembic import command  # noqa: E402
 from compras.db import SessionLocal, definir_autor, engine  # noqa: E402
+from compras.deps import consulta_publica  # noqa: E402
 from compras.main import app  # noqa: E402
 from compras.seed import run as rodar_seed  # noqa: E402
 from scripts.aplicar_role import aplicar as aplicar_role  # noqa: E402
+from tests.nfce_apoio import ConsultaFalsa  # noqa: E402
 
 _TABELAS = (
     "auditoria",
@@ -64,6 +66,8 @@ _TABELAS = (
     "pessoas",
     "identidades_tailscale",
     "apelidos",
+    "variante_codigos",
+    "variantes",
     "nota_itens",
     "notas_fiscais",
     "mercados",
@@ -137,6 +141,16 @@ def hoje(monkeypatch: pytest.MonkeyPatch) -> Callable[[date], None]:
 def _hoje_padrao(hoje: Callable[[date], None]) -> None:
     """Sem isto, a semana "atual" dos testes deixaria de ser atual com o calendário."""
     hoje(HOJE_PADRAO)
+
+
+@pytest.fixture
+def consulta() -> Iterator[ConsultaFalsa]:
+    """A SEFAZ falsa: serve o que estiver em `paginas` (por chave). Nenhum
+    teste fala com a SEFAZ."""
+    falsa = ConsultaFalsa()
+    app.dependency_overrides[consulta_publica] = lambda: falsa
+    yield falsa
+    app.dependency_overrides.pop(consulta_publica, None)
 
 
 @pytest.fixture

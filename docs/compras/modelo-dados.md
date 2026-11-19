@@ -9,9 +9,11 @@ as do serviço e o que muda em relação a `docs/modelo-dados.md`.
 O módulo de cardápio (D-30, implementado na migration 0004) fica em `modelo-cardapio.md`; ele
 acrescenta duas colunas a `produtos` e o valor `cardapio` a `origem_item`.
 
-A D-33 (planejada, não implementada) muda a parte de nota fiscal e preços:
-variantes, preço comparável, conferência da lista e "aguardando nota". O
-plano está em `modelo-notas.md`; o que está abaixo é o que existe hoje.
+A D-33 muda a parte de nota fiscal e preços (migration `0006`): variantes,
+preço comparável, conferência da lista e "aguardando nota". O schema está
+implementado e descrito em `modelo-notas.md`; as seções `nota_itens`,
+`apelidos` e `vw_preco_produto` abaixo são as da `0002` e valem com as
+mudanças de lá (resumo no fim de "Nota fiscal e preços").
 
 ## Convenções
 
@@ -61,7 +63,8 @@ plano está em `modelo-notas.md`; o que está abaixo é o que existe hoje.
 ```
 situacao_item     : pendente | comprado
 estado_despensa   : tem | acabando | acabou
-origem_item       : manual | despensa | voz
+origem_item       : manual | despensa | voz | cardapio | nota   (0004, 0006)
+fechamento_item   : nota | sem_nota | nao_comprei                (0006)
 origem_associacao : apelido | gtin | usuario
 status_nota       : lida | erro
 ```
@@ -294,6 +297,25 @@ vale `valor_total / quantidade`. Unidade vazia conta como `UN`.
 O preço comparado é o unitário de `nota_itens`, na unidade em que veio. Se
 o mesmo produto aparecer em unidades diferentes (KG e UN), a view separa
 por unidade em vez de juntar o que não é comparável.
+
+### O que a migration 0006 mudou (D-33; detalhe em `modelo-notas.md`)
+
+- Tabelas novas: `variantes` (produto, nome, marca, `gtin` único entre vivas,
+  `medida_base`, `conteudo`, `pesada`) e `variante_codigos` (`(mercado, código)`
+  único entre vivas, código sem zeros à esquerda).
+- `nota_itens`: `variante_id` e `item_lista_id`; `produto_id` é cópia do
+  produto da variante, mantida por trigger; sem variante, sem produto.
+- `apelidos`: `variante_id` (not null); `produto_id` por trigger; os apelidos
+  de GTIN foram para `variantes.gtin` e apagados.
+- `notas_fiscais`: `conferida_em`, `conferida_por`, `pendente_id_externo`,
+  `forma_pagamento_nota`, `despesa_lancada_pela_nota`; `transacao_id` e
+  `pendente_id_externo` nunca juntos.
+- `itens_lista`: `fechamento`, `fechado_em`, `fechado_por`, `perguntado_em`;
+  os comprados antigos ficaram `sem_nota`.
+- `secoes.categoria_id_financas` (id simples, sem FK, D-25).
+- Views: `vw_preco_variante` (uma linha por item de nota lida e associada, com
+  preço cheio, desconto de linha e rateado, preço pago, quantidade e preço
+  comparável) e `vw_preco_produto` refeita, por produto, mercado e medida.
 
 ---
 

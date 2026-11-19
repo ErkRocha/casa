@@ -168,7 +168,14 @@ class ListaService:
                         ItemLista.situacao == SituacaoItem.COMPRADO,
                         ItemLista.deleted_em.is_(None),
                     )
-                    .values(situacao=SituacaoItem.PENDENTE, comprado_por=None, comprado_em=None)
+                    .values(
+                        situacao=SituacaoItem.PENDENTE,
+                        comprado_por=None,
+                        comprado_em=None,
+                        fechamento=None,
+                        fechado_em=None,
+                        fechado_por=None,
+                    )
                     .returning(ItemLista.produto_id)
                 ).scalar()
         except IntegrityError as erro:

@@ -1,14 +1,20 @@
 # Modelo de dados — notas fiscais, conferência e preços (D-33)
 
-**Plano, não implementado.** Muda o modelo da fase 4 de compras
-(`modelo-dados.md`, "Nota fiscal e preços", migration `0002`). Tudo aqui
-seria uma migration nova do `compras` (a próxima livre, hoje `0006`), sem
-tocar em finanças (D-25). Convenções do serviço em `modelo-dados.md`:
+**Schema implementado na migration `0006` (19/11/2026).** Tudo o que este
+documento descreve para o schema `compras` já existe no banco: variantes,
+códigos por mercado, preço comparável (as duas views), fechamento do item da
+lista, marco da conferência e ligação da nota com a compra pendente. O que
+ainda é só plano é o comportamento que usa as colunas novas de
+`itens_lista`, `notas_fiscais` e `nota_itens.item_lista_id` (conferência,
+"aguardando nota", ligação e lançamento da despesa) e as colunas de finanças
+(`transacoes.lancada_pela_nota` e `substituida_por_id`). Variantes e preços
+já têm API (`api-notas.md`). Convenções do serviço em `modelo-dados.md`:
 `numeric` para dinheiro e quantidade, soft delete, `*_por text`, auditoria
 por trigger, só `casa_compras` escreve.
 
-Legenda: **[existe]** já está no banco desde a `0002`/`0004`; **[novo]**
-seria criado; **[muda]** existe e ganha coluna, check ou significado.
+Legenda: **[existe]** já estava no banco antes da `0006`; **[novo]** e
+**[muda]** foram criados ou alterados pela `0006` (exceto o que o texto
+disser que é de finanças).
 
 ## O que muda, em uma frase cada
 
@@ -441,3 +447,38 @@ Continuam views comuns: o volume de uma casa não pede materializada.
   R$/L = preço comparável de uma variante `ml`) mais a quilometragem
   informada. A quilometragem é a única coisa que a nota não traz e pede uma
   tabela própria; fica para o bloco dele.
+
+## Como a migration 0006 migrou os dados
+
+Autor `migracao_0006` na auditoria. O downgrade desfaz a estrutura e
+devolve os apelidos de GTIN apagados; as variantes criadas somem com a
+tabela, e `nota_itens.produto_id` e `apelidos.produto_id` continuam certos.
+
+- **Apelido de GTIN** -> uma variante com o GTIN (nome: a descrição do item
+  mais recente com aquele GTIN, ou `GTIN <código>`), e o apelido é apagado
+  (soft delete).
+- **Item de nota associado** só a produto -> uma variante por `(produto,
+  descrição normalizada, mercado)`; item com o GTIN de uma variante acima
+  entra nela. O código interno do item vai para `variante_codigos`, sem
+  zeros à esquerda; o mesmo código no mesmo mercado só pode ficar com uma
+  variante (a de mais itens, no empate a mais antiga). Grupo em que todos os
+  itens vêm em `KG` nasce `pesada` (g); nenhuma outra medida é inventada.
+- **Apelido de texto** -> a variante do mesmo produto e texto (a do mesmo
+  mercado, se houver); sem item que o explique, ganha uma variante própria.
+- **Item comprado** -> `fechamento = sem_nota`, `fechado_por = migracao`.
+
+## Decisões de implementação (variantes e preço)
+
+- `origem_associacao` não ganhou valor: a associação por `(mercado, código)`
+  grava `apelido`.
+- `GET /variantes?sem_medida=true` filtra `medida_base IS NULL`: a pesada
+  não entra (a medida dela é g).
+- `quantidade_comparavel` só vale para a variante não pesada quando a unidade
+  da nota é de contagem (`UN`, `UND`, `UNID`, `PC`, `PCT`); a pesada, em `KG`
+  ou `G`. Qualquer outra combinação fica sem comparável.
+- O desconto da nota inteira é rateado entre **todos** os itens vivos da
+  nota, associados ou não; a view só mostra os associados.
+- `preco_pago_estimado` é `desconto_rateado > 0`.
+- A quantidade do item é `numeric(12,3)`: o peso da nota (4 casas, 0,5119 kg)
+  fica arredondado em 3 (0,512 kg), e o R$/kg do pão (R$ 8,14) sai 15,90 em
+  vez de 15,9016. Uma casa a mais na coluna seria outra migration.

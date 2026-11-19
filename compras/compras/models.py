@@ -27,6 +27,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from compras.db import Base, Comum, pg_enum
 from compras.enums import (
     EstadoDespensa,
+    FechamentoItem,
     MedidaBase,
     OrigemAssociacao,
     OrigemItem,
@@ -45,6 +46,9 @@ class Secao(Comum, Base):
 
     nome: Mapped[str] = mapped_column(Text, nullable=False)
     ordem: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: A categoria de finanças sugerida para os itens da seção. Id simples,
+    #: sem FK (D-25); nulo = sem sugestão (migration 0006).
+    categoria_id_financas: Mapped[int | None] = mapped_column(BigInteger)
 
 
 class Produto(Comum, Base):
@@ -78,6 +82,13 @@ class ItemLista(Comum, Base):
     comprado_por: Mapped[str | None] = mapped_column(Text)
     comprado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     id_cliente: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    #: Nulo enquanto o comprado aguarda nota (migration 0006, D-33).
+    fechamento: Mapped[FechamentoItem | None] = mapped_column(
+        pg_enum(FechamentoItem, "fechamento_item")
+    )
+    fechado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fechado_por: Mapped[str | None] = mapped_column(Text)
+    perguntado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     produto: Mapped[Produto] = relationship(lazy="joined", innerjoin=True)
 
@@ -125,8 +136,50 @@ class NotaFiscal(Comum, Base):
     #: A compra em finanças. Id simples, sem FK (D-25).
     transacao_id: Mapped[int | None] = mapped_column(BigInteger)
     lida_por: Mapped[str] = mapped_column(Text, nullable=False)
+    #: Marco da conferência (migration 0006): nulo = ainda não conferida.
+    conferida_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    conferida_por: Mapped[str | None] = mapped_column(Text)
+    #: O id da Pluggy da compra pendente a que a nota foi ligada; nunca junto
+    #: com `transacao_id`.
+    pendente_id_externo: Mapped[str | None] = mapped_column(Text)
+    #: Como a página mostra ("Cartão de Crédito"); só ajuda a ligar a despesa.
+    forma_pagamento_nota: Mapped[str | None] = mapped_column(Text)
+    despesa_lancada_pela_nota: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     mercado: Mapped[Mercado | None] = relationship(lazy="joined")
+
+
+class Variante(Comum, Base):
+    """O item exato que se compra (migration 0006, D-33): pertence a um produto."""
+
+    __tablename__ = "variantes"
+
+    produto_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("produtos.id"), nullable=False)
+    nome: Mapped[str] = mapped_column(Text, nullable=False)
+    nome_normalizado: Mapped[str] = mapped_column(Text, nullable=False)
+    marca: Mapped[str | None] = mapped_column(Text)
+    gtin: Mapped[str | None] = mapped_column(Text)
+    #: Em que o preço é comparado; nulo = ainda sem medida.
+    medida_base: Mapped[MedidaBase | None] = mapped_column(pg_enum(MedidaBase, "medida_base"))
+    #: Quanto de `medida_base` tem uma unidade da variante. Nulo na pesada.
+    conteudo: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    #: Vendida por peso no caixa: a quantidade da nota já é o peso.
+    pesada: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    criado_por: Mapped[str] = mapped_column(Text, nullable=False)
+
+    produto: Mapped[Produto] = relationship(lazy="joined", innerjoin=True)
+
+
+class VarianteCodigo(Comum, Base):
+    """O código interno de um mercado, que identifica a variante nele."""
+
+    __tablename__ = "variante_codigos"
+
+    variante_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("variantes.id"), nullable=False)
+    mercado_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("mercados.id"), nullable=False)
+    #: Sem os zeros à esquerda.
+    codigo: Mapped[str] = mapped_column(Text, nullable=False)
+    criado_por: Mapped[str] = mapped_column(Text, nullable=False)
 
 
 class NotaItem(Comum, Base):
@@ -145,19 +198,28 @@ class NotaItem(Comum, Base):
     valor_unitario: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
     valor_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     desconto: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    #: Cópia do produto da variante, mantida por trigger (migration 0006).
     produto_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("produtos.id"))
     origem_associacao: Mapped[OrigemAssociacao | None] = mapped_column(
         pg_enum(OrigemAssociacao, "origem_associacao")
     )
+    variante_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("variantes.id"))
+    #: O item da lista que esta linha atendeu (gravado pela conferência).
+    item_lista_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("itens_lista.id"))
 
     produto: Mapped[Produto | None] = relationship(lazy="joined")
+    variante: Mapped[Variante | None] = relationship(lazy="joined")
 
 
 class Apelido(Comum, Base):
     __tablename__ = "apelidos"
 
+    #: Cópia do produto da variante, mantida por trigger (migration 0006).
     produto_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("produtos.id"), nullable=False)
+    variante_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("variantes.id"), nullable=False)
     texto_normalizado: Mapped[str | None] = mapped_column(Text)
+    #: Legado: o GTIN mora em `variantes.gtin`; os apelidos de GTIN foram
+    #: apagados pela migration 0006 e não se criam mais.
     gtin: Mapped[str | None] = mapped_column(Text)
     #: Nulo: vale em qualquer mercado.
     mercado_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("mercados.id"))
