@@ -1,6 +1,8 @@
 # API — notas fiscais, conferência e preços (D-33)
 
-**Plano, não implementado.** Amplia a seção "Nota fiscal e preços" de
+**Implementado: variantes e preços** (seções "Reconhecer os itens
+(variantes)" e "Preços", com os ajustes anotados nelas). **Plano, não
+implementado:** ligação à despesa, conferência e "aguardando nota". Amplia a seção "Nota fiscal e preços" de
 `api.md`, que continua valendo onde este documento não diz o contrário.
 Modelo em `modelo-notas.md`. Convenções de `api.md`: caminhos sem o prefixo
 `/api/compras`, toda escrita exige `X-Quem`, dinheiro e quantidade como
@@ -78,7 +80,18 @@ lançada pela nota. "Juntar" na revisão de duplicata mantém a do banco.
 | PUT | `/notas/{id}/itens/{item_id}/produto` | **Existe**, fica por compatibilidade: equivale ao anterior com `{"produto_id": ..., "nova": {}}` |
 | GET | `/notas/itens-sem-produto` | Existe; vira "sem variante" (os dois coincidem depois da migração) |
 
-**Associação automática** na leitura, na ordem: GTIN da variante > apelido
+**Como ficou:** `GET /variantes` busca (`busca`) pelo nome da variante, do
+produto ou do mercado onde ela tem código, e aceita `offset`; há também
+`GET /variantes/{id}`. `POST /variantes/{id}/juntar` recebe `{"outra_id": n}`
+(fica a da URL; produtos ou GTINs diferentes: 422). O `PUT .../variante`
+devolve o item com `sugestao_medida` (lida na descrição, só vale depois do
+`PATCH /variantes/{id}`), `variante_id`, preço cheio, desconto rateado, preço
+pago, `preco_pago_estimado` e `comparavel` (`{"valor", "por"}`); `GET
+/notas/{id}` traz os mesmos campos em cada item. `PUT
+/notas/{id}/itens/{item_id}/produto` continua.
+
+**Associação automática** na leitura, na ordem: GTIN da variante > `(mercado,
+código)` da variante > apelido
 do texto no mesmo mercado > apelido sem mercado > apelido de outro mercado,
 só se todos concordam. O leitor pode sugerir medida e "pesada" pela
 descrição e pela unidade (`KG`), mas só grava ao criar uma variante nova.
@@ -156,6 +169,14 @@ com `comparavel: null` e uma contagem à parte, nunca misturadas.
 | GET | `/precos/mercados/{id}?desde=&limite=&offset=` | O que se comprou naquele mercado: por produto, o último comparável e como ele se compara à média dos outros mercados |
 | GET | `/precos/onde-mais-barato?produto_id=&dias=90` | Ranking dos mercados pelo **último** comparável do produto em cada um, dentro da janela; `dias` padrão 90. Também aceita `busca=leite` no lugar do id, que é o que a voz vai usar |
 | GET | `/precos?produto_id=&mercado_id=` | Existe (`vw_preco_produto`); passa a agregar pela medida da variante. Fica até as telas usarem os novos |
+
+**Como ficou:** `GET /precos` devolve `medida_base`, `por`,
+`ultimo_comparavel`, `ultima_variante_id` e `sem_comparavel` (no lugar de
+`unidade` e `ultimo_preco`). `onde-mais-barato` devolve `ranking` por unidade
+(`por`), com `posicao`, `data` e `dias_atras`; `busca` é o nome sem caixa nem
+acento (o nome inteiro, ou o único produto que o contém); mais de um: 409 com
+`candidatos`. `/precos/produtos/{id}` traz `por_variante`, `por_mercado`,
+`mais_barata` (uma por unidade) e `sem_comparavel`.
 
 "Onde é mais barato" compara o último preço de cada mercado, não a média: o
 que importa é o preço de agora. A resposta traz a data de cada um, para a

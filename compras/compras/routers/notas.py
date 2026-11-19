@@ -5,9 +5,10 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query, Response, status
 
 from compras.deps import ConsultaDep, FinancasDep, LeitorDep, QuemDep, SessionDep
-from compras.models import NotaFiscal
+from compras.models import NotaFiscal, NotaItem
 from compras.schemas import (
     AssociarItem,
+    AssociarVariante,
     NotaDetalhe,
     NotaEntrada,
     NotaItemLeitura,
@@ -23,12 +24,13 @@ router = APIRouter(prefix="/notas", tags=["nota fiscal"])
 def _detalhe(servico: NotaService, nota: NotaFiscal) -> NotaDetalhe:
     itens = servico.itens(nota.id)
     soma = servico.soma_itens(nota.id)
+    precos = servico.precos_da_nota(nota.id)
     return NotaDetalhe(
         **NotaResumo.de(nota).model_dump(),
-        itens=[NotaItemLeitura.de(i) for i in itens],
+        itens=[NotaItemLeitura.de(i, precos.get(i.id)) for i in itens],
         soma_itens=soma,
         diferenca=(nota.valor_total - soma) if nota.valor_total is not None and itens else None,
-        sem_produto=sum(1 for i in itens if i.produto_id is None),
+        sem_produto=sum(1 for i in itens if i.variante_id is None),
     )
 
 
@@ -70,8 +72,8 @@ def listar(session: SessionDep, limite: Annotated[int, Query(ge=1, le=200)] = 50
 
 @router.get("/itens-sem-produto", response_model=list[NotaItemLeitura])
 def sem_produto(session: SessionDep, limite: Annotated[int, Query(ge=1, le=500)] = 100) -> Any:
-    """A fila de "associar": itens de notas sem produto. O preço só entra no
-    histórico depois de associado."""
+    """A fila de "associar": itens de notas sem variante (e portanto sem
+    produto). O preço só entra no histórico depois de associado."""
     return [NotaItemLeitura.de(i) for i in NotaService(session).sem_produto(limite)]
 
 
@@ -98,16 +100,45 @@ def reler(
     return _detalhe(servico, nota)
 
 
-@router.put("/{id_}/itens/{item_id}/produto", response_model=NotaItemLeitura)
-def associar(
-    id_: int, item_id: int, payload: AssociarItem, session: SessionDep, _quem: QuemDep
+def _item_resposta(servico: NotaService, item: NotaItem) -> NotaItemLeitura:
+    return NotaItemLeitura.de(item, servico.precos_da_nota(item.nota_fiscal_id).get(item.id))
+
+
+@router.put("/{id_}/itens/{item_id}/variante", response_model=NotaItemLeitura)
+def associar_variante(
+    id_: int, item_id: int, payload: AssociarVariante, session: SessionDep, quem: QuemDep
 ) -> Any:
-    """Diz qual é o produto do item. Grava ou reforça o apelido: a próxima nota
-    com o mesmo texto (ou o mesmo código de barras) já vem associada."""
-    item = NotaService(session).associar_item(id_, item_id, payload.produto_id)
+    """Diz qual é a variante do item: `{"variante_id": 9}`, ou `{"produto_id": 7,
+    "nova": {...}}` para criar uma (nome da nota, GTIN do item e `pesada` pela
+    unidade `KG` por padrão). Grava o código do mercado e o apelido do texto: a
+    próxima nota com o mesmo código ou texto já vem associada. A resposta traz
+    `sugestao_medida` (lida na descrição) enquanto a variante não tem medida:
+    só vale depois de confirmada em `PATCH /variantes/{id}`."""
+    servico = NotaService(session)
+    item = servico.associar_variante(
+        id_,
+        item_id,
+        quem,
+        variante_id=payload.variante_id,
+        produto_id=payload.produto_id,
+        nova=payload.nova.model_dump(exclude_none=True) if payload.nova else {},
+    )
     session.commit()
     session.refresh(item)
-    return NotaItemLeitura.de(item)
+    return _item_resposta(servico, item)
+
+
+@router.put("/{id_}/itens/{item_id}/produto", response_model=NotaItemLeitura)
+def associar(
+    id_: int, item_id: int, payload: AssociarItem, session: SessionDep, quem: QuemDep
+) -> Any:
+    """Compatibilidade: equivale a `PUT .../variante` com `{"produto_id": ...,
+    "nova": {}}`."""
+    servico = NotaService(session)
+    item = servico.associar_item(id_, item_id, payload.produto_id, quem)
+    session.commit()
+    session.refresh(item)
+    return _item_resposta(servico, item)
 
 
 @router.get("/{id_}/sugestoes-transacao", response_model=list[TransacaoSugerida])

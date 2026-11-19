@@ -6,9 +6,10 @@ e `deleted_em`: o celular troca a cópia local pela resposta.
 """
 
 import uuid
+from collections.abc import Mapping
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
@@ -30,7 +31,9 @@ from compras.models import (
     PassoFeito,
     Produto,
     Secao,
+    Variante,
 )
+from compras.nfce.medida import sugerir_medida
 
 Nome = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
 TextoCurto = Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)]
@@ -316,6 +319,26 @@ class MercadoAtualizar(BaseModel):
     cidade: Annotated[str, StringConstraints(strip_whitespace=True, max_length=80)] | None = None
 
 
+class Comparavel(BaseModel):
+    """O preço por kg, L ou unidade, sempre com a unidade dele."""
+
+    valor: Decimal
+    por: Literal["kg", "l", "un"]
+
+
+class SugestaoMedida(BaseModel):
+    """Lida na descrição ("450G"); só vale depois de confirmada na variante."""
+
+    medida_base: MedidaBase
+    conteudo: Decimal
+
+
+def _comparavel(valor: Decimal | None, por: str | None) -> Comparavel | None:
+    if valor is None or por is None:
+        return None
+    return Comparavel(valor=valor, por=por)
+
+
 class NotaItemLeitura(Linha):
     nota_fiscal_id: int
     linha_num: int
@@ -330,9 +353,29 @@ class NotaItemLeitura(Linha):
     produto_id: int | None
     produto_nome: str | None
     origem_associacao: OrigemAssociacao | None
+    variante_id: int | None
+    variante_nome: str | None
+    #: A linha como a nota mostra (quantidade x unitário); igual a `valor_total`.
+    preco_cheio: Decimal
+    #: Só com variante (a view de preço lê itens associados): a parte do
+    #: desconto da nota inteira que coube ao item, o preço pago e o comparável.
+    desconto_rateado: Decimal | None
+    preco_pago: Decimal | None
+    #: O item recebeu parte do desconto da nota: o preço pago é estimativa.
+    preco_pago_estimado: bool | None
+    comparavel: Comparavel | None
+    #: Tamanho lido na descrição, enquanto a variante não tem medida.
+    sugestao_medida: SugestaoMedida | None
 
     @classmethod
-    def de(cls, i: NotaItem) -> Self:
+    def de(cls, i: NotaItem, preco: Mapping[str, Any] | None = None) -> Self:
+        variante: Variante | None = i.variante
+        sugestao = None
+        if variante is None or variante.medida_base is None:
+            achada = sugerir_medida(i.descricao_original)
+            if achada is not None:
+                sugestao = SugestaoMedida(medida_base=achada.medida_base, conteudo=achada.conteudo)
+        preco = preco or {}
         return cls(
             id=i.id,
             nota_fiscal_id=i.nota_fiscal_id,
@@ -348,6 +391,14 @@ class NotaItemLeitura(Linha):
             produto_id=i.produto_id,
             produto_nome=i.produto.nome if i.produto is not None else None,
             origem_associacao=i.origem_associacao,
+            variante_id=i.variante_id,
+            variante_nome=variante.nome if variante is not None else None,
+            preco_cheio=i.valor_total,
+            desconto_rateado=preco.get("desconto_rateado"),
+            preco_pago=preco.get("preco_pago"),
+            preco_pago_estimado=preco.get("preco_pago_estimado"),
+            comparavel=_comparavel(preco.get("preco_comparavel"), preco.get("por")),
+            sugestao_medida=sugestao,
             criado_em=i.criado_em,
             atualizado_em=i.atualizado_em,
             deleted_em=i.deleted_em,
@@ -370,6 +421,7 @@ class NotaResumo(Linha):
     erro_mensagem: str | None
     transacao_id: int | None
     lida_por: str
+    forma_pagamento_nota: str | None
 
     @classmethod
     def de(cls, n: NotaFiscal) -> Self:
@@ -388,6 +440,7 @@ class NotaResumo(Linha):
             erro_mensagem=n.erro_mensagem,
             transacao_id=n.transacao_id,
             lida_por=n.lida_por,
+            forma_pagamento_nota=n.forma_pagamento_nota,
             criado_em=n.criado_em,
             atualizado_em=n.atualizado_em,
             deleted_em=n.deleted_em,
@@ -412,6 +465,33 @@ class AssociarItem(BaseModel):
     produto_id: int
 
 
+class NovaVariante(BaseModel):
+    """O que se confirma ao criar a variante pela nota. Sem nada: o nome da
+    nota, o GTIN do item e `pesada` pela unidade `KG`."""
+
+    nome: Nome | None = None
+    marca: Nome | None = None
+    medida_base: MedidaBase | None = None
+    conteudo: Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=3)] | None = None
+    pesada: bool | None = None
+
+
+class AssociarVariante(BaseModel):
+    """Uma variante que já existe, ou o produto para o qual criar uma."""
+
+    variante_id: int | None = None
+    produto_id: int | None = None
+    nova: NovaVariante | None = None
+
+    @model_validator(mode="after")
+    def _um_dos_dois(self) -> Self:
+        if (self.variante_id is None) == (self.produto_id is None):
+            raise ValueError("Informe `variante_id` ou `produto_id`, um dos dois.")
+        if self.variante_id is not None and self.nova is not None:
+            raise ValueError("`nova` só vale com `produto_id`.")
+        return self
+
+
 class VincularTransacao(BaseModel):
     #: Nulo desfaz o vínculo.
     transacao_id: int | None
@@ -426,17 +506,217 @@ class TransacaoSugerida(BaseModel):
 
 
 class PrecoLinha(BaseModel):
+    """`vw_preco_produto`: por produto, mercado e medida da variante."""
+
     produto_id: int
     produto_nome: str
     mercado_id: int
     mercado_nome: str
-    unidade: str
-    ultimo_preco: Decimal
+    medida_base: MedidaBase | None
+    por: Literal["kg", "l", "un"] | None
+    ultimo_comparavel: Decimal | None
+    ultima_variante_id: int | None
     ultima_compra_em: datetime | None
-    preco_min: Decimal
-    preco_max: Decimal
-    preco_medio: Decimal
+    preco_min: Decimal | None
+    preco_max: Decimal | None
+    preco_medio: Decimal | None
     compras: int
+    #: Compras sem quantidade comparável: fora das estatísticas.
+    sem_comparavel: int
+
+
+# --- Variantes (D-33) -----------------------------------------------------------
+
+
+class VarianteCodigoLeitura(BaseModel):
+    mercado_id: int
+    mercado_nome: str
+    codigo: str
+
+
+class VarianteLeitura(Linha):
+    produto_id: int
+    produto_nome: str
+    nome: str
+    marca: str | None
+    gtin: str | None
+    medida_base: MedidaBase | None
+    conteudo: Decimal | None
+    pesada: bool
+    criado_por: str
+    #: O código interno dela em cada mercado.
+    codigos: list[VarianteCodigoLeitura]
+
+    @classmethod
+    def de(cls, v: Variante, codigos: list[VarianteCodigoLeitura]) -> Self:
+        return cls(
+            id=v.id,
+            produto_id=v.produto_id,
+            produto_nome=v.produto.nome,
+            nome=v.nome,
+            marca=v.marca,
+            gtin=v.gtin,
+            medida_base=v.medida_base,
+            conteudo=v.conteudo,
+            pesada=v.pesada,
+            criado_por=v.criado_por,
+            codigos=codigos,
+            criado_em=v.criado_em,
+            atualizado_em=v.atualizado_em,
+            deleted_em=v.deleted_em,
+        )
+
+
+Gtin = Annotated[
+    str, StringConstraints(strip_whitespace=True, pattern=r"^([0-9]{8}|[0-9]{12,14})$")
+]
+Conteudo = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=3)]
+
+
+class VarianteCriar(BaseModel):
+    produto_id: int
+    nome: Nome
+    marca: Nome | None = None
+    gtin: Gtin | None = None
+    medida_base: MedidaBase | None = None
+    conteudo: Conteudo | None = None
+    pesada: bool = False
+
+
+class VarianteAtualizar(BaseModel):
+    produto_id: int | None = None
+    nome: Nome | None = None
+    marca: Nome | None = None
+    medida_base: MedidaBase | None = None
+    conteudo: Conteudo | None = None
+    pesada: bool | None = None
+
+
+class VarianteJuntar(BaseModel):
+    #: A que será absorvida: fica a da URL, a outra é apagada (soft delete).
+    outra_id: int
+
+
+# --- Preços (D-33) ---------------------------------------------------------------
+
+
+class PrecoItem(BaseModel):
+    """Uma compra de uma variante, de `vw_preco_variante`."""
+
+    nota_item_id: int
+    nota_fiscal_id: int
+    mercado_id: int | None
+    mercado_nome: str | None
+    data: datetime | None
+    quantidade: Decimal
+    unidade: str | None
+    preco_cheio: Decimal
+    #: Desconto de linha mais a parte do desconto da nota inteira.
+    desconto: Decimal
+    desconto_linha: Decimal
+    desconto_rateado: Decimal
+    preco_pago: Decimal
+    preco_pago_estimado: bool
+    #: Nulo quando a variante não tem medida (ou a unidade da nota não bate).
+    comparavel: Comparavel | None
+
+
+class HistoricoVariante(BaseModel):
+    variante: VarianteLeitura
+    total: int
+    limite: int
+    offset: int
+    #: Compras sem comparável, no histórico inteiro.
+    sem_comparavel: int
+    itens: list[PrecoItem]
+
+
+class PrecoEstatistica(BaseModel):
+    por: Literal["kg", "l", "un"] | None
+    ultimo_comparavel: Decimal | None
+    ultima_compra_em: datetime | None
+    minimo: Decimal | None
+    maximo: Decimal | None
+    media: Decimal | None
+    compras: int
+    sem_comparavel: int
+
+
+class PrecoPorVariante(PrecoEstatistica):
+    variante_id: int
+    variante_nome: str
+    ultimo_mercado_id: int | None
+    ultimo_mercado_nome: str | None
+
+
+class PrecoPorMercado(PrecoEstatistica):
+    mercado_id: int
+    mercado_nome: str
+    ultima_variante_id: int | None
+    ultima_variante_nome: str | None
+
+
+class VarianteMaisBarata(BaseModel):
+    por: Literal["kg", "l", "un"]
+    variante_id: int
+    variante_nome: str
+    mercado_id: int | None
+    mercado_nome: str | None
+    ultimo_comparavel: Decimal
+    ultima_compra_em: datetime | None
+
+
+class PrecoProduto(BaseModel):
+    produto_id: int
+    produto_nome: str
+    por_variante: list[PrecoPorVariante]
+    por_mercado: list[PrecoPorMercado]
+    #: A de menor último comparável, uma por unidade (kg, l, un).
+    mais_barata: list[VarianteMaisBarata]
+    sem_comparavel: int
+
+
+class PrecoMercadoProduto(BaseModel):
+    produto_id: int
+    produto_nome: str
+    por: Literal["kg", "l", "un"] | None
+    ultimo_comparavel: Decimal | None
+    ultima_compra_em: datetime | None
+    #: Média dos comparáveis nos outros mercados, e a diferença deste em %.
+    media_outros_mercados: Decimal | None
+    diferenca_percentual: Decimal | None
+    compras: int
+    sem_comparavel: int
+
+
+class PrecoMercado(BaseModel):
+    mercado_id: int
+    mercado_nome: str
+    total: int
+    limite: int
+    offset: int
+    itens: list[PrecoMercadoProduto]
+
+
+class MercadoRanking(BaseModel):
+    posicao: int
+    por: Literal["kg", "l", "un"]
+    mercado_id: int
+    mercado_nome: str
+    variante_id: int
+    variante_nome: str
+    comparavel: Decimal
+    data: datetime
+    dias_atras: int
+
+
+class OndeMaisBarato(BaseModel):
+    produto_id: int
+    produto_nome: str
+    dias: int
+    #: Por unidade (kg, l, un), do mais barato ao mais caro: o último
+    #: comparável de cada mercado dentro da janela.
+    ranking: list[MercadoRanking]
 
 
 # --- Identidade pelo Tailscale ----------------------------------------------

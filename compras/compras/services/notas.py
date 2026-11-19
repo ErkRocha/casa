@@ -9,12 +9,13 @@ O fluxo da leitura (docs/compras/api.md, "Nota fiscal e preços"):
 3. o mercado sai do CNPJ da chave;
 4. o leitor interpreta o conteúdo; falhou, a nota fica com `status = erro` e
    pode ser relida;
-5. cada item tenta achar o produto: GTIN aprendido > apelido do texto no
-   mesmo mercado > apelido sem mercado > apelido de outro mercado, se todos
-   concordam. Sem nada disso, fica sem produto, na fila de "associar".
+5. cada item tenta achar a variante (D-33): GTIN > `(mercado, código)` >
+   apelido do texto no mesmo mercado > apelido sem mercado > apelido de outro
+   mercado, se todos concordam. Sem nada disso, fica sem variante, na fila de
+   "associar". O produto do item é o da variante.
 
-Corrigir o produto de um item grava (ou reforça) o apelido: a próxima nota
-com o mesmo texto já vem associada (D-09 aplicada a produto).
+Associar um item grava (ou reforça) o código do mercado e o apelido do
+texto: a próxima nota com o mesmo código ou texto já vem associada (D-09).
 """
 
 from __future__ import annotations
@@ -22,15 +23,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from compras.db import definir_autor
 from compras.enums import OrigemAssociacao, StatusNota
 from compras.financas import Financas, TransacaoResumo
-from compras.models import Apelido, NotaFiscal, NotaItem, Produto
+from compras.models import (
+    Apelido,
+    NotaFiscal,
+    NotaItem,
+    Produto,
+    Variante,
+    VarianteCodigo,
+)
 from compras.nfce.chave import Chave, validar
 from compras.nfce.consulta import ConsultaFalhou, ConsultaPublica
 from compras.nfce.entrada import EntradaInvalida, interpretar, urls_de_consulta
@@ -40,6 +49,7 @@ from compras.normalizar import normalizar
 from compras.services.base import Conflito, NaoEncontrado, RegraViolada
 from compras.services.mercados import MercadoService
 from compras.services.produtos import ProdutoService
+from compras.services.variantes import VarianteService
 
 #: Autor da auditoria no que a leitura grava sozinha (modelo-dados.md).
 AUTOR_LEITURA = "leitura_nfce"
@@ -47,8 +57,15 @@ AUTOR_LEITURA = "leitura_nfce"
 
 @dataclass(frozen=True, slots=True)
 class Associacao:
+    variante_id: int
     produto_id: int
     origem: OrigemAssociacao
+
+
+def codigo_sem_zeros(codigo: str | None) -> str | None:
+    """O código interno como `variante_codigos` o guarda: sem zeros à esquerda."""
+    limpo = (codigo or "").strip().lstrip("0")
+    return limpo or None
 
 
 class NotaService:
@@ -176,6 +193,7 @@ class NotaService:
         nota.emitida_em = lida.emitida_em
         nota.valor_total = lida.valor_total
         nota.desconto_total = lida.desconto_total
+        nota.forma_pagamento_nota = lida.forma_pagamento
         for lido in lida.itens:
             item = NotaItem(
                 nota_fiscal_id=nota.id,
@@ -189,8 +207,9 @@ class NotaService:
                 valor_total=lido.valor_total,
                 desconto=lido.desconto,
             )
-            achada = self.associacao_automatica(lido.descricao, lido.gtin, mercado.id)
+            achada = self.associacao_automatica(lido.descricao, lido.gtin, mercado.id, lido.codigo)
             if achada is not None:
+                item.variante_id = achada.variante_id
                 item.produto_id = achada.produto_id
                 item.origem_associacao = achada.origem
             self.session.add(item)
@@ -199,36 +218,50 @@ class NotaService:
     # --- associação -----------------------------------------------------------
 
     def associacao_automatica(
-        self, descricao: str, gtin: str | None, mercado_id: int | None
+        self, descricao: str, gtin: str | None, mercado_id: int | None, codigo: str | None = None
     ) -> Associacao | None:
-        """GTIN > texto no mesmo mercado > texto sem mercado > texto em outros
-        mercados, só se todos apontam para o mesmo produto."""
-        vivos = (
-            select(Apelido.produto_id)
-            .join(Produto, Produto.id == Apelido.produto_id)
-            .where(Apelido.deleted_em.is_(None), Produto.deleted_em.is_(None))
+        """GTIN > `(mercado, código)` > texto no mesmo mercado > texto sem
+        mercado > texto em outros mercados, só se todos apontam para a mesma
+        variante. O código ganha do texto: o mercado abrevia a mesma coisa de
+        jeitos diferentes, e o código não muda. O produto vivo é condição."""
+        vivas = (
+            select(Variante.id, Variante.produto_id)
+            .join(Produto, Produto.id == Variante.produto_id)
+            .where(Variante.deleted_em.is_(None), Produto.deleted_em.is_(None))
         )
         if gtin:
-            produto_id = self.session.scalar(vivos.where(Apelido.gtin == gtin))
-            if produto_id is not None:
-                return Associacao(produto_id, OrigemAssociacao.GTIN)
-        texto = normalizar(descricao)
-        por_texto = vivos.where(Apelido.texto_normalizado == texto)
+            achada = self.session.execute(vivas.where(Variante.gtin == gtin)).first()
+            if achada is not None:
+                return Associacao(achada[0], achada[1], OrigemAssociacao.GTIN)
+        sem_zeros = codigo_sem_zeros(codigo)
+        if mercado_id is not None and sem_zeros is not None:
+            achada = self.session.execute(
+                vivas.join(VarianteCodigo, VarianteCodigo.variante_id == Variante.id).where(
+                    VarianteCodigo.mercado_id == mercado_id,
+                    VarianteCodigo.codigo == sem_zeros,
+                    VarianteCodigo.deleted_em.is_(None),
+                )
+            ).first()
+            if achada is not None:
+                return Associacao(achada[0], achada[1], OrigemAssociacao.APELIDO)
+
+        por_texto = vivas.join(Apelido, Apelido.variante_id == Variante.id).where(
+            Apelido.deleted_em.is_(None), Apelido.texto_normalizado == normalizar(descricao)
+        )
         if mercado_id is not None:
-            produto_id = self.session.scalar(por_texto.where(Apelido.mercado_id == mercado_id))
-            if produto_id is not None:
-                return Associacao(produto_id, OrigemAssociacao.APELIDO)
-        produto_id = self.session.scalar(por_texto.where(Apelido.mercado_id.is_(None)))
-        if produto_id is not None:
-            return Associacao(produto_id, OrigemAssociacao.APELIDO)
-        candidatos = set(self.session.scalars(por_texto))
-        if len(candidatos) == 1:
-            return Associacao(candidatos.pop(), OrigemAssociacao.APELIDO)
+            achada = self.session.execute(por_texto.where(Apelido.mercado_id == mercado_id)).first()
+            if achada is not None:
+                return Associacao(achada[0], achada[1], OrigemAssociacao.APELIDO)
+        achada = self.session.execute(por_texto.where(Apelido.mercado_id.is_(None))).first()
+        if achada is not None:
+            return Associacao(achada[0], achada[1], OrigemAssociacao.APELIDO)
+        candidatas = {(v, p) for v, p in self.session.execute(por_texto)}
+        if len(candidatas) == 1:
+            variante_id, produto_id = candidatas.pop()
+            return Associacao(variante_id, produto_id, OrigemAssociacao.APELIDO)
         return None
 
-    def associar_item(self, nota_id: int, item_id: int, produto_id: int) -> NotaItem:
-        """O usuário diz qual é o produto do item. Grava ou reforça o apelido."""
-        nota = self.get(nota_id)
+    def _item(self, nota: NotaFiscal, item_id: int) -> NotaItem:
         item = self.session.scalar(
             select(NotaItem).where(
                 NotaItem.id == item_id,
@@ -238,53 +271,119 @@ class NotaService:
         )
         if item is None:
             raise NaoEncontrado("item da nota", item_id)
-        produto = ProdutoService(self.session).get(produto_id)
+        return item
 
-        criado_por = "usuario" if item.produto_id is None else "correcao"
-        item.produto_id = produto.id
+    def associar_item(self, nota_id: int, item_id: int, produto_id: int, quem: str) -> NotaItem:
+        """Compatibilidade: o item é deste produto. Equivale a
+        `associar_variante(produto_id=..., nova={})`."""
+        return self.associar_variante(nota_id, item_id, quem, produto_id=produto_id, nova={})
+
+    def associar_variante(
+        self,
+        nota_id: int,
+        item_id: int,
+        quem: str,
+        *,
+        variante_id: int | None = None,
+        produto_id: int | None = None,
+        nova: dict[str, Any] | None = None,
+    ) -> NotaItem:
+        """O usuário diz qual é a variante do item: uma que existe, ou uma nova
+        para o produto. Grava (ou reforça) o código do mercado e o apelido do
+        texto, e leva o GTIN do item para a variante que ainda não tem um."""
+        nota = self.get(nota_id)
+        item = self._item(nota, item_id)
+        variantes = VarianteService(self.session, quem)
+        if variante_id is not None:
+            variante = variantes.get(variante_id)
+            if variante.gtin is None and item.gtin and variantes.por_gtin(item.gtin) is None:
+                variante.gtin = item.gtin
+        else:
+            assert produto_id is not None
+            produto = ProdutoService(self.session).get(produto_id)
+            variante = self._variante_para(variantes, produto, item, nova or {})
+
+        criado_por = "usuario" if item.variante_id is None else "correcao"
+        item.variante_id = variante.id
+        item.produto_id = variante.produto_id
         item.origem_associacao = OrigemAssociacao.USUARIO
         self._aprender(
             texto=normalizar(item.descricao_original),
-            gtin=None,
             mercado_id=nota.mercado_id,
-            produto_id=produto.id,
+            variante=variante,
             criado_por=criado_por,
         )
-        if item.gtin:
-            # O GTIN é o mesmo em toda loja: vale sem mercado.
-            self._aprender(
-                texto=None, gtin=item.gtin, mercado_id=None, produto_id=produto.id,
-                criado_por=criado_por,
-            )  # fmt: skip
+        codigo = codigo_sem_zeros(item.codigo)
+        if nota.mercado_id is not None and codigo is not None:
+            self._aprender_codigo(variante, nota.mercado_id, codigo, quem)
         self.session.flush()
+        self.session.refresh(item)
         return item
+
+    def _variante_para(
+        self, variantes: VarianteService, produto: Produto, item: NotaItem, nova: dict[str, Any]
+    ) -> Variante:
+        """A variante do produto com o nome da nota (ou o dado em `nova`): a que
+        já existe, ou uma criada agora. KG na nota marca `pesada`, sem perguntar;
+        a medida só é gravada se `nova` a trouxer (a sugestão da descrição vai
+        na resposta, para o usuário confirmar)."""
+        nome = nova.get("nome") or item.descricao_original
+        normalizado = normalizar(nome)
+        existente = self.session.scalar(
+            select(Variante)
+            .where(
+                Variante.produto_id == produto.id,
+                Variante.nome_normalizado == normalizado,
+                Variante.deleted_em.is_(None),
+                (Variante.gtin.is_(None)) | (Variante.gtin == item.gtin),
+            )
+            .order_by(Variante.id)
+            .limit(1)
+        )
+        if existente is not None:
+            if existente.medida_base is None and (nova.get("medida_base") or nova.get("pesada")):
+                variantes.atualizar(
+                    existente.id,
+                    {k: v for k, v in nova.items() if k in ("medida_base", "conteudo", "pesada")},
+                )
+            return existente
+        pesada = nova.get("pesada")
+        if pesada is None:
+            pesada = (item.unidade or "").strip().upper() == "KG"
+        gtin = item.gtin if item.gtin and variantes.por_gtin(item.gtin) is None else None
+        return variantes.criar(
+            produto_id=produto.id,
+            nome=nome,
+            marca=nova.get("marca"),
+            gtin=gtin,
+            medida_base=nova.get("medida_base"),
+            conteudo=nova.get("conteudo"),
+            pesada=bool(pesada),
+        )
 
     def _aprender(
         self,
         *,
-        texto: str | None,
-        gtin: str | None,
+        texto: str,
         mercado_id: int | None,
-        produto_id: int,
+        variante: Variante,
         criado_por: str,
     ) -> None:
-        consulta = select(Apelido).where(Apelido.deleted_em.is_(None))
-        if gtin is not None:
-            consulta = consulta.where(Apelido.gtin == gtin)
-        else:
-            consulta = consulta.where(
-                Apelido.texto_normalizado == texto,
-                Apelido.mercado_id.is_(None)
-                if mercado_id is None
-                else Apelido.mercado_id == mercado_id,
-            )
+        consulta = select(Apelido).where(
+            Apelido.deleted_em.is_(None),
+            Apelido.texto_normalizado == texto,
+            Apelido.mercado_id.is_(None)
+            if mercado_id is None
+            else Apelido.mercado_id == mercado_id,
+        )
         existente = self.session.scalar(consulta.with_for_update())
         if existente is not None:
-            if existente.produto_id == produto_id:
+            if existente.variante_id == variante.id:
                 existente.acertos += 1
             else:
-                # Correção: o apelido passa a apontar para o produto novo.
-                existente.produto_id = produto_id
+                # Correção: o apelido passa a apontar para a variante nova.
+                existente.variante_id = variante.id
+                existente.produto_id = variante.produto_id
                 existente.acertos = 1
                 existente.criado_por = "correcao"
             return
@@ -292,9 +391,9 @@ class NotaService:
             with self.session.begin_nested():
                 self.session.add(
                     Apelido(
-                        produto_id=produto_id,
+                        variante_id=variante.id,
+                        produto_id=variante.produto_id,
                         texto_normalizado=texto,
-                        gtin=gtin,
                         mercado_id=mercado_id,
                         acertos=1,
                         criado_por=criado_por,
@@ -304,9 +403,41 @@ class NotaService:
         except IntegrityError:
             # Outro pedido criou o mesmo apelido agora: reforça o dele.
             self._aprender(
-                texto=texto, gtin=gtin, mercado_id=mercado_id, produto_id=produto_id,
-                criado_por=criado_por,
-            )  # fmt: skip
+                texto=texto, mercado_id=mercado_id, variante=variante, criado_por=criado_por
+            )
+
+    def _aprender_codigo(
+        self, variante: Variante, mercado_id: int, codigo: str, quem: str, tentativa: int = 0
+    ) -> None:
+        """O código do mercado aponta para esta variante. Se apontava para
+        outra, foi correção: passa para esta."""
+        existente = self.session.scalar(
+            select(VarianteCodigo)
+            .where(
+                VarianteCodigo.mercado_id == mercado_id,
+                VarianteCodigo.codigo == codigo,
+                VarianteCodigo.deleted_em.is_(None),
+            )
+            .with_for_update()
+        )
+        if existente is not None:
+            existente.variante_id = variante.id
+            return
+        try:
+            with self.session.begin_nested():
+                self.session.add(
+                    VarianteCodigo(
+                        variante_id=variante.id,
+                        mercado_id=mercado_id,
+                        codigo=codigo,
+                        criado_por=quem,
+                    )
+                )
+                self.session.flush()
+        except IntegrityError:
+            if tentativa >= 1:
+                raise
+            self._aprender_codigo(variante, mercado_id, codigo, quem, tentativa + 1)
 
     # --- consultas -------------------------------------------------------------
 
@@ -353,14 +484,27 @@ class NotaService:
         )
         return Decimal(soma or 0)
 
+    def precos_da_nota(self, nota_id: int) -> dict[int, dict[str, Any]]:
+        """Preço pago, desconto rateado e comparável de cada item associado
+        (`vw_preco_variante`), por id do item."""
+        linhas = self.session.execute(
+            text(
+                "SELECT nota_item_id, desconto_rateado, preco_pago, preco_pago_estimado, "
+                "preco_comparavel, por FROM compras.vw_preco_variante "
+                "WHERE nota_fiscal_id = :nota"
+            ),
+            {"nota": nota_id},
+        )
+        return {int(linha.nota_item_id): dict(linha._mapping) for linha in linhas}
+
     def sem_produto(self, limite: int) -> list[NotaItem]:
-        """A fila de "associar": itens vivos, de notas vivas, sem produto."""
+        """A fila de "associar": itens vivos, de notas vivas, sem variante."""
         return list(
             self.session.scalars(
                 select(NotaItem)
                 .join(NotaFiscal, NotaFiscal.id == NotaItem.nota_fiscal_id)
                 .where(
-                    NotaItem.produto_id.is_(None),
+                    NotaItem.variante_id.is_(None),
                     NotaItem.deleted_em.is_(None),
                     NotaFiscal.deleted_em.is_(None),
                 )

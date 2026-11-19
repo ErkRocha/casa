@@ -50,14 +50,6 @@ class FinancasFalsa:
 
 
 @pytest.fixture
-def consulta() -> Iterator[ConsultaFalsa]:
-    falsa = ConsultaFalsa()
-    app.dependency_overrides[consulta_publica] = lambda: falsa
-    yield falsa
-    app.dependency_overrides.pop(consulta_publica, None)
-
-
-@pytest.fixture
 def fin() -> Iterator[FinancasFalsa]:
     falsa = FinancasFalsa()
     app.dependency_overrides[financas] = lambda: falsa
@@ -491,21 +483,26 @@ def test_historico_de_preco_por_produto_e_mercado(
     compra(5, CNPJ_A, "1.20", "02/11/2026 09:00:00", unidade="UN")
 
     linhas = client.get("/precos", params={"produto_id": banana}).json()
-    por_chave = {(row["mercado_nome"], row["unidade"]): row for row in linhas}
-    assert set(por_chave) == {("MERCADO 11", "KG"), ("MERCADO 11", "UN"), ("MERCADO 44", "KG")}
-    mercado_a = por_chave[("MERCADO 11", "KG")]
+    por_chave = {(row["mercado_nome"], row["por"]): row for row in linhas}
+    assert set(por_chave) == {("MERCADO 11", "kg"), ("MERCADO 44", "kg")}
+    mercado_a = por_chave[("MERCADO 11", "kg")]
+    assert mercado_a["medida_base"] == "g"
     assert mercado_a["compras"] == 3
-    assert mercado_a["ultimo_preco"] == "5.9900"
+    assert mercado_a["ultimo_comparavel"] == "5.9900"
     assert mercado_a["preco_min"] == "5.9900"
     assert mercado_a["preco_max"] == "7.4900"
     assert mercado_a["preco_medio"] == "6.8233"
     ultima = datetime.fromisoformat(mercado_a["ultima_compra_em"]).astimezone(FUSO)
     assert ultima.date() == date(2026, 11, 1)
-    assert por_chave[("MERCADO 44", "KG")]["ultimo_preco"] == "8.1000"
-    unidade = por_chave[("MERCADO 11", "UN")]
-    assert (unidade["compras"], unidade["ultimo_preco"]) == (1, "1.2000")
+    assert por_chave[("MERCADO 44", "kg")]["ultimo_comparavel"] == "8.1000"
+    # A mesma banana comprada em UN (a variante é pesada): não vira R$/kg, não
+    # entra nas estatísticas e aparece na contagem à parte.
+    assert mercado_a["sem_comparavel"] == 1
+    assert por_chave[("MERCADO 44", "kg")]["sem_comparavel"] == 0
     # O mais barato primeiro, dentro do produto.
-    assert [r["ultimo_preco"] for r in linhas] == sorted(r["ultimo_preco"] for r in linhas)
+    assert [r["ultimo_comparavel"] for r in linhas] == sorted(
+        r["ultimo_comparavel"] for r in linhas
+    )
 
 
 def test_preco_ignora_item_sem_produto_e_nota_apagada(

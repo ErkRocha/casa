@@ -23,6 +23,7 @@ from compras.routers import (
     refeicoes,
     secoes,
     semanas,
+    variantes,
 )
 from compras.services.base import Conflito, NaoEncontrado, RegraViolada
 
@@ -71,6 +72,7 @@ app.include_router(secoes.router)
 app.include_router(notas.router)
 app.include_router(mercados.router)
 app.include_router(precos.router)
+app.include_router(variantes.router)
 app.include_router(identidades.router)
 app.include_router(receitas.router)
 app.include_router(pessoas.router)
