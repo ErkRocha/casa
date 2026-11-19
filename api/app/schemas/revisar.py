@@ -84,6 +84,15 @@ class TransferenciaRevisar(BaseModel):
     ao_confirmar: Literal["transferencia", "descartar"]
 
 
+class LancadaPelaNota(BaseModel):
+    """Despesa viva lançada pela nota (D-33) que o item da Pluggy pode repetir."""
+
+    transacao_id: int
+    descricao: str
+    pessoa_id: int | None
+    categoria_id: int | None
+
+
 class GrupoDuplicata(BaseModel):
     """Itens com a mesma conta, data, valor e descrição: possível duplicata."""
 
@@ -98,6 +107,9 @@ class GrupoDuplicata(BaseModel):
     #: data, valor, descrição original e forma de pagamento esbarram no
     #: índice de deduplicação (`uq_transacoes_dedup`, D-07).
     podem_ser_dois: bool
+    #: Despesas lançadas pela nota com a mesma data, valor e forma de um item
+    #: do grupo (D-33). "Juntar" fica com o do banco e apaga estas.
+    lancadas_pela_nota: list[LancadaPelaNota] = []
 
 
 class ResolverDuplicata(BaseModel):
@@ -108,6 +120,10 @@ class ResolverDuplicata(BaseModel):
 
     manter_ids: Annotated[list[int], Field(min_length=1, max_length=50)]
     descartar_ids: Annotated[list[int], Field(max_length=50)] = []
+    #: D-33: "juntar" com a despesa lançada pela nota. Fica o item do banco
+    #: (único em `manter_ids`, promovido a transação) e a lançada pela nota é
+    #: apagada com `substituida_por_id` apontando para ele.
+    juntar_lancada_pela_nota_id: int | None = None
 
 
 class ConfirmarTransferencia(BaseModel):

@@ -1,6 +1,7 @@
 """Router de transações: listagem filtrada, CRUD e ação em lote."""
 
 from datetime import date
+from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, status
@@ -8,6 +9,12 @@ from sqlalchemy.orm import Session
 
 from app.db import get_session
 from app.schemas.common import LoteResponse, OkResponse, Paginacao, paginacao
+from app.schemas.ligacao_notas import (
+    DespesaCandidata,
+    PendenteCartao,
+    SituacaoTransacao,
+    TransacaoDaPluggy,
+)
 from app.schemas.transacoes import (
     LoteAtribuir,
     LoteExcluir,
@@ -20,6 +27,7 @@ from app.schemas.transacoes import (
     transacao_filtros,
 )
 from app.services.cadastros import LocalService
+from app.services.ligacao_notas import LigacaoNotasService
 from app.services.transacoes import TransacaoService
 
 router = APIRouter(prefix="/transacoes", tags=["transações"])
@@ -61,6 +69,54 @@ def dias(session: SessionDep, filtros: FiltrosDep) -> Any:
     quantidade e ficam fora das somas (D-05).
     """
     return TransacaoService(session).dias(filtros)
+
+
+@router.get("/candidatas-nota", response_model=list[DespesaCandidata])
+def candidatas_nota(
+    session: SessionDep,
+    data_inicio: date,
+    data_fim: date,
+    valor: Annotated[Decimal, Query(gt=0)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> Any:
+    """Despesas vivas na janela de datas com exatamente aquele valor, com a
+    forma de pagamento e a marca `lancada_pela_nota`. Para o `compras` sugerir
+    a despesa de uma nota (D-33)."""
+    return LigacaoNotasService(session).despesas(data_inicio, data_fim, valor, limit)
+
+
+@router.get("/pendentes-cartao", response_model=list[PendenteCartao])
+def pendentes_cartao(
+    session: SessionDep,
+    data_inicio: date,
+    data_fim: date,
+    valor: Annotated[Decimal, Query(gt=0)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> Any:
+    """Compras pendentes do cartão (D-28) na janela de datas, com o valor exato."""
+    return LigacaoNotasService(session).pendentes(data_inicio, data_fim, valor, limit)
+
+
+@router.get("/pendentes-cartao/{id_externo}", response_model=PendenteCartao)
+def pendente_cartao(id_externo: str, session: SessionDep) -> Any:
+    """Uma compra pendente pelo id da Pluggy; 404 se ela sumiu (D-28)."""
+    return LigacaoNotasService(session).pendente(id_externo)
+
+
+@router.get("/por-pluggy/{id_externo}", response_model=TransacaoDaPluggy)
+def por_pluggy(id_externo: str, session: SessionDep) -> Any:
+    """A transação viva que o item da Pluggy com este id virou; 404 se não há."""
+    return {
+        "id_externo": id_externo,
+        "transacao_id": LigacaoNotasService(session).transacao_da_pluggy(id_externo),
+    }
+
+
+@router.get("/{id_}/situacao", response_model=SituacaoTransacao)
+def situacao(id_: int, session: SessionDep) -> Any:
+    """Viva ou apagada, e `substituida_por_id` quando a revisão a juntou com a
+    do banco. Diferente de `GET /transacoes/{id}`, não dá 404 para a apagada."""
+    return LigacaoNotasService(session).situacao(id_)
 
 
 @router.get("/{id_}", response_model=TransacaoRead)

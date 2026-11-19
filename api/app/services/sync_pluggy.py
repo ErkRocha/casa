@@ -63,6 +63,7 @@ from app.services.cadastros import FormaPagamentoService, normalizar_nome, prime
 from app.services.ingestao import IngestaoService, ItemLote, _ContextoEnriquecimento
 from app.services.promocao_pluggy import (
     LEITURA_LIMPA,
+    MARCA_DUPLICATA,
     REJEICOES,
     motivo_para_rejeitar,
     motivo_para_revisao,
@@ -526,6 +527,7 @@ class SyncPluggyService:
                 if conta.e_cartao
                 else self._formas.resolver(mapa, item)
             )
+            self._marcar_lancada_pela_nota(item, forma_id)
             itens.append(
                 ItemPlanejado(
                     extraido=item,
@@ -697,6 +699,41 @@ class SyncPluggyService:
             ]
             if outros:
                 _marcar(item, outros, "já está no staging")
+
+    def _marcar_lancada_pela_nota(self, item: ItemExtraido, forma_id: int | None) -> None:
+        """D-33: mesma data, valor e forma de uma despesa viva lançada pela nota.
+
+        Nunca é promovida sozinha (D-21, "sem suspeita de duplicata"): a marca
+        faz dela uma possível duplicata na revisão, que decide entre juntar
+        (fica a do banco) e "são duas".
+        """
+        if forma_id is None or item.tipo is not TipoTransacao.DESPESA:
+            return
+        ids = list(
+            self.session.scalars(
+                select(TransacaoDb.id)
+                .where(
+                    TransacaoDb.deleted_em.is_(None),
+                    TransacaoDb.lancada_pela_nota.is_(True),
+                    TransacaoDb.tipo == TipoTransacao.DESPESA,
+                    TransacaoDb.data == item.data,
+                    TransacaoDb.valor == item.valor,
+                    TransacaoDb.forma_pagamento_id == forma_id,
+                )
+                .order_by(TransacaoDb.id)
+            )
+        )
+        if not ids:
+            return
+        nota = (
+            f"{MARCA_DUPLICATA}: despesa lançada pela nota "
+            f"({', '.join(f'transação #{i}' for i in ids)}): mesma data, valor e forma "
+            "de pagamento. Confira antes de aprovar os dois."
+        )
+        if item.observacao and nota in item.observacao:
+            return
+        item.observacao = f"{item.observacao} {nota}" if item.observacao else nota
+        item.confianca = min(item.confianca, CONFIANCA_DUPLICATA)
 
     # -- fase 2: gravar --------------------------------------------------
 

@@ -54,6 +54,9 @@ class TransacaoCreate(BaseModel):
     desconto_total: Annotated[Dinheiro, Field(ge=0)] = Decimal("0")
     observacao: str | None = None
 
+    #: Despesa criada por "lançar despesa pela nota" (D-33); só o `compras` manda.
+    lancada_pela_nota: bool = False
+
     @model_validator(mode="after")
     def _valida_transferencia(self) -> "TransacaoCreate":
         """Mesma regra do check do banco, adiantada para virar 422 legível.

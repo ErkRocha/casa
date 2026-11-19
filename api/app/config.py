@@ -93,6 +93,11 @@ class Settings(BaseSettings):
     #: a tarefa do Windows no modo local) é quem define.
     sync_agenda: str | None = None
 
+    #: A API do `compras` (D-25), sem o prefixo do nginx: no compose,
+    #: `http://compras:8000`. Depois de cada sync bem-sucedida, finanças pede a
+    #: ele `POST /notas/consolidar-ligacoes` (D-33). Vazio: não avisa ninguém.
+    compras_api_url: str | None = None
+
     #: CPFs da casa além dos donos das contas conectadas, separados por
     #: vírgula (D-22). Pix ou TED com um deles do outro lado é movimento entre
     #: contas da casa: a sync rejeita sozinha. Fica só no `.env`, nunca no

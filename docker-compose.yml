@@ -56,6 +56,8 @@ services:
       CASA_DOCUMENTOS: ${CASA_DOCUMENTOS:-}
       # A hora em que o `agendador` roda a sync; o painel mostra a próxima.
       SYNC_AGENDA: ${SYNC_AGENDA:-06:00}
+      # D-33: depois da sync, pede ao compras que consolide as ligações das notas.
+      COMPRAS_API_URL: http://compras:8000
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:
@@ -114,6 +116,8 @@ services:
       PLUGGY_CLIENT_SECRET: ${PLUGGY_CLIENT_SECRET:-}
       CASA_DOCUMENTOS: ${CASA_DOCUMENTOS:-}
       SYNC_AGENDA: ${SYNC_AGENDA:-06:00}
+      # D-33: depois da sync, pede ao compras que consolide as ligações das notas.
+      COMPRAS_API_URL: http://compras:8000
       TZ: America/Sao_Paulo
     volumes:
       - ./api:/app

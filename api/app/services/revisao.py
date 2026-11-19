@@ -20,19 +20,20 @@ from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from typing import Any, Literal
 
-from sqlalchemy import Row, select, text
+from sqlalchemy import Row, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.conversao_pluggy import OBS_MESMA_PESSOA, OBS_PAGAMENTO_NA_CONTA, OBS_PAGAMENTO_NO_CARTAO
 from app.enums import StatusItem, TipoPagamento, TipoTransacao
-from app.models import Conta, FormaPagamento, Importacao, ImportacaoItem
+from app.models import Conta, FormaPagamento, Importacao, ImportacaoItem, Transacao
 from app.schemas.revisar import (
     ConfirmarTransferencia,
     ContaResumo,
     ErroItem,
     GrupoDuplicata,
     ItemRevisar,
+    LancadaPelaNota,
     MotivoRevisao,
     ResultadoRevisao,
     RevisarResumo,
@@ -155,6 +156,11 @@ MENSAGEM_ITENS_IDENTICOS = (
 )
 
 
+#: Trecho da observação que a sync põe no item que repete uma despesa lançada
+#: pela nota (D-33).
+MARCA_NOTA = "despesa lançada pela nota"
+
+
 def parametros_motivo() -> dict[str, str]:
     return {"marca_duplicata": MARCA_DUPLICATA, "marca_cartao": OBS_PAGAMENTO_NO_CARTAO}
 
@@ -209,6 +215,7 @@ class RevisaoService:
                     # O `hash_dedup` leva data, valor, descrição original e
                     # forma: no grupo, só a forma pode diferir.
                     podem_ser_dois=len(set(formas)) == len(formas),
+                    lancadas_pela_nota=self._lancadas_pela_nota(itens),
                 )
             )
         return resultado
@@ -281,10 +288,52 @@ class RevisaoService:
             )
         return resultado
 
+    def _lancadas_pela_nota(self, itens: Sequence[ItemRevisar]) -> list[LancadaPelaNota]:
+        """D-33: as despesas lançadas pela nota que os itens pendentes marcados
+        repetem (mesma data, valor e forma de pagamento)."""
+        achadas: dict[int, LancadaPelaNota] = {}
+        for item in itens:
+            if (
+                item.status is not StatusItem.PENDENTE
+                or MARCA_NOTA not in (item.observacao or "")
+                or item.forma_pagamento_sugerida_id is None
+            ):
+                continue
+            for t in self._transacoes_lancadas(
+                item.data, item.valor, item.forma_pagamento_sugerida_id
+            ):
+                achadas[t.id] = LancadaPelaNota(
+                    transacao_id=t.id,
+                    descricao=t.descricao,
+                    pessoa_id=t.pessoa_id,
+                    categoria_id=t.categoria_id,
+                )
+        return list(achadas.values())
+
+    def _transacoes_lancadas(self, data: Any, valor: Any, forma_id: int) -> list[Transacao]:
+        return list(
+            self.session.scalars(
+                select(Transacao)
+                .where(
+                    Transacao.deleted_em.is_(None),
+                    Transacao.lancada_pela_nota.is_(True),
+                    Transacao.tipo == TipoTransacao.DESPESA,
+                    Transacao.data == data,
+                    Transacao.valor == valor,
+                    Transacao.forma_pagamento_id == forma_id,
+                )
+                .order_by(Transacao.id)
+            )
+        )
+
     # -- decisões ----------------------------------------------------------
 
     def resolver_duplicata(
-        self, manter_ids: Sequence[int], descartar_ids: Sequence[int]
+        self,
+        manter_ids: Sequence[int],
+        descartar_ids: Sequence[int],
+        *,
+        juntar_lancada_pela_nota_id: int | None = None,
     ) -> ResultadoRevisao:
         """ "Manter só um" ou "são dois" (D-24).
 
@@ -301,6 +350,11 @@ class RevisaoService:
         )
         if grupo is None:
             raise RegraViolada("Os itens não são de um mesmo grupo de possível duplicata.")
+
+        if juntar_lancada_pela_nota_id is not None:
+            return self._juntar_com_lancada(
+                grupo, manter_ids, descartar_ids, juntar_lancada_pela_nota_id
+            )
 
         por_id = {i.id: i for i in grupo.itens}
         for item_id in descartar_ids:
@@ -346,6 +400,55 @@ class RevisaoService:
                         ErroItem(item_id=item_id, erro="Já existe transação idêntica (D-07).")
                     )
         return resultado
+
+    def _juntar_com_lancada(
+        self,
+        grupo: GrupoDuplicata,
+        manter_ids: Sequence[int],
+        descartar_ids: Sequence[int],
+        lancada_id: int,
+    ) -> ResultadoRevisao:
+        """D-33, "juntar": fica a transação do banco, a lançada pela nota sai.
+
+        O item da Pluggy vira transação; a lançada pela nota é apagada (soft
+        delete) com `substituida_por_id` apontando para a nova, e o `compras`
+        passa a ligação da nota para ela. A categoria e a pessoa que o usuário
+        deu à lançada valem para a nova quando o item não trouxe as suas.
+        """
+        if len(manter_ids) != 1 or descartar_ids:
+            raise RegraViolada("Juntar com a despesa lançada pela nota mantém um item só.")
+        lancada = next((x for x in grupo.lancadas_pela_nota if x.transacao_id == lancada_id), None)
+        if lancada is None:
+            raise RegraViolada(
+                f"A transação {lancada_id} não é uma despesa lançada pela nota deste grupo."
+            )
+        item = self._item_modelo(manter_ids[0])
+        if item.status is not StatusItem.PENDENTE:
+            raise RegraViolada(f"O item {item.id} já foi decidido.")
+        antiga = self.session.get(Transacao, lancada_id)
+        assert antiga is not None
+
+        item.observacao = _sem_notas(item.observacao, [NOTA_DUPLICATA])
+        if item.categoria_sugerida_id is None:
+            item.categoria_sugerida_id = antiga.categoria_id
+        if item.pessoa_sugerida_id is None:
+            item.pessoa_sugerida_id = antiga.pessoa_id
+        if item.tipo_sugerido is TipoTransacao.TRANSFERENCIA or (item.id_externo or "").startswith(
+            "bill:"
+        ):
+            raise RegraViolada("Só uma compra da Pluggy se junta à despesa lançada pela nota.")
+        # A lançada sai antes: a nova pode esbarrar no `hash_dedup` dela.
+        antiga.deleted_em = func.now()
+        self._flush()
+
+        aprovacao = IngestaoService(self.session).aprovar([item.id])
+        self.session.refresh(item)
+        if item.transacao_id is None:  # só a aprovação preenche
+            erros = "; ".join(str(e) for e in aprovacao["erros"]) or "já existe transação idêntica"
+            raise RegraViolada(f"Não foi possível promover o item da Pluggy: {erros}.")
+        antiga.substituida_por_id = item.transacao_id
+        self._flush()
+        return ResultadoRevisao(aprovados=1)
 
     def confirmar_transferencias(
         self, pedidos: Iterable[ConfirmarTransferencia]

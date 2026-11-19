@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.conversao_pluggy import FUSO
+from app.services.compras_notas import consolidar_ligacoes_das_notas
 from app.services.sync_pluggy import LeitorPluggy, ResultadoSync, SyncPluggyService
 
 #: Chave da trava: "SYNC" em ASCII. Única no banco; ninguém mais usa
@@ -107,6 +108,8 @@ def executar(
             session.rollback()
         else:
             session.commit()
+            # D-33: o `compras` consolida as ligações das notas. Só log se falhar.
+            consolidar_ligacoes_das_notas(cfg)
         if ao_terminar is not None:
             ao_terminar(resultado, session)
         return resultado

@@ -63,10 +63,13 @@ def resolver_duplicata(payload: ResolverDuplicata, session: SessionDep) -> Any:
 
     O que fica perde a nota de duplicata e é aprovado se não sobra outro
     motivo. "São dois" com itens idênticos para o banco é recusado: o índice
-    de deduplicação não aceita (D-07).
+    de deduplicação não aceita (D-07). Com `juntar_lancada_pela_nota_id`
+    (D-33), fica o item do banco e a despesa lançada pela nota é substituída.
     """
     resultado = RevisaoService(session).resolver_duplicata(
-        payload.manter_ids, payload.descartar_ids
+        payload.manter_ids,
+        payload.descartar_ids,
+        juntar_lancada_pela_nota_id=payload.juntar_lancada_pela_nota_id,
     )
     session.commit()
     return resultado
