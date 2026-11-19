@@ -115,3 +115,34 @@ def test_editar_data_ou_forma_recalcula_salvo_competencia_explicita(
     # Para uma forma que não é crédito, a competência fica como estava.
     pix_tx = client.patch(f"/transacoes/{tx['id']}", json={"forma_pagamento_id": pix.id}).json()
     assert pix_tx["competencia"] == "2026-12-01"
+
+
+def test_editar_data_de_transacao_importada_mantem_a_competencia(
+    client: TestClient, session: Session
+) -> None:
+    """A importada traz a competência da fatura real (billId, PDF): editar a
+    data não a troca pela estimativa dos dias do cadastro."""
+    from sqlalchemy import text
+
+    from app.enums import StatusImportacao
+    from app.models import Importacao
+
+    banco = _conta(session, "Banco")
+    cartao = _forma(session, "Cartão", TipoPagamento.CREDITO, banco, fecha=3, vence=10)
+    imp = Importacao(
+        arquivo_nome="pluggy.json",
+        hash_arquivo="h-importada-competencia",
+        origem="pluggy",
+        status=StatusImportacao.CONCLUIDA,
+    )
+    session.add(imp)
+    session.commit()
+
+    tx = _post(client, cartao.id, "2026-10-02", competencia="2026-12-01")
+    session.execute(
+        text("UPDATE transacoes SET importacao_id = :i WHERE id = :t"), {"i": imp.id, "t": tx["id"]}
+    )
+    session.commit()
+
+    depois = client.patch(f"/transacoes/{tx['id']}", json={"data": "2026-10-10"}).json()
+    assert depois["competencia"] == "2026-12-01"

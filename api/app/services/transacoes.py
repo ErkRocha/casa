@@ -373,14 +373,18 @@ class TransacaoService:
 
         if dados.get("competencia") is not None:
             dados["competencia"] = primeiro_dia_do_mes(dados["competencia"])
-        elif "data" in dados or "forma_pagamento_id" in dados:
-            # Mudou a data ou a forma sem fixar a competência: no cartão, ela
-            # acompanha a fatura (D-34). Fora do cartão, fica como estava.
-            recalculada = competencia_do_cartao(
-                self.session,
-                dados.get("forma_pagamento_id", obj.forma_pagamento_id),
-                dados.get("data", obj.data),
-            )
+        else:
+            recalculada = None
+            if obj.importacao_id is None and ("data" in dados or "forma_pagamento_id" in dados):
+                # Lançamento manual que mudou a data ou a forma sem fixar a
+                # competência: no cartão, ela acompanha a fatura (D-34). Fora
+                # do cartão, fica como estava. A transação importada mantém a
+                # competência que veio da fatura real (billId da Pluggy, PDF).
+                recalculada = competencia_do_cartao(
+                    self.session,
+                    dados.get("forma_pagamento_id", obj.forma_pagamento_id),
+                    dados.get("data", obj.data),
+                )
             if recalculada is not None:
                 dados["competencia"] = recalculada
             else:
