@@ -93,6 +93,8 @@ Coração do sistema. Uma linha por movimento.
 | local_id | fk locais | |
 | importacao_id | fk importacoes | null = lançamento manual |
 | estorno_de_id | fk transacoes | só quando tipo = estorno: a compra original que ele desfez, se achada (D-34); `on delete restrict` |
+| lancada_pela_nota | boolean not null default false | criada por "lançar despesa pela nota" (D-33, migration 0010); a sync põe na revisão o item da Pluggy com a mesma data, valor e forma |
+| substituida_por_id | fk transacoes | na lançada pela nota que a revisão juntou com a do banco: aponta para a do banco (a lançada fica apagada); `on delete restrict` (D-33, migration 0010) |
 | conta_origem_id | fk contas | só quando tipo = transferencia |
 | conta_destino_id | fk contas | só quando tipo = transferencia |
 | parcela_num | smallint | |
@@ -103,7 +105,7 @@ Coração do sistema. Uma linha por movimento.
 | deleted_em | timestamptz | |
 
 **Índices**: `data`, `competencia`, `categoria_id`, `pessoa_id`, `local_id`,
-`forma_pagamento_id`, `estorno_de_id`, e o único parcial de deduplicação:
+`forma_pagamento_id`, `estorno_de_id`, `substituida_por_id`, e o único parcial de deduplicação:
 
 ```sql
 create unique index uq_transacoes_dedup

@@ -237,6 +237,16 @@ class Transacao(IdMixin, TimestampMixin, SoftDeleteMixin, Base):
         BigInteger, ForeignKey("transacoes.id", ondelete="RESTRICT"), index=True
     )
 
+    #: Criada por "lançar despesa pela nota" (D-33, migration 0010).
+    lancada_pela_nota: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    #: Na lançada pela nota que a revisão juntou com a do banco: a do banco.
+    #: A transação segue apagada; o `compras` segue o ponteiro (D-33).
+    substituida_por_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("transacoes.id", ondelete="RESTRICT"), index=True
+    )
+
     #: Só quando tipo = transferencia.
     conta_origem_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("contas.id", ondelete="RESTRICT")
