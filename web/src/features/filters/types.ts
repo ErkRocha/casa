@@ -8,4 +8,5 @@
 /** Balde de pessoa: id numérico, ou o gasto conjunto (D-03). */
 export type BaldePessoa = number | "conjunto";
 
-export type TipoTransacao = "despesa" | "receita" | "transferencia";
+/** `estorno` abate o gasto (D-34): usa categoria de despesa e nunca é receita. */
+export type TipoTransacao = "despesa" | "receita" | "transferencia" | "estorno";

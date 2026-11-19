@@ -62,4 +62,5 @@ export const ROTULO_TIPO: Record<TipoTransacao, string> = {
   despesa: "Despesas",
   receita: "Receitas",
   transferencia: "Transferências",
+  estorno: "Estornos",
 };

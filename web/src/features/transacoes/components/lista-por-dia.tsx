@@ -49,7 +49,7 @@ function quem(t: Transacao): string {
 }
 
 function corDoValor(t: Transacao): string {
-  if (t.tipo === "receita") return "text-receita";
+  if (t.tipo === "receita" || t.tipo === "estorno") return "text-receita";
   if (t.tipo === "transferencia") return "text-texto-2";
   return "text-texto";
 }
@@ -106,6 +106,7 @@ export function ListaPorDia({
                       className="text-corpo font-medio text-texto cursor-pointer truncate border-none bg-transparent p-0 text-left"
                     >
                       {t.descricao}
+                      {t.tipo === "estorno" ? " (estorno)" : ""}
                     </button>
                     <span className="text-selo flex flex-wrap items-center gap-3">
                       <CategoriaInline
@@ -203,6 +204,7 @@ export function ListaPorDia({
                             className="font-medio text-texto cursor-pointer truncate border-none bg-transparent p-0 text-left hover:underline"
                           >
                             {t.descricao}
+                            {t.tipo === "estorno" ? " (estorno)" : ""}
                           </button>
                           {t.descricao_original ? (
                             <span className="text-pequeno text-texto-2 truncate">

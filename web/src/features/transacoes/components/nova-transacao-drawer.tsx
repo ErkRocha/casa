@@ -109,6 +109,7 @@ function Formulario({
         >
           <option value="despesa">Despesa</option>
           <option value="receita">Receita</option>
+          <option value="estorno">Estorno (abate um gasto)</option>
         </Select>
       </Campo>
 
@@ -163,7 +164,7 @@ function Formulario({
         >
           <option value="">Sem categoria</option>
           {grupos
-            .filter((g) => g.tipo === tipo)
+            .filter((g) => g.tipo === (tipo === "estorno" ? "despesa" : tipo))
             .map((grupo) => (
               <optgroup key={grupo.raizId} label={grupo.raizNome}>
                 {grupo.opcoes.map((opcao) => (

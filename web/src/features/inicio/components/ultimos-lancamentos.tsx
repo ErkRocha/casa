@@ -11,7 +11,7 @@ function quem(t: Transacao): string {
 }
 
 function corDoValor(t: Transacao): string {
-  if (t.tipo === "receita") return "text-receita";
+  if (t.tipo === "receita" || t.tipo === "estorno") return "text-receita";
   if (t.tipo === "transferencia") return "text-texto-2";
   return "text-texto";
 }
@@ -98,7 +98,9 @@ export function UltimosLancamentos({
                     <td className="text-texto-apoio truncate py-6 pr-6">
                       {t.tipo === "transferencia"
                         ? "Transferência"
-                        : (t.categoria_nome ?? "Sem categoria")}
+                        : t.tipo === "estorno"
+                          ? `Estorno · ${t.categoria_nome ?? "Sem categoria"}`
+                          : (t.categoria_nome ?? "Sem categoria")}
                     </td>
                     <td className="py-6 pr-6">
                       <FormaPagamentoTag

@@ -52,7 +52,7 @@ function Conteudo({
       <p
         className={cn(
           "text-valor m-0 pb-6 font-bold",
-          transacao.tipo === "receita" && "text-receita",
+          (transacao.tipo === "receita" || transacao.tipo === "estorno") && "text-receita",
           transacao.tipo === "transferencia" && "text-texto-2",
         )}
       >
@@ -72,7 +72,9 @@ function Conteudo({
         <Valor>
           {transacao.tipo === "transferencia"
             ? "Transferência, sem categoria"
-            : (transacao.categoria_caminho ?? "Sem categoria")}
+            : transacao.tipo === "estorno"
+              ? `Estorno · ${transacao.categoria_caminho ?? "Sem categoria"}`
+              : (transacao.categoria_caminho ?? "Sem categoria")}
         </Valor>
 
         <Chave>Quem</Chave>

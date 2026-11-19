@@ -31,7 +31,9 @@ export function CategoriaInline({
     return <span className={cn("text-texto-2", compacta ? "text-selo" : "text-apoio")}>Transferência</span>;
   }
 
-  const doTipo = grupos.filter((g) => g.tipo === transacao.tipo);
+  // O estorno usa categoria de despesa (D-34).
+  const tipoDaCategoria = transacao.tipo === "estorno" ? "despesa" : transacao.tipo;
+  const doTipo = grupos.filter((g) => g.tipo === tipoDaCategoria);
   const nomes = new Map(doTipo.flatMap((g) => g.opcoes.map((o) => [o.id, o.nome] as const)));
   const atual = escolhida ?? null;
   // Categoria fora da lista (inativa, de outro tipo): continua visível.

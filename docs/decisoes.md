@@ -1423,17 +1423,36 @@ Pede migration em finanças (`transacoes.lancada_pela_nota` e
 Decisão do usuário, 19/11/2026 (grupo 2 do financeiro). Ajusta a D-27 (valor
 da fatura) e a D-21 (o que a sync promove).
 
-**1. Estorno abate o gasto. [aguarda schema]** O estorno deixa de ser
-receita: abate o gasto na mesma categoria e pessoa da compra original quando
-der para identificá-la, senão na categoria sugerida (a da Pluggy) e no
-titular do cartão. Nas somas de gasto vale o valor líquido (despesa menos
-estorno). A compra original é a despesa da mesma forma de pagamento, até 90
-dias antes, de mesmo valor (desempate pelo estabelecimento); sem nenhuma, a
-única compra maior do mesmo estabelecimento (estorno parcial).
-**Não implementado:** precisa de mudança de schema (um tipo novo de
-transação e as duas views que somam gasto, `vw_gasto_por_pessoa` e
-`vw_orcamento_mes`), e a tarefa mandava parar nesse caso. Só a simulação
-existe (`make d34-reaplicar`); o `--executar` recusa os estornos.
+**1. Estorno abate o gasto.** O estorno deixa de ser receita: abate o
+gasto na mesma categoria e pessoa da compra original quando der para
+identificá-la, senão na categoria sugerida (a da Pluggy) e no titular do
+cartão. Nas somas de gasto vale o valor líquido (despesa menos estorno). A
+compra original é a despesa da mesma forma de pagamento, até 90 dias antes, de
+mesmo valor (desempate pelo estabelecimento); sem nenhuma, a única compra maior
+do mesmo estabelecimento (estorno parcial).
+- **Schema (migration 0009):** tipo `estorno` em `tipo_transacao`;
+  `transacoes.estorno_de_id` (compra original, `ON DELETE RESTRICT`, só vale
+  para estorno); `vw_gasto_por_pessoa` e `vw_orcamento_mes` somam despesa
+  menos estorno. O estorno usa categoria de despesa e tem valor positivo, como
+  os demais tipos. O downgrade da migration recusa se houver estorno (o
+  Postgres não remove valor de enum; o valor fica no tipo, sem uso).
+- **Soma única:** `app/gasto.py` diz o que entra no gasto e com que sinal; o
+  Início, as Análises, o orçamento, quem gastou, as categorias, a listagem de
+  transações, as faturas (degraus, abertas e ciclos), as médias, as tools de
+  insights e as consultas do MCP usam o valor líquido. Ficam só em despesa, de
+  propósito: o reajuste de cobrança recorrente e as transações atípicas
+  (estorno não é cobrança nem compra), a deduplicação, e a ferramenta de
+  encargos da sync (a soma da Pluggy já traz o crédito com sinal negativo, e
+  o total da fatura é líquido dele).
+- **Entrada:** o crédito no cartão que não é pagamento de fatura e o valor
+  negativo da fatura em PDF viram `estorno` e vão para a revisão (nunca são
+  promovidos sozinhos). Ao aprovar, o estorno acha a compra original e, se
+  achar, grava `estorno_de_id` e copia a categoria e a pessoa dela, salvo se
+  o usuário escolheu uma delas na revisão; sem original, ficam a categoria
+  sugerida e a pessoa do item (ou o titular do cartão). O lançamento manual
+  aceita `tipo = estorno` e `estorno_de_id` (precisa ser uma despesa viva).
+- **Pendente:** a compra pendente do cartão (D-28) segue só de exibição; o
+  crédito pendente (estorno) continua ignorado.
 
 **2. Aplicação e resgate são transferência; rendimento segue receita.**
 Dinheiro mudando de lugar não é gasto nem receita.
@@ -1470,7 +1489,9 @@ a transação importada mantém a competência da fatura de onde veio.
 
 **5. Dados existentes:** `make d34-reaplicar` simula (padrão) a reaplicação
 de 1 e 2, pulando o que o usuário editou à mão (a mesma detecção do
-retroativo da D-21). Com `executar=1` só o item 2 grava: a transação vira
-item `pendente` de transferência na revisão. Simulação de 19/11/2026: 7
-estornos (R$ 958,71; 6 com a compra original achada) e 2 resgates
-(R$ 65,24) mudariam; 44 rendimentos ficam.
+retroativo da D-21). A simulação funciona antes da migration 0009. Com
+`executar=1`, depois da migration, o item 1 converte a receita de cartão em
+estorno (categoria, pessoa e `estorno_de_id` da original ou da sugestão) e o
+item 2 devolve a transação à revisão como transferência (item `pendente`).
+Simulação de 19/11/2026: 7 estornos (R$ 958,71; 6 com a compra original
+achada) e 2 resgates (R$ 65,24) mudariam; 44 rendimentos ficam.

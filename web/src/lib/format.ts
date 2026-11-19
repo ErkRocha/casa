@@ -95,12 +95,13 @@ export function sinal(valor: Valor): -1 | 0 | 1 {
 
 /**
  * Valor de um lançamento como nas pranchetas: despesa `− R$ 186,40`, receita
- * `+ R$ 320,00`, transferência sem sinal (não é gasto nem ganho, D-05).
+ * `+ R$ 320,00`, transferência sem sinal (não é gasto nem ganho, D-05). O
+ * estorno é dinheiro que volta e abate o gasto (D-34): `+ R$ 35,50`.
  */
 export function reaisDoLancamento(valor: Valor, tipo: string | null | undefined): string {
   const corpo = reaisAbs(valor);
   if (tipo === "despesa") return `${MENOS} ${corpo}`;
-  if (tipo === "receita") return `+ ${corpo}`;
+  if (tipo === "receita" || tipo === "estorno") return `+ ${corpo}`;
   return corpo;
 }
 

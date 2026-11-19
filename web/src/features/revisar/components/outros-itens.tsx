@@ -76,7 +76,10 @@ export function OutrosItens({
             className="linha-acima grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-7 gap-y-4 py-6 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_120px_auto] md:py-7"
           >
             <span className="flex min-w-0 flex-col gap-1">
-              <span className="text-corpo font-semibold">{item.descricao}</span>
+              <span className="text-corpo font-semibold">
+                {item.descricao}
+                {item.tipo_sugerido === "estorno" ? " (estorno)" : ""}
+              </span>
               <span className="text-pequeno text-texto-2">{deOndeVeio(item)}</span>
             </span>
             <span className="text-enfase text-right font-bold whitespace-nowrap md:order-3">
@@ -127,7 +130,8 @@ function CategoriaDoItem({
 }) {
   const [escolhida, setEscolhida] = useState(item.categoria_sugerida_id);
   const tipo = item.tipo_sugerido ?? "despesa";
-  const doTipo = grupos.filter((g) => g.tipo === tipo);
+  // O estorno usa categoria de despesa (D-34).
+  const doTipo = grupos.filter((g) => g.tipo === (tipo === "estorno" ? "despesa" : tipo));
   const nomes = new Map(doTipo.flatMap((g) => g.opcoes.map((o) => [o.id, o.nome] as const)));
   const vazia = escolhida === null;
   const nome = vazia ? "Sem categoria" : (nomes.get(escolhida) ?? item.categoria_nome ?? "Categoria");
