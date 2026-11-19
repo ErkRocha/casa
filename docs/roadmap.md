@@ -739,9 +739,11 @@ Nesta ordem, sem pular:
 
    A leitura pela chave foi corrigida junto: a URL montada só com a chave
    respondia erro 902; agora o serviço abre o formulário da Consulta
-   Completa e o leitor aceita essa página e o layout do QR code. Falta ver
-   o layout do QR code com uma nota real: se trouxer código de barras ou
-   desconto por item, a diferença entra no `modelo-notas.md`. Farmácia e
+   Completa e o leitor aceita essa página e o layout do QR code. O link do
+   QR code é tentado primeiro e, se falhar, a leitura cai sozinha na
+   consulta pela chave. Falta ver o layout do QR code com uma nota real
+   (o link não se fabrica: a SEFAZ confere o hash); se trouxer código de
+   barras ou desconto por item, a diferença entra no `modelo-notas.md`. Farmácia e
    segundo mercado continuam bem-vindos, mas não bloqueiam o passo 2.
 
    **Pronto quando:** as três perguntas estão respondidas no

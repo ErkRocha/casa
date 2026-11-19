@@ -47,6 +47,14 @@ NFC-e". A amostra anonimizada está em
 (portal SVRS) ainda não foi visto com nota real; se ele trouxer algo a mais,
 entra aqui como diferença.
 
+**As duas formas de ler.** O link do QR code é tentado primeiro; se a SEFAZ
+recusar (o hash do QR é conferido: um link inventado recebe "100 - Hash QR
+Code inválido"), pedir login ou devolver uma página que o leitor não
+conhece, o serviço tira a chave do link e lê pela consulta por chave, que é
+a validada. Colar só a chave vai direto para ela. `leitor_versao` diz qual
+das duas leu a nota. Uma segunda nota real do mesmo mercado (17/10/2026)
+confirmou o resto: o mesmo item tem o mesmo código interno nas duas notas.
+
 | pergunta | resposta | ramo escolhido |
 |---|---|---|
 | código de barras por item? | **não**: só o código interno do mercado (18 dígitos com zeros à esquerda) | **sem código de barras**: variante por `(mercado, código interno)`, com "juntar variantes" |
