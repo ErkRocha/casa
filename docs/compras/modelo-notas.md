@@ -309,6 +309,15 @@ Pluggy for mapeado para a **mesma** forma que o usuário cadastrou ("Cartão
 da Laura"), e não para uma nova. A tela de mapeamento oferece as formas que
 já existem.
 
+**Mudanças de schema aprovadas (usuário, 19/11/2026).** As três são
+implementadas junto com o backend das notas (roadmap, passo 3), não antes:
+
+| onde | coluna | tipo | para quê |
+|---|---|---|---|
+| finanças, `transacoes` | `lancada_pela_nota` | boolean not null default false | marca a despesa criada por "lançar despesa pela nota"; a sync a usa para pôr na revisão a mesma compra vinda da Pluggy |
+| finanças, `transacoes` | `substituida_por_id` | fk transacoes, nulo | na lançada pela nota que a revisão juntou com a do banco: aponta para a do banco, e a ligação da nota segue esse ponteiro |
+| compras, `secoes` | `categoria_id_financas` | bigint, nulo, **sem FK** (D-25) | a categoria de finanças sugerida para os itens da seção; id simples, conferido pela API de finanças |
+
 `mercados` continua com esse nome para farmácia e posto: é "o
 estabelecimento". Renomear a tabela não compra nada.
 
