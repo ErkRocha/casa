@@ -2,10 +2,11 @@
 
 Dois itens, duas regras da D-34:
 
-* **Estorno** (item 1). Hoje é `receita` num cartão de crédito. A regra nova o
-  abate do gasto, na categoria e na pessoa da compra original. **Aguarda
-  mudança de schema**: este service só SIMULA o efeito (`planejar`) e
-  `executar_estornos` recusa. Nenhuma escrita para estorno, de jeito nenhum.
+* **Estorno** (item 1). Era `receita` num cartão de crédito. A regra nova o
+  abate do gasto: vira `tipo = 'estorno'`, com a categoria e a pessoa da compra
+  original (e `estorno_de_id` ligando as duas) quando ela se acha, senão com a
+  categoria sugerida pela Pluggy e o titular do cartão. A busca da original é a
+  de `app.services.estorno`, a mesma da promoção.
 * **Aplicação e resgate** (item 2). Dinheiro entrando ou saindo de
   investimento é transferência; rendimento (`Proceeds interests and
   dividends`) segue receita. A conversão já classifica assim os itens novos
@@ -16,25 +17,28 @@ Dois itens, duas regras da D-34:
 a auditoria (D-06) mostra algum UPDATE de autor fora dos processos
 automáticos naquela transação.
 
+**A simulação funciona sem a migration 0009.** `planejar` só lê, por colunas
+explícitas (nunca a entidade `Transacao`, que traria `estorno_de_id`) e nunca
+usa o valor `estorno` do enum. Só `executar_*` exige a migration.
+
 `transacoes` exige as duas contas na transferência, e o staging só conhece
 uma. Por isso `executar_aplicacoes` não converte a transação no lugar: devolve
 o item à revisão como transferência (a transação sai por soft delete) e é lá
 que o usuário escolhe a outra conta — o mesmo caminho dos itens novos.
 
-Duas fases: `planejar` só lê; `executar_aplicacoes` grava com autor
-`d34_reaplicar` na auditoria. Privacidade: nada aqui expõe descrição de
-transação; só contagens, somas, meses e categorias.
+Duas fases: `planejar` só lê; `executar_*` grava com autor `d34_reaplicar` na
+auditoria. Privacidade: nada aqui expõe descrição de transação; só contagens,
+somas, meses, categorias e ids.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from sqlalchemy import func, select, text
+from sqlalchemy import Text, case, cast, func, select, text
 from sqlalchemy.orm import Session
 
 from app.conversao_pluggy import (
@@ -43,7 +47,6 @@ from app.conversao_pluggy import (
     e_operacao_de_aplicacao,
 )
 from app.enums import StatusImportacao, StatusItem, TipoPagamento, TipoTransacao
-from app.ingestao.base import sem_acento
 from app.models import (
     Categoria,
     CategoriaPluggy,
@@ -54,75 +57,36 @@ from app.models import (
     Transacao,
 )
 from app.services.comprovante_pluggy import Comprovante, ler_comprovante
+from app.services.estorno import (
+    JANELA_ORIGINAL_DIAS,
+    Compra,
+    achar_original,
+    compras_antes,
+    estabelecimento_de,
+    titular_do_cartao,
+)
 from app.services.sync_pluggy import _campos_editados
 
 AUTOR = "d34_reaplicar"
-
-#: Até quantos dias antes do estorno a compra original pode estar.
-JANELA_ORIGINAL_DIAS = 90
-
-MENSAGEM_ESTORNO_AGUARDA_SCHEMA = "o estorno aguarda a mudança de schema da D-34"
 
 DesfechoEstorno = Literal["original", "sugestao", "sem_destino", "editado"]
 DesfechoAplicacao = Literal["transferencia", "rendimento", "editado"]
 
 
-class AguardaSchema(Exception):
-    """O item 1 depende de migration e não pode ser executado."""
+class SchemaDesatualizado(Exception):
+    """A migration 0009 (tipo estorno) não está aplicada: só dá para simular."""
 
 
-# --------------------------------------------------------------------------
-# Achar a compra original — pura
-# --------------------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class Compra:
-    """Uma despesa candidata a ser a compra original do estorno."""
-
-    id: int
-    data: date
-    valor: Decimal
-    local_id: int | None
-    estabelecimento: str
-    categoria_id: int | None
-    pessoa_id: int | None
-
-
-def estabelecimento_de(descricao_original: str | None) -> str:
-    """Texto comparável do estabelecimento: sem acento, sem parcela, sem pontuação."""
-    texto = sem_acento(descricao_original or "").lower()
-    texto = re.sub(r"\s+\d{1,2}\s*/\s*\d{1,2}$", "", texto.strip())
-    return re.sub(r"[^a-z0-9]+", " ", texto).strip()
-
-
-def achar_original(
-    *,
-    valor: Decimal,
-    local_id: int | None,
-    estabelecimento: str,
-    candidatas: list[Compra],
-) -> Compra | None:
-    """A compra que o estorno desfez, se for uma só; senão nada.
-
-    Mesmo valor primeiro. Havendo várias, vale a do mesmo estabelecimento (mesmo
-    local ou mesmo texto normalizado). Sem nenhuma de mesmo valor (estorno
-    parcial), vale a única do mesmo estabelecimento com valor maior.
-    """
-
-    def mesmo_lugar(c: Compra) -> bool:
-        return (local_id is not None and c.local_id == local_id) or (
-            bool(estabelecimento) and c.estabelecimento == estabelecimento
+def schema_pronto(session: Session) -> bool:
+    """A migration 0009 já foi aplicada (existe `transacoes.estorno_de_id`)?"""
+    return bool(
+        session.scalar(
+            text(
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_name = 'transacoes' AND column_name = 'estorno_de_id'"
+            )
         )
-
-    por_valor = [c for c in candidatas if c.valor == valor]
-    if len(por_valor) == 1:
-        return por_valor[0]
-    if len(por_valor) > 1:
-        mesmo = [c for c in por_valor if mesmo_lugar(c)]
-        return mesmo[0] if len(mesmo) == 1 else None
-    parcial = [c for c in candidatas if c.valor > valor and mesmo_lugar(c)]
-    return parcial[0] if len(parcial) == 1 else None
+    )
 
 
 # --------------------------------------------------------------------------
@@ -138,6 +102,11 @@ class EstornoAvaliado:
     desfecho: DesfechoEstorno
     categoria: str | None = None
     pessoa: str | None = None
+    #: O que `executar_estornos` grava: categoria e pessoa de destino e a
+    #: compra original (`estorno_de_id`), quando achada.
+    categoria_id: int | None = None
+    pessoa_id: int | None = None
+    original_id: int | None = None
 
 
 @dataclass(slots=True)
@@ -240,27 +209,34 @@ class D34ReaplicarService:
             rotulos[c.id] = (f"{pai.nome} › {c.nome}" if pai else c.nome, c.tipo)
         return rotulos
 
-    # -- item 1: estornos (só simulação) ----------------------------------
+    # -- item 1: estornos ---------------------------------------------------
 
     def _estornos(self, plano: PlanoD34) -> None:
-        """Receita em forma de crédito: o que a regra nova trataria como estorno."""
-        estornos = list(
-            self.session.scalars(
-                select(Transacao)
-                .join(FormaPagamento, FormaPagamento.id == Transacao.forma_pagamento_id)
-                .where(
-                    Transacao.tipo == TipoTransacao.RECEITA,
-                    Transacao.deleted_em.is_(None),
-                    FormaPagamento.tipo == TipoPagamento.CREDITO,
-                )
-                .order_by(Transacao.id)
+        """Receita em forma de crédito: o que a regra nova trata como estorno."""
+        # Colunas, não a entidade: sem a migration 0009 a coluna `estorno_de_id`
+        # não existe, e a simulação tem que funcionar assim mesmo.
+        estornos = self.session.execute(
+            select(
+                Transacao.id,
+                Transacao.competencia,
+                Transacao.data,
+                Transacao.valor,
+                Transacao.local_id,
+                Transacao.descricao_original,
+                Transacao.forma_pagamento_id,
             )
-        )
+            .join(FormaPagamento, FormaPagamento.id == Transacao.forma_pagamento_id)
+            .where(
+                Transacao.tipo == TipoTransacao.RECEITA,
+                Transacao.deleted_em.is_(None),
+                FormaPagamento.tipo == TipoPagamento.CREDITO,
+            )
+            .order_by(Transacao.id)
+        ).all()
         if not estornos:
             return
         itens = self._itens_aprovados([t.id for t in estornos])
         rotulos = self._rotulos_de_categoria()
-        formas = {f.id: f for f in self.session.scalars(select(FormaPagamento))}
         pessoas = {p.id: p.nome for p in self.session.scalars(select(Pessoa))}
         mapa = {
             m.pluggy_categoria_id: m.categoria_id
@@ -279,7 +255,9 @@ class D34ReaplicarService:
                 valor=t.valor,
                 local_id=t.local_id,
                 estabelecimento=estabelecimento_de(t.descricao_original),
-                candidatas=self._compras_antes(t),
+                candidatas=compras_antes(
+                    self.session, forma_pagamento_id=t.forma_pagamento_id, data=t.data
+                ),
             )
             if original is not None:
                 plano.estornos.append(
@@ -292,13 +270,15 @@ class D34ReaplicarService:
                         pessoa=pessoas.get(original.pessoa_id, "Conjunto")
                         if original.pessoa_id
                         else "Conjunto",
+                        categoria_id=original.categoria_id,
+                        pessoa_id=original.pessoa_id,
+                        original_id=original.id,
                     )
                 )
                 continue
 
             categoria_id = self._categoria_pluggy(itens.get(t.id), mapa, rotulos)
-            forma = formas.get(t.forma_pagamento_id) if t.forma_pagamento_id else None
-            titular = forma.titular_id if forma else None
+            titular = titular_do_cartao(self.session, t.forma_pagamento_id)
             plano.estornos.append(
                 EstornoAvaliado(
                     t.id,
@@ -307,31 +287,10 @@ class D34ReaplicarService:
                     "sugestao" if categoria_id is not None else "sem_destino",
                     categoria=_rotulo(rotulos, categoria_id),
                     pessoa=pessoas.get(titular, "Conjunto") if titular else "Conjunto",
+                    categoria_id=categoria_id,
+                    pessoa_id=titular,
                 )
             )
-
-    def _compras_antes(self, estorno: Transacao) -> list[Compra]:
-        linhas = self.session.scalars(
-            select(Transacao).where(
-                Transacao.tipo == TipoTransacao.DESPESA,
-                Transacao.deleted_em.is_(None),
-                Transacao.forma_pagamento_id == estorno.forma_pagamento_id,
-                Transacao.data <= estorno.data,
-                Transacao.data >= estorno.data - timedelta(days=JANELA_ORIGINAL_DIAS),
-            )
-        )
-        return [
-            Compra(
-                id=c.id,
-                data=c.data,
-                valor=c.valor,
-                local_id=c.local_id,
-                estabelecimento=estabelecimento_de(c.descricao_original),
-                categoria_id=c.categoria_id,
-                pessoa_id=c.pessoa_id,
-            )
-            for c in linhas
-        ]
 
     def _categoria_pluggy(
         self,
@@ -356,18 +315,16 @@ class D34ReaplicarService:
     # -- item 2: aplicações e resgates ------------------------------------
 
     def _aplicacoes(self, plano: PlanoD34) -> None:
-        transacoes = list(
-            self.session.scalars(
-                select(Transacao)
-                .join(Importacao, Importacao.id == Transacao.importacao_id)
-                .where(
-                    Importacao.origem == "pluggy",
-                    Transacao.deleted_em.is_(None),
-                    Transacao.tipo.in_([TipoTransacao.RECEITA, TipoTransacao.DESPESA]),
-                )
-                .order_by(Transacao.id)
+        transacoes = self.session.execute(
+            select(Transacao.id, Transacao.competencia, Transacao.valor, Transacao.tipo)
+            .join(Importacao, Importacao.id == Transacao.importacao_id)
+            .where(
+                Importacao.origem == "pluggy",
+                Transacao.deleted_em.is_(None),
+                Transacao.tipo.in_([TipoTransacao.RECEITA, TipoTransacao.DESPESA]),
             )
-        )
+            .order_by(Transacao.id)
+        ).all()
         itens = self._itens_aprovados([t.id for t in transacoes])
         for t in transacoes:
             item = itens.get(t.id)
@@ -402,8 +359,16 @@ class D34ReaplicarService:
                 func.coalesce(
                     func.sum(Transacao.valor).filter(Transacao.tipo == TipoTransacao.RECEITA), 0
                 ),
+                # Gasto líquido (D-34), comparando o tipo como texto: sem a
+                # migration 0009 o enum ainda não tem o valor `estorno`.
                 func.coalesce(
-                    func.sum(Transacao.valor).filter(Transacao.tipo == TipoTransacao.DESPESA), 0
+                    func.sum(
+                        case(
+                            (cast(Transacao.tipo, Text) == "despesa", Transacao.valor),
+                            (cast(Transacao.tipo, Text) == "estorno", -Transacao.valor),
+                        )
+                    ),
+                    0,
                 ),
             )
             .where(Transacao.deleted_em.is_(None), Transacao.competencia.in_(meses))
@@ -416,9 +381,36 @@ class D34ReaplicarService:
 
     # -- executar ---------------------------------------------------------
 
-    def executar_estornos(self, plano: PlanoD34) -> None:
-        """Recusa sempre: o estorno depende de mudança de schema (D-34)."""
-        raise AguardaSchema(MENSAGEM_ESTORNO_AGUARDA_SCHEMA)
+    def executar_estornos(self, plano: PlanoD34) -> dict[str, int]:
+        """Converte em estorno as receitas de cartão do plano.
+
+        Cada uma vira `tipo = 'estorno'`, com categoria, pessoa e
+        `estorno_de_id` do destino planejado (sem destino de categoria, fica
+        sem categoria: a de receita não serve a um estorno). Confere de novo,
+        na hora, que a transação continua viva, receita e sem edição do usuário.
+        Sem commit: quem chama decide.
+        """
+        if not schema_pronto(self.session):
+            raise SchemaDesatualizado("aplique a migration 0009 antes de executar os estornos")
+        self.session.execute(text("SELECT set_config('app.autor', :a, true)"), {"a": AUTOR})
+        convertidos = mudou = 0
+        for e in plano.estornos_com("original", "sugestao", "sem_destino"):
+            t = self.session.get(Transacao, e.transacao_id)
+            if (
+                t is None
+                or t.deleted_em is not None
+                or t.tipo is not TipoTransacao.RECEITA
+                or _campos_editados(self.session, t.id)
+            ):
+                mudou += 1
+                continue
+            t.tipo = TipoTransacao.ESTORNO
+            t.categoria_id = e.categoria_id
+            t.pessoa_id = e.pessoa_id
+            t.estorno_de_id = e.original_id
+            convertidos += 1
+        self.session.flush()
+        return {"convertidos": convertidos, "mudou_desde_o_plano": mudou}
 
     def executar_aplicacoes(self, plano: PlanoD34) -> dict[str, int]:
         """Devolve à revisão, como transferência, as aplicações e resgates do plano.
@@ -428,6 +420,8 @@ class D34ReaplicarService:
         a outra conta. Confere de novo, na hora, que a transação continua viva
         e sem edição. Sem commit: quem chama decide.
         """
+        if not schema_pronto(self.session):
+            raise SchemaDesatualizado("aplique a migration 0009 antes de executar")
         self.session.execute(text("SELECT set_config('app.autor', :a, true)"), {"a": AUTOR})
         movidas = mudou = 0
         importacoes: set[int] = set()
@@ -485,10 +479,12 @@ def _rotulo(rotulos: dict[int, tuple[str, TipoTransacao]], categoria_id: int | N
 
 __all__ = [
     "AUTOR",
-    "MENSAGEM_ESTORNO_AGUARDA_SCHEMA",
-    "AguardaSchema",
+    "JANELA_ORIGINAL_DIAS",
+    "Compra",
     "D34ReaplicarService",
     "PlanoD34",
+    "SchemaDesatualizado",
     "achar_original",
     "estabelecimento_de",
+    "schema_pronto",
 ]

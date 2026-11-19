@@ -1,25 +1,26 @@
 """Reaplica a D-34 nos dados gravados: estornos e aplicações/resgates.
 
     make d34-reaplicar                # simulação (padrão)
-    make d34-reaplicar executar=1     # grava SÓ as aplicações e resgates
+    make d34-reaplicar executar=1     # grava os estornos e as aplicações/resgates
     cd api && python -m scripts.d34_reaplicar [--simular | --executar] [--item ...]
 
 Simula por padrão (`--simular` só deixa isso explícito): não grava nada e
-termina com "Nada foi gravado.".
+termina com "Nada foi gravado.". A simulação funciona mesmo antes da migration
+0009 (tipo estorno): só lê.
 
-* Estornos (item 1): receita num cartão de crédito passaria a abater o gasto,
-  na categoria e na pessoa da compra original. O script mostra quantos
-  achariam a original, quantos ficariam com a categoria sugerida pela Pluggy e
-  o efeito por mês. `--executar` recusa: "o estorno aguarda a mudança de
-  schema da D-34". Nenhuma escrita para estorno.
+* Estornos (item 1): receita num cartão de crédito vira `estorno`, que abate o
+  gasto, na categoria e na pessoa da compra original (ligada por
+  `estorno_de_id`) ou, sem ela, na categoria sugerida pela Pluggy e no titular
+  do cartão. O script mostra, estorno a estorno, o destino e se a original foi
+  achada, e o efeito por mês.
 * Aplicações e resgates (item 2): a transação já gravada volta à revisão como
   transferência (o usuário escolhe a outra conta); rendimento segue receita.
   Nunca onde o usuário editou (auditoria, D-06).
 
-`--executar` com `--item aplicacoes`, ou sem `--item`, grava o item 2 (autor
-`d34_reaplicar`) e recusa o item 1; `--executar --item estornos` só recusa.
+`--executar` grava os dois itens (autor `d34_reaplicar`), ou só um com `--item
+estornos` / `--item aplicacoes`. Exige a migration 0009.
 
-No terminal só saem contagens, somas, meses e categorias: nada de descrição.
+No terminal só saem contagens, somas, meses, categorias e ids: nada de descrição.
 """
 
 from __future__ import annotations
@@ -35,10 +36,10 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services.d34_reaplicar import (
-    MENSAGEM_ESTORNO_AGUARDA_SCHEMA,
-    AguardaSchema,
     D34ReaplicarService,
     PlanoD34,
+    SchemaDesatualizado,
+    schema_pronto,
 )
 
 CENTAVO = Decimal("0.01")
@@ -58,7 +59,7 @@ def _mes(competencia: date) -> str:
 
 
 def imprimir_estornos(plano: PlanoD34) -> None:
-    print("\n-- ESTORNOS (item 1: SÓ simulação; o estorno aguarda schema) --")
+    print("\n-- ESTORNOS (item 1) --")
     todos = plano.estornos
     if not todos:
         print("nenhuma receita em cartão de crédito.")
@@ -84,6 +85,16 @@ def imprimir_estornos(plano: PlanoD34) -> None:
             print(f"   {len(valores):>4}  {rotulo}  {_brl(_soma(valores))}")
         print("por pessoa: " + ", ".join(f"{k} {v}" for k, v in sorted(por_pessoa.items())))
     print(f"soma dos estornos que seriam abatidos: {_brl(_soma([e.valor for e in aplicaveis]))}")
+    print("estorno a estorno (id da transação, sem descrição):")
+    for e in todos:
+        if e.desfecho == "editado":
+            print(f"   #{e.transacao_id}  {_mes(e.competencia)}  {_brl(e.valor)}  pulado (editado)")
+            continue
+        ligada = "original ligada" if e.original_id is not None else "sem original"
+        print(
+            f"   #{e.transacao_id}  {_mes(e.competencia)}  {_brl(e.valor)}  -> "
+            f"{e.categoria or '(sem categoria)'} | {e.pessoa or 'Conjunto'} | {ligada}"
+        )
 
 
 def imprimir_aplicacoes(plano: PlanoD34) -> None:
@@ -147,44 +158,64 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0] if __doc__ else None)
     modo = parser.add_mutually_exclusive_group()
     modo.add_argument("--simular", action="store_true", help="só lê (o padrão)")
-    modo.add_argument("--executar", action="store_true", help="grava o item 2; recusa o item 1")
+    modo.add_argument("--executar", action="store_true", help="grava os estornos e as aplicações")
     parser.add_argument("--item", choices=("todos", "estornos", "aplicacoes"), default="todos")
     args = parser.parse_args(argv)
-
-    if args.executar and args.item == "estornos":
-        print(f"Recusado: {MENSAGEM_ESTORNO_AGUARDA_SCHEMA}. Nada foi gravado.", file=sys.stderr)
-        return 2
 
     from app.db import SessionLocal
 
     with SessionLocal() as session:
+        pronto = schema_pronto(session)
         service = D34ReaplicarService(session)
         plano = service.planejar()
         if not args.executar:
             session.rollback()
             print("== D-34: estornos e aplicações/resgates (SIMULAÇÃO) ==")
+            if not pronto:
+                print(
+                    "(a migration 0009 ainda não foi aplicada: a simulação só lê; "
+                    "o --executar exige a migration)"
+                )
             imprimir(plano, itens=args.item)
             print("\nNada foi gravado.")
             return 0
 
-        print("== D-34: EXECUÇÃO (só aplicações e resgates) ==")
-        if args.item == "todos":
-            try:
-                service.executar_estornos(plano)
-            except AguardaSchema as exc:
-                print(f"Estornos recusados: {exc}. Nada foi gravado para estornos.")
+        if not pronto:
+            session.rollback()
+            print(
+                "Recusado: a migration 0009 (tipo estorno) não foi aplicada. Nada foi gravado.",
+                file=sys.stderr,
+            )
+            return 2
+
+        print("== D-34: EXECUÇÃO ==")
         try:
-            resultado = service.executar_aplicacoes(plano)
+            if args.item in ("todos", "estornos"):
+                convertidos = service.executar_estornos(plano)
+            if args.item in ("todos", "aplicacoes"):
+                resultado = service.executar_aplicacoes(plano)
+        except SchemaDesatualizado as exc:
+            session.rollback()
+            print(f"Recusado: {exc}. Nada foi gravado.", file=sys.stderr)
+            return 2
         except Exception as exc:
             session.rollback()
             print(f"Falhou e foi desfeito: {type(exc).__name__}: {exc}", file=sys.stderr)
             return 1
         session.commit()
-        imprimir_aplicacoes(plano)
-        print(
-            f"\ngravado: {resultado['devolvidas_a_revisao']} voltaram à revisão como "
-            f"transferência; mudaram desde o plano (puladas): {resultado['mudou_desde_o_plano']}"
-        )
+        if args.item in ("todos", "estornos"):
+            imprimir_estornos(plano)
+            print(
+                f"\ngravado: {convertidos['convertidos']} receita(s) de cartão viraram estorno; "
+                f"mudaram desde o plano (puladas): {convertidos['mudou_desde_o_plano']}"
+            )
+        if args.item in ("todos", "aplicacoes"):
+            imprimir_aplicacoes(plano)
+            print(
+                f"\ngravado: {resultado['devolvidas_a_revisao']} voltaram à revisão como "
+                f"transferência; mudaram desde o plano (puladas): "
+                f"{resultado['mudou_desde_o_plano']}"
+            )
     return 0
 
 

@@ -2,20 +2,25 @@
 
 O cenário monta uma importação da Pluggy com conta corrente e cartão, aprova os
 itens como a revisão faria e deixa o usuário editar alguns. A simulação não
-grava nada; `--executar` grava só as aplicações e resgates, e recusa o estorno.
+grava nada; `--executar` converte os estornos e devolve as aplicações e resgates à revisão.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from datetime import date
 from decimal import Decimal
 from typing import Any
 
 import pytest
+from alembic.config import Config
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
+from alembic import command
+from app.config import url_para_alembic
+from app.db import engine
 from app.enums import StatusImportacao, StatusItem, TipoConta, TipoPagamento, TipoTransacao
 from app.models import (
     Auditoria,
@@ -28,10 +33,9 @@ from app.models import (
     Pessoa,
     Transacao,
 )
+from app.schemas.transacoes import TransacaoFiltros
 from app.services.d34_reaplicar import (
     AUTOR,
-    MENSAGEM_ESTORNO_AGUARDA_SCHEMA,
-    AguardaSchema,
     Compra,
     D34ReaplicarService,
     achar_original,
@@ -323,6 +327,11 @@ class TestSimulacao:
         )
         assert por_desfecho[t["k-est-sem"].id].desfecho == "sem_destino"
         assert por_desfecho[t["k-est-edit"].id].desfecho == "editado"
+        # O destino que `executar_estornos` grava.
+        assert original.original_id == t["k-compra"].id
+        assert original.categoria_id == cenario["compras"].id
+        assert (sugestao.original_id, sugestao.categoria_id) == (None, cenario["compras"].id)
+        assert por_desfecho[t["k-est-sem"].id].categoria_id is None
         assert _vivas(session) == antes
 
     def test_aplicacoes_e_resgates(self, session: Session, cenario: dict[str, Any]) -> None:
@@ -354,13 +363,66 @@ class TestSimulacao:
         # Saem das despesas a aplicação (80) e os mesmos estornos (145).
         assert depois.despesas == Decimal("225.10") - Decimal("80.00") - Decimal("145.00")
 
-    def test_estorno_nao_executa(self, session: Session, cenario: dict[str, Any]) -> None:
-        service = D34ReaplicarService(session)
-        with pytest.raises(AguardaSchema, match="aguarda a mudança de schema"):
-            service.executar_estornos(service.planejar())
-
 
 class TestExecucao:
+    def test_converte_os_estornos_e_pula_o_editado(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        t = cenario["t"]
+        service = D34ReaplicarService(session)
+        resultado = service.executar_estornos(service.planejar())
+        session.commit()
+        session.expire_all()
+
+        assert resultado == {"convertidos": 3, "mudou_desde_o_plano": 0}
+        original = session.get(Transacao, t["k-est-original"].id)
+        assert original is not None
+        assert original.tipo is TipoTransacao.ESTORNO
+        assert original.estorno_de_id == t["k-compra"].id
+        assert (original.categoria_id, original.pessoa_id) == (
+            cenario["compras"].id,
+            t["k-compra"].pessoa_id,
+        )
+        sugestao = session.get(Transacao, t["k-est-sugestao"].id)
+        assert sugestao is not None and sugestao.tipo is TipoTransacao.ESTORNO
+        assert sugestao.estorno_de_id is None
+        assert sugestao.categoria_id == cenario["compras"].id
+        assert sugestao.pessoa_id == t["k-compra"].pessoa_id  # o titular do cartão
+        sem = session.get(Transacao, t["k-est-sem"].id)
+        assert sem is not None and sem.tipo is TipoTransacao.ESTORNO
+        assert sem.categoria_id is None
+        # A editada à mão e a receita de conta seguem como estavam.
+        for chave in ("k-est-edit", "r-resg", "r-rend"):
+            intacta = session.get(Transacao, t[chave].id)
+            assert intacta is not None and intacta.tipo is TipoTransacao.RECEITA, chave
+        autores = set(
+            session.scalars(
+                select(Auditoria.autor).where(
+                    Auditoria.autor == AUTOR, Auditoria.registro_id == original.id
+                )
+            )
+        )
+        assert autores == {AUTOR}
+
+        # Rodar de novo não acha mais nada para converter.
+        de_novo = D34ReaplicarService(session)
+        plano = de_novo.planejar()
+        assert [e.desfecho for e in plano.estornos] == ["editado"]
+        assert de_novo.executar_estornos(plano) == {"convertidos": 0, "mudou_desde_o_plano": 0}
+
+    def test_gasto_do_mes_fica_liquido(self, session: Session, cenario: dict[str, Any]) -> None:
+        from app.services.transacoes import TransacaoService
+
+        service = D34ReaplicarService(session)
+        service.executar_estornos(service.planejar())
+        session.commit()
+        totais = TransacaoService(session).totais(TransacaoFiltros())
+        # Despesas: pix 45,10, compra 100, aplicação 80; menos os estornos 145.
+        assert totais["total_despesa"] == Decimal("80.10")
+        # Receitas: resgates 150 + 0,03 + 60 e o estorno editado, 7. Os outros três
+        # estornos deixaram de ser receita.
+        assert totais["total_receita"] == Decimal("217.03")
+
     def test_devolve_a_revisao_so_o_que_ninguem_editou(
         self, session: Session, cenario: dict[str, Any]
     ) -> None:
@@ -414,27 +476,67 @@ class TestScript:
         session.expire_all()
         assert _vivas(session) == vivas
 
-    def test_executar_estornos_recusa(
+    def test_simulacao_mostra_o_destino_de_cada_estorno(
         self, session: Session, cenario: dict[str, Any], capsys: pytest.CaptureFixture[str]
     ) -> None:
-        vivas = _vivas(session)
-        assert d34_reaplicar.main(["--executar", "--item", "estornos"]) == 2
-        assert MENSAGEM_ESTORNO_AGUARDA_SCHEMA in capsys.readouterr().err
-        session.expire_all()
-        assert _vivas(session) == vivas
+        assert d34_reaplicar.main([]) == 0
+        saida = capsys.readouterr().out
+        t = cenario["t"]
+        assert f"#{t['k-est-original'].id}" in saida
+        assert "-> Compras | Titular | original ligada" in saida
+        assert "-> Compras | Titular | sem original" in saida
+        assert "-> (sem categoria) | Titular | sem original" in saida
+        assert "pulado (editado)" in saida
 
-    def test_executar_grava_so_as_aplicacoes(
+    def test_executar_grava_estornos_e_aplicacoes(
         self, session: Session, cenario: dict[str, Any], capsys: pytest.CaptureFixture[str]
     ) -> None:
         vivas = _vivas(session)
         assert d34_reaplicar.main(["--executar"]) == 0
         saida = capsys.readouterr().out
-        assert MENSAGEM_ESTORNO_AGUARDA_SCHEMA in saida
+        assert "3 receita(s) de cartão viraram estorno" in saida
         session.expire_all()
-        # Só o resgate e a aplicação saíram; nenhum estorno foi tocado.
+        # Só o resgate e a aplicação saíram por soft delete.
         assert _vivas(session) == vivas - 2
-        estornos = cenario["t"]
-        for chave in ("k-est-original", "k-est-sugestao", "k-est-sem", "k-est-edit"):
-            transacao = session.get(Transacao, estornos[chave].id)
+        for chave, tipo in (
+            ("k-est-original", TipoTransacao.ESTORNO),
+            ("k-est-sugestao", TipoTransacao.ESTORNO),
+            ("k-est-sem", TipoTransacao.ESTORNO),
+            ("k-est-edit", TipoTransacao.RECEITA),
+        ):
+            transacao = session.get(Transacao, cenario["t"][chave].id)
             assert transacao is not None and transacao.deleted_em is None
-            assert transacao.tipo is TipoTransacao.RECEITA
+            assert transacao.tipo is tipo, chave
+
+    def test_executar_so_estornos_nao_mexe_nas_aplicacoes(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        vivas = _vivas(session)
+        assert d34_reaplicar.main(["--executar", "--item", "estornos"]) == 0
+        session.expire_all()
+        assert _vivas(session) == vivas
+        estorno = session.get(Transacao, cenario["t"]["k-est-original"].id)
+        assert estorno is not None and estorno.tipo is TipoTransacao.ESTORNO
+
+    def test_simulacao_funciona_sem_a_migration_0009(
+        self, session: Session, cenario: dict[str, Any], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Antes de aplicar a 0009 só se pode simular, e a simulação não a referencia."""
+        session.commit()
+        session.close()
+        config = Config("alembic.ini")
+        config.set_main_option("sqlalchemy.url", url_para_alembic(os.environ["DATABASE_URL"]))
+        engine.dispose()
+        try:
+            command.downgrade(config, "0008")
+            engine.dispose()
+            assert d34_reaplicar.main([]) == 0
+            saida = capsys.readouterr().out
+            assert "migration 0009 ainda não foi aplicada" in saida
+            assert "-> Compras | Titular | original ligada" in saida
+            assert "Nada foi gravado." in saida
+            assert d34_reaplicar.main(["--executar"]) == 2
+            assert "0009" in capsys.readouterr().err
+        finally:
+            engine.dispose()
+            command.upgrade(config, "head")
