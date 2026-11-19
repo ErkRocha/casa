@@ -12,6 +12,12 @@ foram mantidos (são públicos). Lida por `compras/nfce/leitor_completa.py`
 (`test_leitor_com_amostra_real_anonimizada`, em `test_nfce.py`). A página
 vem em iso-8859-1.
 
+`nfce_rs_anonimizada_out.html` é outra Consulta Completa do mesmo mercado
+(Zaffari, 17/10/2026, 7 itens, R$ 323,03), anonimizada do mesmo jeito. O
+suco "SUCO NATURALE LARANJA INT 3L" tem o mesmo código interno nas duas
+notas; `test_notas_reais.py` usa as duas para provar que a variante
+aprendida na primeira reconhece o item na segunda.
+
 **Falta** uma amostra do layout do QR code (portal SVRS, `#tabResult`),
 lido por `leitor_svrs.py`, que hoje só é testado com páginas sintéticas
 (`tests/nfce_apoio.py`).
