@@ -367,13 +367,38 @@ def test_conversao_e_pura() -> None:
 class TestD22:
     """Rendimento sem nota e documento de quem está do outro lado (D-22)."""
 
-    @pytest.mark.parametrize("operacao", ["RESGATE_APLIC_FINANCEIRA", "OUTROS", None])
+    @pytest.mark.parametrize("operacao", ["OUTROS", None])
     def test_entrada_sem_forma_nao_ganha_observacao(self, operacao: str | None) -> None:
         item = _conta("credito", operationType=operacao)
         assert item.tipo is TipoTransacao.RECEITA
         assert item.forma_tipo is None
         assert item.observacao is None
         assert item.confianca == Decimal("1.00")
+
+    def test_resgate_de_investimento_vira_transferencia(self) -> None:
+        item = _conta("credito", operationType="RESGATE_APLIC_FINANCEIRA", category="Investments")
+        assert item.tipo is TipoTransacao.TRANSFERENCIA
+        assert item.direcao == "entrada"
+        assert item.observacao is not None and "D-34" in item.observacao
+
+    def test_aplicacao_saida_vira_transferencia(self) -> None:
+        item = _conta("debito", operationType="APLICACAO_FINANCEIRA", category="Investments")
+        assert item.tipo is TipoTransacao.TRANSFERENCIA
+        assert item.direcao == "saida"
+
+    def test_resgate_por_operacao_mesmo_sem_categoria_de_investimento(self) -> None:
+        item = _conta("credito", operationType="RESGATE_APLIC_FINANCEIRA")
+        assert item.tipo is TipoTransacao.TRANSFERENCIA
+
+    def test_rendimento_segue_receita_mesmo_com_operacao_de_resgate(self) -> None:
+        item = _conta(
+            "credito",
+            operationType="RESGATE_APLIC_FINANCEIRA",
+            category="Proceeds interests and dividends",
+            amount=Decimal("0.03"),
+        )
+        assert item.tipo is TipoTransacao.RECEITA
+        assert item.observacao is None
 
     def test_saida_sem_forma_continua_com_observacao(self) -> None:
         item = _conta("debito", operationType="OUTROS")

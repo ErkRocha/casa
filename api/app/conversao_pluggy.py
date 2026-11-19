@@ -119,6 +119,29 @@ OBS_ABERTA = (
     "banco confirmar, e a sync atualiza sozinha (D-23)."
 )
 
+#: Rendimento da conta remunerada (centavos creditados): segue receita, mesmo
+#: quando a operação é `RESGATE_APLIC_FINANCEIRA` (D-34).
+CATEGORIA_RENDIMENTO = "Proceeds interests and dividends"
+#: Operação de aplicação ou resgate, pelo nome: `RESGATE_APLIC_FINANCEIRA`,
+#: `APLICACAO_FINANCEIRA` e afins.
+_OPERACAO_APLICACAO = re.compile(r"APLIC|RESGATE|INVEST")
+#: Categorias da Pluggy para dinheiro que entra ou sai de investimento.
+CATEGORIAS_INVESTIMENTO = frozenset(
+    {
+        "Investments",
+        "Automatic investment",
+        "Fixed income",
+        "Mutual funds",
+        "Variable income",
+        "Margin",
+    }
+)
+#: Público: a revisão e o script da D-34 reconhecem por ela o tipo da transferência.
+OBS_APLICACAO_RESGATE = (
+    "Aplicação/resgate de investimento: dinheiro mudando de lugar, tratado como "
+    "transferência (D-34)."
+)
+
 _OBS_ESTORNO = (
     "Crédito no cartão que a Pluggy não marca como pagamento de fatura: "
     "tratado como estorno. Confira."
@@ -440,9 +463,28 @@ def _classificar(
     if categoria == _CATEGORIA_MESMA_PESSOA:
         observacoes.append(_OBS_MESMA_PESSOA)
         return TipoTransacao.TRANSFERENCIA, direcao, CONFIANCA_INTERPRETADA
+    if e_aplicacao_ou_resgate(transacao):
+        observacoes.append(OBS_APLICACAO_RESGATE)
+        return TipoTransacao.TRANSFERENCIA, direcao, CONFIANCA_INTERPRETADA
 
     tipo = TipoTransacao.RECEITA if entrada else TipoTransacao.DESPESA
     return tipo, direcao, CONFIANCA_CONTA
+
+
+def e_aplicacao_ou_resgate(transacao: Transacao) -> bool:
+    """Dinheiro entrando ou saindo de investimento, que não é rendimento (D-34).
+
+    Rendimento é a categoria `Proceeds interests and dividends`, qualquer que
+    seja a operação: continua receita. Aplicação e resgate são a operação de
+    aplicação/resgate ou a categoria de investimento, e são dinheiro mudando
+    de lugar.
+    """
+    if (transacao.category or "") == CATEGORIA_RENDIMENTO:
+        return False
+    return bool(
+        _OPERACAO_APLICACAO.search((transacao.operation_type or "").upper())
+        or (transacao.category or "") in CATEGORIAS_INVESTIMENTO
+    )
 
 
 def e_pagamento_de_fatura(transacao: Transacao) -> bool:

@@ -985,6 +985,74 @@ class TestPromocaoAutomatica:
         }
 
 
+class TestAplicacaoEResgate:
+    """D-34: aplicação e resgate são transferência; rendimento segue receita."""
+
+    def test_rendimento_promove_como_receita_e_resgate_vai_para_a_revisao(
+        self, session: Session, cenario: dict[str, Any]
+    ) -> None:
+        from app.models import CategoriaPluggy
+
+        rendimentos = Categoria(nome="Rendimentos", tipo=TipoTransacao.RECEITA)
+        session.add(rendimentos)
+        session.flush()
+        session.add(
+            CategoriaPluggy(
+                pluggy_categoria_id="03000000",
+                pluggy_categoria_nome="Proceeds interests and dividends",
+                categoria_id=rendimentos.id,
+            )
+        )
+        session.commit()
+        leitor = LeitorFalso()
+        leitor.transacoes[CORRENTE] = [
+            _tx(
+                "rend",
+                CORRENTE,
+                "2025-04-02T15:00:00Z",
+                "0.03",
+                tipo="CREDIT",
+                operacao="RESGATE_APLIC_FINANCEIRA",
+                categoria="Proceeds interests and dividends",
+                categoria_id="03000000",
+            ),
+            _tx(
+                "resgate",
+                CORRENTE,
+                "2025-04-03T15:00:00Z",
+                "150.00",
+                tipo="CREDIT",
+                operacao="RESGATE_APLIC_FINANCEIRA",
+                categoria="Investments",
+                categoria_id="07000000",
+            ),
+            _tx(
+                "aplicacao",
+                CORRENTE,
+                "2025-04-04T15:00:00Z",
+                "-80.00",
+                operacao="APLICACAO_FINANCEIRA",
+                categoria="Investments",
+                categoria_id="07000000",
+            ),
+        ]
+
+        resultado = _sync(session, leitor)
+
+        assert resultado.promovidos == 1
+        assert resultado.na_revisao == {"transferencia": 2}
+        (transacao,) = _transacoes_vivas(session)
+        assert transacao.tipo is TipoTransacao.RECEITA
+        assert transacao.valor == Decimal("0.03")
+        itens = {i.id_externo: i for i in _itens(session)}
+        assert itens["rend"].status is StatusItem.APROVADO
+        for chave in ("resgate", "aplicacao"):
+            assert itens[chave].status is StatusItem.PENDENTE
+            assert itens[chave].transacao_id is None
+            assert itens[chave].tipo_sugerido is TipoTransacao.TRANSFERENCIA
+            assert "D-34" in (itens[chave].observacao or "")
+
+
 def _pendentes(session: Session) -> dict[str, PluggyPendente]:
     session.expire_all()
     return {p.id_externo: p for p in session.scalars(select(PluggyPendente))}
