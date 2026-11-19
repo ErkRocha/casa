@@ -6,10 +6,13 @@
 | despensa vai para `acabou`       | cria item pendente (`origem = despensa`)        |
 | despensa vai para `acabando`     | nada na lista; só sugestão (D-25)               |
 | compra desfeita                  | despensa volta para `acabou`, se acompanhado    |
+| linha de nota (conferência)      | `tem`, se acompanhado e a nota é mais nova      |
 
 Tudo na transação de quem chamou: o item e a despensa mudam juntos ou não
 mudam.
 """
+
+from datetime import datetime
 
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -104,6 +107,24 @@ class DespensaService:
     def comprado(self, produto_id: int) -> None:
         """Comprou: em casa passa a ter. Só se o produto é acompanhado."""
         self._se_acompanhado(produto_id, EstadoDespensa.TEM)
+
+    def pela_nota(self, produto_id: int, emitida_em: datetime) -> bool:
+        """Uma linha de nota com este produto: se a despensa o acompanha, vai
+        para `tem`, mas só se a nota é **depois** do estado atual. Nota lida com
+        atraso não desfaz um "acabou" marcado depois da compra (D-33).
+        Devolve se mudou algo."""
+        mudou = self.session.execute(
+            update(Despensa)
+            .where(
+                Despensa.produto_id == produto_id,
+                Despensa.deleted_em.is_(None),
+                Despensa.estado != EstadoDespensa.TEM,
+                Despensa.estado_em < emitida_em,
+            )
+            .values(estado=EstadoDespensa.TEM, estado_por=self.quem, estado_em=func.now())
+            .returning(Despensa.id)
+        ).scalar()
+        return mudou is not None
 
     def compra_desfeita(self, produto_id: int) -> None:
         """A compra não aconteceu: o produto continua faltando."""

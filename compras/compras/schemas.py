@@ -455,6 +455,9 @@ class NotaResumo(Linha):
     despesa_lancada_pela_nota: bool
     lida_por: str
     forma_pagamento_nota: str | None
+    #: Quando a conferência da lista foi confirmada; nulo = ainda não.
+    conferida_em: datetime | None = None
+    conferida_por: str | None = None
 
     @classmethod
     def de(cls, n: NotaFiscal) -> Self:
@@ -476,13 +479,32 @@ class NotaResumo(Linha):
             despesa_lancada_pela_nota=n.despesa_lancada_pela_nota,
             lida_por=n.lida_por,
             forma_pagamento_nota=n.forma_pagamento_nota,
+            conferida_em=n.conferida_em,
+            conferida_por=n.conferida_por,
             criado_em=n.criado_em,
             atualizado_em=n.atualizado_em,
             deleted_em=n.deleted_em,
         )
 
 
+class Proximos(BaseModel):
+    """O que a tela oferece depois de ler a nota."""
+
+    ligar_despesa: bool
+    itens_sem_variante: int
+    conferencia: Literal["pendente", "sem_lista", "feita"]
+
+
+class NotasPagina(BaseModel):
+    items: list[NotaResumo]
+    total: int
+    limite: int
+    offset: int
+
+
 class NotaDetalhe(NotaResumo):
+    #: Só em `POST /notas` e `POST /notas/{id}/reler`.
+    proximos: Proximos | None = None
     itens: list[NotaItemLeitura]
     #: Soma dos itens menos o desconto de cada um, pelo banco.
     soma_itens: Decimal

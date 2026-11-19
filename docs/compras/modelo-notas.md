@@ -4,12 +4,12 @@
 documento descreve para o schema `compras` já existe no banco: variantes,
 códigos por mercado, preço comparável (as duas views), fechamento do item da
 lista, marco da conferência e ligação da nota com a compra pendente. O que
-ainda é só plano é o comportamento que usa as colunas novas de
-`itens_lista` e `nota_itens.item_lista_id` (conferência,
-"aguardando nota"; a ligação e o lançamento da despesa já têm API) e as
+ainda é só plano são as telas. O comportamento que usa as colunas novas de
+`itens_lista` e `nota_itens.item_lista_id` (conferência e "aguardando
+nota") está implementado, assim como a ligação e o lançamento da despesa. As
 colunas de finanças (`transacoes.lancada_pela_nota` e `substituida_por_id`,
-migration `0010` de finanças, existem). Variantes, preços e ligação à
-despesa já têm API (`api-notas.md`). Convenções do serviço em `modelo-dados.md`:
+migration `0010` de finanças, existem). Variantes, preços, ligação à
+despesa, conferência e "aguardando nota" têm API (`api-notas.md`). Convenções do serviço em `modelo-dados.md`:
 `numeric` para dinheiro e quantidade, soft delete, `*_por text`, auditoria
 por trigger, só `casa_compras` escreve.
 
@@ -359,7 +359,7 @@ inteiro apareceria como "aguardando nota" no dia seguinte.
 para o item aguardando nota e limpa o fechamento. Item já fechado por nota
 não se desfaz por ali: a nota é a fonte da verdade (409).
 
-## O marco da conferência [novo, sem tabela]
+## O marco da conferência [implementado, sem tabela]
 
 A D-33 fala em "os marcados como comprados desde a última nota lida". No
 modelo, o marco é **o próprio fechamento**: entram na conferência os
@@ -377,7 +377,7 @@ Uma regra de data protege contra o engano oposto: o comprado só casa com
 nota **emitida depois de `comprado_em` menos 1 dia**. Sem ela, ler uma nota
 velha esquecida confirmaria o leite marcado hoje.
 
-## Casamento entre lista e nota [novo, regra do service]
+## Casamento entre lista e nota [implementado, regra do service]
 
 Lista pede produto; nota traz variante. Casam pelo **produto** da variante.
 
@@ -396,7 +396,7 @@ Lista pede produto; nota traz variante. Casam pelo **produto** da variante.
 sem quantidade ("o de sempre") nunca é "menor". Duas linhas da nota com o
 mesmo produto somam antes de comparar.
 
-## Despensa [existe, regra muda]
+## Despensa [existe, regra mudou: implementada]
 
 A linha da nota com variante leva o produto para `tem` **só se** a
 despensa já acompanha o produto **ou** a linha atendeu um item da lista

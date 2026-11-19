@@ -1,8 +1,8 @@
 # API — `compras`, fase de lista e despensa
 
 Implementado (D-25): lista e despensa, e o backend da nota fiscal e preços. Modelo em `modelo-dados.md`.
-O plano da D-33 (variantes, conferência, preços comparáveis) está em
-`api-notas.md`.
+A D-33 (variantes, conferência, aguardando nota e preços comparáveis) está
+em `api-notas.md`.
 
 ## Endereço
 
@@ -68,11 +68,13 @@ declarada antes da de `/api`.
 
 | Método | Caminho | O que faz |
 |---|---|---|
-| GET | `/lista?comprados_desde=` | Pendentes e os comprados depois de `comprados_desde` (padrão: 6 horas atrás), ordenados pela seção e pelo nome, já com o nome do produto e da seção. Traz o `cursor` para `/mudancas` e as `sugestoes`: produtos "acabando" na despensa que ainda não estão na lista |
+| GET | `/lista?comprados_desde=` | Pendentes e os comprados depois de `comprados_desde` (padrão: 6 horas atrás), ordenados pela seção e pelo nome, já com o nome do produto e da seção. Traz o `cursor` para `/mudancas` e as `sugestoes`: produtos "acabando" na despensa que ainda não estão na lista. Também `aguardando_nota` e `perguntas` (D-33, `api-notas.md`) |
 | POST | `/lista/itens` | `{id_cliente, produto_id ou produto_nome, quantidade?, unidade?, observacao?, origem?}` (`origem`: `manual`, o padrão, ou `voz`; `despensa` é só do ciclo). Com `produto_nome` sem produto, cria o produto em "Sem seção" na mesma transação |
 | PATCH | `/lista/itens/{id}` | Quantidade, unidade, observação |
 | POST | `/lista/itens/{id}/comprar` | Marca comprado (quem e quando); despensa vai para `tem` |
-| POST | `/lista/itens/{id}/desfazer` | Volta a pendente; despensa volta para `acabou` |
+| POST | `/lista/itens/{id}/desfazer` | Volta a pendente; despensa volta para `acabou`. Item já confirmado por uma nota: 409 (D-33) |
+| POST | `/lista/itens/{id}/fechar` | `{"como": "sem_nota" \| "nao_comprei"}`: resolve o comprado aguardando nota (`api-notas.md`) |
+| POST | `/lista/itens/{id}/dispensar-pergunta` | A pergunta dos 7 dias não volta (`api-notas.md`) |
 | DELETE | `/lista/itens/{id}` | Tira da lista (soft delete) |
 | GET | `/lista/historico?produto_id=&limite=&offset=` | Comprados, mais recentes primeiro, paginado com total |
 

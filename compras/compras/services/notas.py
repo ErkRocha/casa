@@ -300,7 +300,8 @@ class NotaService:
             produto = ProdutoService(self.session).get(produto_id)
             variante = self._variante_para(variantes, produto, item, nova or {})
 
-        criado_por = "usuario" if item.variante_id is None else "correcao"
+        primeira = item.variante_id is None
+        criado_por = "usuario" if primeira else "correcao"
         item.variante_id = variante.id
         item.produto_id = variante.produto_id
         item.origem_associacao = OrigemAssociacao.USUARIO
@@ -314,6 +315,11 @@ class NotaService:
         if nota.mercado_id is not None and codigo is not None:
             self._aprender_codigo(variante, nota.mercado_id, codigo, quem)
         self.session.flush()
+        if primeira and nota.conferida_em is not None:
+            # A nota já foi conferida sem esta linha: o efeito dela vem agora.
+            from compras.services.conferencia import ConferenciaService
+
+            ConferenciaService(self.session, quem).linha_associada_depois(nota, item)
         self.session.refresh(item)
         return item
 
@@ -453,15 +459,37 @@ class NotaService:
             raise NaoEncontrado("nota", id_)
         return nota
 
-    def listar(self, limite: int) -> list[NotaFiscal]:
-        return list(
-            self.session.scalars(
-                select(NotaFiscal)
-                .where(NotaFiscal.deleted_em.is_(None))
-                .order_by(NotaFiscal.emitida_em.desc().nulls_first(), NotaFiscal.id.desc())
-                .limit(limite)
+    def listar(
+        self,
+        limite: int,
+        deslocamento: int = 0,
+        conferida: bool | None = None,
+        com_transacao: bool | None = None,
+    ) -> tuple[list[NotaFiscal], int]:
+        """Paginada, com o total. `conferida` e `com_transacao` servem às filas
+        "notas sem conferência" e "notas sem despesa"; ligada à compra pendente
+        do cartão conta como ligada."""
+        filtro: list[Any] = [NotaFiscal.deleted_em.is_(None)]
+        if conferida is not None:
+            filtro.append(
+                NotaFiscal.conferida_em.is_not(None)
+                if conferida
+                else NotaFiscal.conferida_em.is_(None)
             )
+        if com_transacao is not None:
+            ligada = NotaFiscal.transacao_id.is_not(None) | NotaFiscal.pendente_id_externo.is_not(
+                None
+            )
+            filtro.append(ligada if com_transacao else ~ligada)
+        total = self.session.scalar(select(func.count()).select_from(NotaFiscal).where(*filtro))
+        notas = self.session.scalars(
+            select(NotaFiscal)
+            .where(*filtro)
+            .order_by(NotaFiscal.emitida_em.desc().nulls_first(), NotaFiscal.id.desc())
+            .limit(limite)
+            .offset(deslocamento)
         )
+        return list(notas), int(total or 0)
 
     def itens(self, nota_id: int) -> list[NotaItem]:
         return list(

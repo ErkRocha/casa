@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, Body, HTTPException, Query, Response, status
 
 from compras.deps import ConsultaDep, FinancasDep, LeitorDep, QuemDep, SessionDep
 from compras.financas import FinancasIndisponivel
@@ -16,22 +16,26 @@ from compras.schemas import (
     NotaEntrada,
     NotaItemLeitura,
     NotaResumo,
+    NotasPagina,
     PreviaLancamento,
     SugestaoLigacao,
     VincularTransacao,
 )
+from compras.schemas_conferencia import ConferenciaConfirmar, ConferenciaResposta
+from compras.services.conferencia import ConferenciaService
 from compras.services.ligacao_notas import LigacaoNotaService
 from compras.services.notas import NotaService
 
 router = APIRouter(prefix="/notas", tags=["nota fiscal"])
 
 
-def _detalhe(servico: NotaService, nota: NotaFiscal) -> NotaDetalhe:
+def _detalhe(servico: NotaService, nota: NotaFiscal, com_proximos: bool = False) -> NotaDetalhe:
     itens = servico.itens(nota.id)
     soma = servico.soma_itens(nota.id)
     precos = servico.precos_da_nota(nota.id)
     return NotaDetalhe(
         **NotaResumo.de(nota).model_dump(),
+        proximos=ConferenciaService(servico.session).proximos(nota) if com_proximos else None,
         itens=[NotaItemLeitura.de(i, precos.get(i.id)) for i in itens],
         soma_itens=soma,
         diferenca=(nota.valor_total - soma) if nota.valor_total is not None and itens else None,
@@ -66,13 +70,29 @@ def ler(
     session.commit()
     if not nova:
         response.status_code = status.HTTP_200_OK
-    return _detalhe(servico, nota)
+    return _detalhe(servico, nota, com_proximos=True)
 
 
-@router.get("", response_model=list[NotaResumo])
-def listar(session: SessionDep, limite: Annotated[int, Query(ge=1, le=200)] = 50) -> Any:
-    """As notas, da mais recente para a mais antiga (as sem data primeiro)."""
-    return [NotaResumo.de(n) for n in NotaService(session).listar(limite)]
+@router.get("", response_model=NotasPagina)
+def listar(
+    session: SessionDep,
+    limite: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    conferida: Annotated[
+        bool | None, Query(description="Só as conferidas (true) ou não (false)")
+    ] = None,
+    com_transacao: Annotated[
+        bool | None,
+        Query(description="Só as ligadas a uma despesa (true) ou sem ligação (false)"),
+    ] = None,
+) -> Any:
+    """As notas, da mais recente para a mais antiga (as sem data primeiro),
+    paginadas com o total. Os filtros servem às filas "notas sem despesa"
+    (`com_transacao=false`) e "notas sem conferência" (`conferida=false`)."""
+    notas, total = NotaService(session).listar(limite, offset, conferida, com_transacao)
+    return NotasPagina(
+        items=[NotaResumo.de(n) for n in notas], total=total, limite=limite, offset=offset
+    )
 
 
 @router.post("/consolidar-ligacoes", response_model=ConsolidacaoResultado)
@@ -114,7 +134,7 @@ def reler(
     servico = NotaService(session, consulta, leitor)
     nota = servico.reler(id_, quem, buscar_de_novo)
     session.commit()
-    return _detalhe(servico, nota)
+    return _detalhe(servico, nota, com_proximos=True)
 
 
 def _item_resposta(servico: NotaService, item: NotaItem) -> NotaItemLeitura:
@@ -156,6 +176,29 @@ def associar(
     session.commit()
     session.refresh(item)
     return _item_resposta(servico, item)
+
+
+@router.get("/{id_}/conferencia", response_model=ConferenciaResposta)
+def previa_conferencia(id_: int, session: SessionDep) -> Any:
+    """A prévia da conferência da lista: o que a confirmação faria, sem gravar
+    nada. Nota que não foi lida: 409. Já conferida: o que foi aplicado."""
+    return ConferenciaService(session).previa(id_)
+
+
+@router.post("/{id_}/conferencia", response_model=ConferenciaResposta)
+def confirmar_conferencia(
+    id_: int,
+    session: SessionDep,
+    quem: QuemDep,
+    payload: Annotated[ConferenciaConfirmar | None, Body()] = None,
+) -> Any:
+    """Confirma a conferência com as respostas às perguntas de quantidade
+    (`{"diferencas": [{"item_lista_id": 41, "volta": true}]}`). Pergunta sem
+    resposta: 422 com o que falta. Confirmar de novo: 200, sem mudança."""
+    respostas = {d.item_lista_id: d.volta for d in (payload or ConferenciaConfirmar()).diferencas}
+    resposta = ConferenciaService(session, quem).confirmar(id_, respostas)
+    session.commit()
+    return resposta
 
 
 @router.get("/{id_}/sugestoes-transacao", response_model=list[SugestaoLigacao])

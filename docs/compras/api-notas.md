@@ -1,9 +1,9 @@
 # API — notas fiscais, conferência e preços (D-33)
 
-**Implementado: variantes, preços e ligação à despesa** (seções "Reconhecer
-os itens (variantes)", "Preços" e "Ligação à despesa", com os ajustes
-anotados nelas). **Plano, não implementado:** conferência e "aguardando
-nota". Amplia a seção "Nota fiscal e preços" de
+**Implementado: variantes, preços, ligação à despesa, conferência da lista e
+"aguardando nota"** (seções "Reconhecer os itens (variantes)", "Preços",
+"Ligação à despesa", "Conferência" e "Comprado, aguardando nota", com os
+ajustes anotados nelas). Amplia a seção "Nota fiscal e preços" de
 `api.md`, que continua valendo onde este documento não diz o contrário.
 Modelo em `modelo-notas.md`. Convenções de `api.md`: caminhos sem o prefixo
 `/api/compras`, toda escrita exige `X-Quem`, dinheiro e quantidade como
@@ -14,10 +14,10 @@ O fluxo da D-33 e o endpoint de cada passo:
 
 | passo | endpoint |
 |---|---|
-| ler a nota | `POST /notas` [existe] |
+| ler a nota | `POST /notas` [existe; ganhou `proximos`] |
 | ligar à despesa | `GET /notas/{id}/sugestoes-transacao` [muda], `PUT /notas/{id}/transacao` [existe], `POST /notas/{id}/lancar-despesa` [novo] |
 | reconhecer os itens | `PUT /notas/{id}/itens/{item_id}/variante` [novo] |
-| conferir a lista | `GET` (prévia) e `POST` (confirmação) `/notas/{id}/conferencia` [novo] |
+| conferir a lista | `GET` (prévia) e `POST` (confirmação) `/notas/{id}/conferencia` [implementado] |
 | atualizar a despensa | na confirmação da conferência |
 | registrar os preços | nada a chamar: a view lê as notas conferidas ou não |
 
@@ -179,6 +179,42 @@ Resposta das duas, igual:
   removeu), a confirmação refaz o plano e aplica o atual; a resposta mostra
   o que de fato foi feito.
 
+**Como ficou (conferência).**
+
+- `GET /notas` ficou paginada: `{items, total, limite, offset}`, com os
+  filtros `conferida` e `com_transacao` (ligada à compra pendente do cartão
+  conta como ligada). `POST /notas` e `POST /notas/{id}/reler` trazem
+  `proximos`; `GET /notas/{id}` não (`null`). Nota com `status = erro`:
+  `proximos.conferencia = "sem_lista"`. `NotaResumo` ganhou `conferida_em` e
+  `conferida_por`.
+- A resposta da conferência traz também `nota_id` e `conferencia`
+  (`pendente` na prévia, `sem_lista` quando nada da lista bate, `feita` na
+  confirmação e em toda nota já conferida). `extras` e `despensa` trazem o
+  `produto_id` (a ação "acompanhar na despensa" é o `PUT /despensa/{produto_id}`
+  com `tem`). `pedido` e `veio` vão sem zeros à direita ("6", "0.512").
+  Em `diferencas`, `volta` é nulo na prévia e traz a resposta na confirmação:
+  é a única diferença entre as duas respostas.
+- Pergunta sem resposta: 422 com `faltam: [{item_lista_id, produto}]`, nada
+  gravado. Resposta a um item que não é pergunta é ignorada. O corpo da
+  confirmação pode ser vazio quando não há pergunta.
+- Nota que não está `lida`: 409. Nota já conferida (prévia ou confirmação):
+  200 com `conferencia = "feita"`, reconstruída do que ficou gravado
+  (`confirmados`, `marcados`, `extras`, `nao_reconhecidos`); as listas
+  `continuam_pendentes`, `aguardando_nota`, `diferencas` e `despensa` vêm
+  vazias, porque o que mudou naquele momento não fica guardado.
+- Por produto, a nota atende **um** item: o comprado aguardando nota mais
+  antigo que a regra da data deixa casar, senão o pendente. Todas as linhas
+  do produto levam o mesmo `item_lista_id`. O fechamento por nota grava
+  `fechado_por = leitura_nfce`; o pendente marcado pela nota grava
+  `comprado_por` com quem confirmou e `comprado_em = emitida_em`.
+- Despensa pela nota: o produto acompanhado vai para `tem` se `emitida_em` é
+  depois do `estado_em` (o produto não acompanhado nunca ganha linha, venha
+  da lista ou seja extra). "Volta" soma ao pendente do produto só se ele tem
+  quantidade na mesma unidade; sem quantidade, fica como está.
+- `PUT /notas/{id}/itens/{item_id}/variante` numa nota já conferida, na
+  primeira associação da linha: a casa com o aguardando nota do mesmo
+  produto (se a regra da data deixar) e aplica a despensa.
+
 ## Comprado, aguardando nota
 
 | Método | Caminho | O que faz |
@@ -190,6 +226,23 @@ Resposta das duas, igual:
 
 As mudanças de `fechamento` chegam ao outro celular pelo `/mudancas`, como
 qualquer mudança em `itens_lista`.
+
+**Como ficou (aguardando nota).**
+
+- `GET /lista` ganhou `aguardando_nota` (todo comprado com `fechamento` nulo,
+  o mais antigo primeiro) e `perguntas` (os desses comprados há mais de 7
+  dias, `COMPRAS_PERGUNTA_NOTA_DIAS`, e sem `perguntado_em`). `itens` não mudou:
+  o comprado recente aparece nos dois, e a tela separa pelo id. Cada item
+  (em `/lista`, `/mudancas` e nas respostas de escrita) traz `fechamento`,
+  `fechado_em`, `fechado_por` e `perguntado_em`.
+- `POST /lista/itens/{id}/fechar` com `sem_nota` grava `fechado_por` com quem
+  respondeu. `nao_comprei` limpa também `perguntado_em` (uma compra nova
+  pergunta de novo). Item pendente, apagado ou já fechado: 409 com o item.
+- `POST /lista/itens/{id}/dispensar-pergunta` é idempotente (vale a primeira
+  data); item fechado: 409.
+- `desfazer` recusa (409) só o item fechado por `nota`; o `sem_nota`
+  (inclusive os migrados) continua se desfazendo, e o desfazer limpa
+  `perguntado_em`.
 
 ## Preços
 

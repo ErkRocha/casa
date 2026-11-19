@@ -32,4 +32,9 @@ class Conflito(ErroDominio):
 
 
 class RegraViolada(ErroDominio):
-    """422: o pedido é válido como formato, mas a regra não deixa."""
+    """422: o pedido é válido como formato, mas a regra não deixa. Com `corpo`,
+    a resposta leva o que falta (ex.: as perguntas sem resposta)."""
+
+    def __init__(self, mensagem: str, corpo: dict[str, Any] | None = None) -> None:
+        super().__init__(mensagem)
+        self.corpo = corpo or {}

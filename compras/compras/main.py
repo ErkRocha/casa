@@ -56,7 +56,7 @@ def _conflito(_: Request, exc: Conflito) -> JSONResponse:
 
 @app.exception_handler(RegraViolada)
 def _regra_violada(_: Request, exc: RegraViolada) -> JSONResponse:
-    return JSONResponse(status_code=422, content={"detail": str(exc)})
+    return JSONResponse(status_code=422, content={"detail": str(exc), **exc.corpo})
 
 
 @app.exception_handler(FinancasIndisponivel)

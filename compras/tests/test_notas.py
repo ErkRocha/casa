@@ -113,7 +113,7 @@ def test_a_mesma_chave_duas_vezes_devolve_a_mesma_nota(
     assert r.json()["id"] == primeira["id"]
     assert r.json()["lida_por"] == "Laura"
     assert len(consulta.buscas) == 1
-    assert len(client.get("/notas").json()) == 1
+    assert client.get("/notas").json()["total"] == 1
 
 
 def test_duas_leituras_da_mesma_nota_ao_mesmo_tempo_viram_uma() -> None:
@@ -149,7 +149,7 @@ def test_duas_leituras_da_mesma_nota_ao_mesmo_tempo_viram_uma() -> None:
     assert sorted(s for s, _ in respostas) == [200, 201]
     assert len({i for _, i in respostas}) == 1
     with TestClient(app) as cli:
-        assert len(cli.get("/notas").json()) == 1
+        assert cli.get("/notas").json()["total"] == 1
         assert len(cli.get("/mercados").json()) == 1
 
 
@@ -168,7 +168,7 @@ def test_entrada_invalida_nao_grava_nada(
     r = ler(client, entrada)
     assert r.status_code == 422, r.text
     assert consulta.buscas == []
-    assert client.get("/notas").json() == []
+    assert client.get("/notas").json()["items"] == []
     assert client.get("/mercados").json() == []
 
 
@@ -311,7 +311,7 @@ def test_remover_e_ler_de_novo(client: TestClient, consulta: ConsultaFalsa) -> N
     r = client.delete(f"/notas/{nota['id']}", headers=LAURA)
     assert r.status_code == 200
     assert r.json()["deleted_em"] is not None
-    assert client.get("/notas").json() == []
+    assert client.get("/notas").json()["items"] == []
     assert client.get(f"/notas/{nota['id']}").status_code == 404
 
     de_novo = ler(client, chave())
