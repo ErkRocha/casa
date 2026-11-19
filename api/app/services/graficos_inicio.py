@@ -20,6 +20,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.gasto import GASTO_TIPOS_SQL, gasto_liquido_sql
 from app.schemas.graficos_inicio import (
     CicloFatura,
     FaturasCiclos,
@@ -79,10 +80,10 @@ _GASTOS = f"""
       FROM generate_series({_INICIO}, {_HOJE}, interval '1 day') AS g(dt)
     ),
     movs AS (
-      SELECT t.data, t.valor, 0::numeric AS pendente, 0 AS e_pendente,
-             t.forma_pagamento_id AS fid
+      SELECT t.data, {gasto_liquido_sql("t")} AS valor, 0::numeric AS pendente,
+             0 AS e_pendente, t.forma_pagamento_id AS fid
       FROM vw_transacoes_completa t
-      WHERE t.tipo = 'despesa' AND t.data >= {_INICIO} AND t.data <= {_HOJE}
+      WHERE t.tipo IN {GASTO_TIPOS_SQL} AND t.data >= {_INICIO} AND t.data <= {_HOJE}
       UNION ALL
       SELECT p.data, p.valor, p.valor, 1, p.forma_pagamento_id
       FROM pendentes p
@@ -208,9 +209,10 @@ _CICLOS = f"""
     {caixa.CTES_CICLO_ABERTO},
     {CTE_CORES_CARTOES},
     movs AS MATERIALIZED (
-      SELECT t.forma_pagamento_id AS fid, t.data, t.competencia, t.valor, 0::numeric AS pendente
+      SELECT t.forma_pagamento_id AS fid, t.data, t.competencia,
+             {gasto_liquido_sql("t")} AS valor, 0::numeric AS pendente
       FROM vw_transacoes_completa t
-      WHERE t.tipo = 'despesa' AND t.data <= {_HOJE}
+      WHERE t.tipo IN {GASTO_TIPOS_SQL} AND t.data <= {_HOJE}
         AND t.forma_pagamento_id IN (SELECT fid FROM vences)
       UNION ALL
       SELECT p.forma_pagamento_id, p.data, NULL::date, p.valor, p.valor

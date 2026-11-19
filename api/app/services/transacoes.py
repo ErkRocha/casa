@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.conversao_pluggy import estimar_competencia
 from app.enums import TipoTransacao
+from app.gasto import gasto_liquido, so_gasto
 from app.models import Conta, FormaPagamento, Money, Transacao
 from app.schemas.common import Paginacao
 from app.schemas.transacoes import TransacaoFiltros
@@ -259,8 +260,9 @@ class TransacaoService:
 
         agregado = self.session.execute(
             select(
+                # Gasto líquido: despesa menos estorno (D-34).
                 func.coalesce(
-                    func.sum(V.c.valor).filter(V.c.tipo == TipoTransacao.DESPESA), 0
+                    func.sum(gasto_liquido(V.c.tipo, V.c.valor)).filter(so_gasto(V.c.tipo)), 0
                 ).label("despesa"),
                 func.coalesce(
                     func.sum(V.c.valor).filter(V.c.tipo == TipoTransacao.RECEITA), 0
@@ -271,8 +273,10 @@ class TransacaoService:
         # Os três baldes somam o total exato, sem sobreposição (D-03).
         balde = func.coalesce(sql_cast(V.c.pessoa_id, Text), BALDE_CONJUNTO).label("balde")
         baldes = self.session.execute(
-            select(balde, func.coalesce(func.sum(V.c.valor), 0).label("total"))
-            .where(and_(True, *where, V.c.tipo == TipoTransacao.DESPESA))
+            select(
+                balde, func.coalesce(func.sum(gasto_liquido(V.c.tipo, V.c.valor)), 0).label("total")
+            )
+            .where(and_(True, *where, so_gasto(V.c.tipo)))
             .group_by(balde)
         ).all()
 
@@ -320,7 +324,9 @@ class TransacaoService:
                 V.c.data,
                 # Com centavos mesmo no dia sem receita: "0.00", não "0".
                 sql_cast(
-                    func.coalesce(func.sum(V.c.valor).filter(V.c.tipo == TipoTransacao.DESPESA), 0),
+                    func.coalesce(
+                        func.sum(gasto_liquido(V.c.tipo, V.c.valor)).filter(so_gasto(V.c.tipo)), 0
+                    ),
                     Money,
                 ).label("despesas"),
                 sql_cast(

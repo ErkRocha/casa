@@ -76,8 +76,8 @@ ValorMin = Annotated[
 ]
 ValorMax = Annotated[Decimal | None, Field(description="Valor máximo, inclusive.")]
 Tipo = Annotated[
-    Literal["despesa", "receita", "transferencia"] | None,
-    Field(description="despesa, receita ou transferencia."),
+    Literal["despesa", "receita", "transferencia", "estorno"] | None,
+    Field(description="despesa, receita, transferencia ou estorno (abate o gasto)."),
 ]
 
 M = TypeVar("M")

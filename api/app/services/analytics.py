@@ -18,8 +18,9 @@ from typing import Any
 from sqlalchemy import ColumnElement, Date, Text, and_, cast, func, select
 from sqlalchemy.orm import Session
 
-from app.enums import StatusItem, TipoPagamento, TipoTransacao
+from app.enums import StatusItem, TipoPagamento
 from app.faixas_orcamento import faixa_orcamento
+from app.gasto import gasto_liquido, so_gasto
 from app.models import Categoria, Conta, FormaPagamento, Importacao, ImportacaoItem, Pessoa
 from app.schemas.analytics import (
     AnalyticsResumo,
@@ -51,8 +52,13 @@ ZERO = Decimal("0.00")
 JANELA_MESES = 12
 
 
-def _so_despesa() -> ColumnElement[bool]:
-    return V.c.tipo == TipoTransacao.DESPESA
+#: Valor líquido do gasto (D-34): despesa menos estorno.
+LIQUIDO = gasto_liquido(V.c.tipo, V.c.valor)
+
+
+def _so_gasto() -> ColumnElement[bool]:
+    """Linhas que contam no gasto: despesa e estorno (o nome é histórico)."""
+    return so_gasto(V.c.tipo)
 
 
 def _mes_anterior(competencia: date) -> date:
@@ -135,18 +141,18 @@ class AnalyticsService:
         linhas = self.session.execute(
             select(
                 V.c.competencia,
-                func.coalesce(func.sum(V.c.valor).filter(V.c.pessoa_id == pessoa_a.id), 0).label(
+                func.coalesce(func.sum(LIQUIDO).filter(V.c.pessoa_id == pessoa_a.id), 0).label(
                     "pessoa_a"
                 ),
-                func.coalesce(func.sum(V.c.valor).filter(V.c.pessoa_id == pessoa_b.id), 0).label(
+                func.coalesce(func.sum(LIQUIDO).filter(V.c.pessoa_id == pessoa_b.id), 0).label(
                     "pessoa_b"
                 ),
-                func.coalesce(func.sum(V.c.valor).filter(V.c.pessoa_id.is_(None)), 0).label(
+                func.coalesce(func.sum(LIQUIDO).filter(V.c.pessoa_id.is_(None)), 0).label(
                     "conjunto"
                 ),
-                func.coalesce(func.sum(V.c.valor), 0).label("total"),
+                func.coalesce(func.sum(LIQUIDO), 0).label("total"),
             )
-            .where(and_(True, *where, _so_despesa()))
+            .where(and_(True, *where, _so_gasto()))
             .group_by(V.c.competencia)
             .order_by(V.c.competencia)
         ).all()
@@ -232,11 +238,11 @@ class AnalyticsService:
             select(
                 chave_id.label("categoria_id"),
                 chave_nome.label("nome"),
-                func.sum(V.c.valor).label("valor"),
+                func.sum(LIQUIDO).label("valor"),
             )
-            .where(and_(True, *where, *escopo, _so_despesa()))
+            .where(and_(True, *where, *escopo, _so_gasto()))
             .group_by(chave_id, chave_nome)
-            .order_by(func.sum(V.c.valor).desc())
+            .order_by(func.sum(LIQUIDO).desc())
         ).all()
 
         total = sum((Decimal(linha.valor) for linha in linhas), ZERO)
@@ -316,9 +322,9 @@ class AnalyticsService:
             select(
                 balde,
                 V.c.competencia,
-                func.sum(V.c.valor).label("total"),
+                func.sum(LIQUIDO).label("total"),
             )
-            .where(and_(True, *where, _so_despesa(), V.c.competencia.in_([mes, anterior])))
+            .where(and_(True, *where, _so_gasto(), V.c.competencia.in_([mes, anterior])))
             .group_by(balde, V.c.competencia)
         ).all()
 
@@ -409,12 +415,12 @@ class AnalyticsService:
         # `avg(sum(...))` precisa da subquery — agregado sobre agregado não
         # existe num nível só.
         por_mes = (
-            select(func.sum(V.c.valor).label("total"))
+            select(func.sum(LIQUIDO).label("total"))
             .where(
                 and_(
                     True,
                     *where,
-                    _so_despesa(),
+                    _so_gasto(),
                     V.c.competencia >= inicio_janela,
                     V.c.competencia <= mes,
                 )
@@ -455,8 +461,8 @@ class AnalyticsService:
 
     def _total_competencia(self, where: list[ColumnElement[bool]], competencia: date) -> Decimal:
         total = self.session.scalar(
-            select(func.coalesce(func.sum(V.c.valor), 0)).where(
-                and_(True, *where, _so_despesa(), V.c.competencia == competencia)
+            select(func.coalesce(func.sum(LIQUIDO), 0)).where(
+                and_(True, *where, _so_gasto(), V.c.competencia == competencia)
             )
         )
         return Decimal(total or 0)
@@ -490,8 +496,8 @@ class AnalyticsService:
             where = montar_filtros(base)
         banco = func.coalesce(FormaPagamento.conta_id, V.c.conta_id)
         no_cartao = FormaPagamento.tipo == TipoPagamento.CREDITO
-        soma = func.sum(V.c.valor)
-        soma_cartao = func.coalesce(func.sum(V.c.valor).filter(no_cartao), 0)
+        soma = func.sum(LIQUIDO)
+        soma_cartao = func.coalesce(func.sum(LIQUIDO).filter(no_cartao), 0)
 
         realizado = self.session.execute(
             select(
@@ -510,7 +516,7 @@ class AnalyticsService:
             .select_from(V)
             .outerjoin(FormaPagamento, FormaPagamento.id == V.c.forma_pagamento_id)
             .outerjoin(Conta, Conta.id == banco)
-            .where(and_(True, *where, _so_despesa()))
+            .where(and_(True, *where, _so_gasto()))
             .group_by(
                 banco,
                 Conta.nome,
@@ -590,7 +596,7 @@ class AnalyticsService:
             ImportacaoItem.deleted_em.is_(None),
             Importacao.deleted_em.is_(None),
             ImportacaoItem.status == StatusItem.PENDENTE,
-            ImportacaoItem.tipo_sugerido == TipoTransacao.DESPESA,
+            so_gasto(ImportacaoItem.tipo_sugerido),
             ImportacaoItem.valor.is_not(None),
         ]
         if filtros.competencia_inicio is not None:
@@ -603,7 +609,7 @@ class AnalyticsService:
             where.append(ImportacaoItem.data <= filtros.data_fim)
 
         banco = FormaPagamento.conta_id
-        soma = func.sum(ImportacaoItem.valor)
+        soma = func.sum(gasto_liquido(ImportacaoItem.tipo_sugerido, ImportacaoItem.valor))
         return self.session.execute(
             select(
                 banco.label("conta_id"),

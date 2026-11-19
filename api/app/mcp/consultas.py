@@ -23,6 +23,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.enums import TipoTransacao
+from app.gasto import GASTO_TIPOS_SQL, gasto_liquido_sql
 from app.insights.deteccoes import PROMPT_SEM_IA
 from app.models import Relatorio
 
@@ -269,8 +270,8 @@ def buscar_transacoes(
 class Totais(BaseModel):
     """Somas feitas pelo Postgres sobre os mesmos filtros da busca."""
 
-    despesas: Decimal
-    quantidade_despesas: int
+    despesas: Decimal = Field(description="Gasto líquido: despesas menos estornos (D-34).")
+    quantidade_despesas: int = Field(description="Quantidade de despesas e de estornos.")
     receitas: Decimal
     quantidade_receitas: int
     saldo: Decimal = Field(description="Receitas menos despesas.")
@@ -287,14 +288,13 @@ def totalizar_transacoes(sessao: Session, filtro: FiltroTransacoes) -> Totais:
         sessao.execute(
             text(f"""
                 SELECT
-                  coalesce(sum(v.valor) FILTER (WHERE v.tipo = 'despesa'), 0)::numeric(14, 2)
-                    AS despesas,
-                  count(*) FILTER (WHERE v.tipo = 'despesa') AS quantidade_despesas,
+                  coalesce(sum({gasto_liquido_sql("v")}), 0)::numeric(14, 2) AS despesas,
+                  count(*) FILTER (WHERE v.tipo IN {GASTO_TIPOS_SQL}) AS quantidade_despesas,
                   coalesce(sum(v.valor) FILTER (WHERE v.tipo = 'receita'), 0)::numeric(14, 2)
                     AS receitas,
                   count(*) FILTER (WHERE v.tipo = 'receita') AS quantidade_receitas,
                   (coalesce(sum(v.valor) FILTER (WHERE v.tipo = 'receita'), 0)
-                    - coalesce(sum(v.valor) FILTER (WHERE v.tipo = 'despesa'), 0)
+                    - coalesce(sum({gasto_liquido_sql("v")}), 0)
                   )::numeric(14, 2) AS saldo,
                   coalesce(sum(v.valor) FILTER (WHERE v.tipo = 'transferencia'), 0)::numeric(14, 2)
                     AS transferencias,

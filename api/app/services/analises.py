@@ -28,6 +28,7 @@ from sqlalchemy import Row, text
 from sqlalchemy.orm import Session
 
 from app.faixas_orcamento import sql_faixa
+from app.gasto import GASTO_TIPOS_SQL, gasto_liquido_sql
 from app.medias import MES_POR_BASE, media_mensal_despesas
 from app.schemas.analises import (
     Analises,
@@ -68,7 +69,7 @@ _MENSAL = f"""
     somas AS (
       SELECT
         __MES__ AS competencia,
-        sum(t.valor) FILTER (WHERE t.tipo = 'despesa') AS despesas,
+        sum({gasto_liquido_sql("t")}) FILTER (WHERE t.tipo IN {GASTO_TIPOS_SQL}) AS despesas,
         sum(t.valor) FILTER (WHERE t.tipo = 'receita') AS receitas
       FROM vw_transacoes_completa t
       WHERE t.tipo <> 'transferencia'
@@ -115,9 +116,9 @@ _CATEGORIAS = f"""
         t.categoria_id,
         t.categoria_nome,
         t.categoria_pai_id,
-        t.valor
+        {gasto_liquido_sql("t")} AS valor
       FROM vw_transacoes_completa t
-      WHERE t.tipo = 'despesa'
+      WHERE t.tipo IN {GASTO_TIPOS_SQL}
         AND __MES__ BETWEEN CAST(:de AS date) AND CAST(:ate AS date)
         {_PESSOA}
     ),
@@ -145,9 +146,10 @@ _CATEGORIAS = f"""
 #: O mês de referência contra a média dos meses de base, por folha.
 _MUDANCAS = f"""
     WITH base AS (
-      SELECT t.categoria_id, t.categoria_nome, __MES__ AS competencia, t.valor
+      SELECT t.categoria_id, t.categoria_nome, __MES__ AS competencia,
+             {gasto_liquido_sql("t")} AS valor
       FROM vw_transacoes_completa t
-      WHERE t.tipo = 'despesa'
+      WHERE t.tipo IN {GASTO_TIPOS_SQL}
         AND t.categoria_id IS NOT NULL
         AND __MES__ BETWEEN CAST(:base_de AS date) AND CAST(:ref AS date)
         {_PESSOA}
@@ -184,9 +186,9 @@ _ORCAMENTO = f"""
       WHERE o.competencia = CAST(:fim AS date) AND o.deleted_em IS NULL AND o.valor_meta > 0
     ),
     gastos AS (
-      SELECT t.categoria_raiz_id AS categoria_id, sum(t.valor) AS gasto
+      SELECT t.categoria_raiz_id AS categoria_id, sum({gasto_liquido_sql("t")}) AS gasto
       FROM vw_transacoes_completa t
-      WHERE t.tipo = 'despesa' AND __MES__ = CAST(:fim AS date)
+      WHERE t.tipo IN {GASTO_TIPOS_SQL} AND __MES__ = CAST(:fim AS date)
         AND (NOT CAST(:so_ate_hoje AS boolean) OR t.data <= CAST(:hoje AS date))
         {_PESSOA}
       GROUP BY t.categoria_raiz_id

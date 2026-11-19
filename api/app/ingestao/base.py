@@ -143,9 +143,9 @@ class DocumentoExtraido:
 
     @property
     def soma_itens(self) -> Decimal:
-        """Saldo líquido dos itens: despesas menos receitas.
+        """Saldo líquido dos itens: despesas menos receitas e estornos.
 
-        Receita abate porque, numa fatura, estorno reduz o que se deve — somar
+        Receita e estorno abatem porque, numa fatura, o estorno reduz o que se deve — somar
         o valor absoluto faria a conferência estourar justamente no mês em que
         houve devolução.
 
@@ -156,7 +156,7 @@ class DocumentoExtraido:
         for item in self.itens:
             if item.tipo is TipoTransacao.DESPESA:
                 total += item.valor
-            elif item.tipo is TipoTransacao.RECEITA:
+            elif item.tipo in (TipoTransacao.RECEITA, TipoTransacao.ESTORNO):
                 total -= item.valor
         return total
 

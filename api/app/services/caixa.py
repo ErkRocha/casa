@@ -34,6 +34,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.conversao_pluggy import OBS_PAGAMENTO_NA_CONTA, OBS_PAGAMENTO_NO_CARTAO
+from app.gasto import GASTO_TIPOS_SQL, gasto_liquido_sql
 from app.schemas.inicio import FaturaAberta, FaturaMes, PontoEvolucao
 
 #: Quantos comprovantes da Pluggy são lidos.
@@ -215,9 +216,10 @@ CTES_DEGRAUS = (
              k.cc_fecha, k.cc_vence, k.ult_fech, fb.vencimento AS bill_venc,
              fb.fechamento AS bill_fech, fb.total AS bill_total
       FROM (
-        SELECT t.forma_pagamento_id AS fid, sum(t.valor) AS valor
+        SELECT t.forma_pagamento_id AS fid, sum({gasto_liquido_sql("t")}) AS valor
         FROM vw_transacoes_completa t
-        WHERE t.tipo = 'despesa' AND t.competencia = {_C} AND t.forma_pagamento_tipo = 'credito'
+        WHERE t.tipo IN {GASTO_TIPOS_SQL} AND t.competencia = {_C}
+          AND t.forma_pagamento_tipo = 'credito'
         GROUP BY t.forma_pagamento_id
       ) cm
       JOIN cartao_conta k ON k.fid = cm.fid
@@ -409,8 +411,8 @@ _FATURAS_ABERTAS = f"""
         WHEN v.o_vence IS NULL OR {_forca("v.o_fecha")} <= {_forca("v.o_vence")} THEN v.o_fecha
         ELSE v.o_vence
       END AS origem_datas,
-      (SELECT coalesce(sum(t.valor), 0) FROM vw_transacoes_completa t
-        WHERE t.forma_pagamento_id = v.fid AND t.tipo = 'despesa'
+      (SELECT coalesce(sum({gasto_liquido_sql("t")}), 0) FROM vw_transacoes_completa t
+        WHERE t.forma_pagamento_id = v.fid AND t.tipo IN {GASTO_TIPOS_SQL}
           AND t.data > v.desde AND t.data <= {_HOJE})
       + (SELECT coalesce(sum(p.valor), 0) FROM pendentes p
           WHERE p.forma_pagamento_id = v.fid
@@ -422,8 +424,8 @@ _FATURAS_ABERTAS = f"""
     FROM vences v
     LEFT JOIN LATERAL (
       SELECT v.desde + g.n AS dia,
-        (SELECT coalesce(sum(t.valor), 0) FROM vw_transacoes_completa t
-          WHERE t.forma_pagamento_id = v.fid AND t.tipo = 'despesa'
+        (SELECT coalesce(sum({gasto_liquido_sql("t")}), 0) FROM vw_transacoes_completa t
+          WHERE t.forma_pagamento_id = v.fid AND t.tipo IN {GASTO_TIPOS_SQL}
             AND t.data > v.desde AND t.data <= v.desde + g.n)
         + (SELECT coalesce(sum(p.valor), 0) FROM pendentes p
             WHERE p.forma_pagamento_id = v.fid

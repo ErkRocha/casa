@@ -35,6 +35,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.faixas_orcamento import sql_faixa
+from app.gasto import GASTO_TIPOS_SQL, gasto_liquido_sql
 from app.insights import tools
 from app.schemas.inicio import (
     AvisoOrcamento,
@@ -59,11 +60,11 @@ ROTULO_JUNTOS = "Juntos"
 
 #: Dia da transação dentro do mês da competência: data antes do mês conta no
 #: dia 1, data depois dele no último dia.
-_BASE = """
+_BASE = f"""
     SELECT
       t.competencia,
       t.tipo,
-      t.valor,
+      {gasto_liquido_sql("t")} AS valor,
       t.pessoa_id,
       t.categoria_id,
       t.categoria_nome,
@@ -82,7 +83,7 @@ _BASE = """
 #: O caixa do mês (D-27): comprometido, previsão e o que está a pagar.
 _CAIXA = f"""
     WITH {caixa.CTES_DEGRAUS},
-    base AS ({_BASE} AND t.competencia = :c AND t.tipo = 'despesa'),
+    base AS ({_BASE} AND t.competencia = :c AND t.tipo IN {GASTO_TIPOS_SQL}),
     marcada AS (
       SELECT b.*,
         EXISTS (SELECT 1 FROM degraus g WHERE g.fid = b.forma_pagamento_id) AS em_degrau
@@ -112,7 +113,7 @@ _CAIXA = f"""
 #: no dia dela (ou no dia 1, se a data é anterior ao mês).
 _SERIE = f"""
     WITH {caixa.CTES_DEGRAUS},
-    base AS ({_BASE} AND t.competencia = :c AND t.tipo = 'despesa'),
+    base AS ({_BASE} AND t.competencia = :c AND t.tipo IN {GASTO_TIPOS_SQL}),
     livres AS (
       SELECT b.dia, b.valor FROM base b
       WHERE NOT EXISTS (SELECT 1 FROM degraus g WHERE g.fid = b.forma_pagamento_id)
@@ -191,10 +192,11 @@ def _cte_gasto(nome: str, mes: str, ate_cartao: str, ate_outros: str) -> str:
         AND date_trunc('month', f.fech + {DIAS_ATE_O_MEIO_DO_CICLO}) = {m}
     ),
     {nome} AS (
-      SELECT t.valor, t.pessoa_id, t.categoria_id, t.categoria_nome, t.categoria_raiz_id,
+      SELECT {gasto_liquido_sql("t")} AS valor, t.pessoa_id, t.categoria_id, t.categoria_nome,
+        t.categoria_raiz_id,
         false AS pendente
       FROM vw_transacoes_completa t
-      WHERE t.tipo = 'despesa' AND (
+      WHERE t.tipo IN {GASTO_TIPOS_SQL} AND (
         EXISTS (
           SELECT 1 FROM {nome}_ciclos z
           WHERE z.fid = t.forma_pagamento_id AND t.data > z.desde AND t.data <= z.ate

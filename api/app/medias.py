@@ -24,6 +24,8 @@ from typing import Literal
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.gasto import GASTO_TIPOS_SQL, gasto_liquido_sql
+
 #: `caixa` = competência (D-02, D-27); `compra` = mês da data da compra (D-31).
 BaseMes = Literal["caixa", "compra"]
 
@@ -34,16 +36,16 @@ MES_POR_BASE: dict[str, str] = {
     "compra": "date_trunc('month', t.data)::date",
 }
 
-_MEDIA = """
+_MEDIA = f"""
     WITH meses AS (
       SELECT DISTINCT __MES__ AS mes
       FROM vw_transacoes_completa t
       WHERE __MES__ BETWEEN CAST(:de AS date) AND CAST(:ate AS date)
     ),
     despesas AS (
-      SELECT __MES__ AS mes, sum(t.valor) AS total
+      SELECT __MES__ AS mes, sum({gasto_liquido_sql("t")}) AS total
       FROM vw_transacoes_completa t
-      WHERE t.tipo = 'despesa'
+      WHERE t.tipo IN {GASTO_TIPOS_SQL}
         AND __MES__ BETWEEN CAST(:de AS date) AND CAST(:ate AS date)
         AND (CAST(:pessoa AS text) IS NULL
              OR coalesce(CAST(t.pessoa_id AS text), 'conjunto') = CAST(:pessoa AS text))

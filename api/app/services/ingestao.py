@@ -33,6 +33,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.enums import StatusImportacao, StatusItem, TipoPagamento, TipoTransacao
+from app.gasto import gasto_liquido, so_gasto
 from app.ingestao import FormatoDesconhecido, hash_arquivo, processar
 from app.ingestao.base import ItemExtraido, sem_acento
 from app.models import (
@@ -394,15 +395,15 @@ class IngestaoService:
             func.count().filter(and_(pendente, periodo, _condicao_falta(f))).label(f)
             for f in FALTAS
         ]
-        despesa = ImportacaoItem.tipo_sugerido == TipoTransacao.DESPESA
+        # Despesa e estorno (D-34): a soma é líquida, o estorno abate.
+        despesa = so_gasto(ImportacaoItem.tipo_sugerido)
+        liquido = gasto_liquido(ImportacaoItem.tipo_sugerido, ImportacaoItem.valor)
         lida = ImportacaoItem.status.in_([StatusItem.PENDENTE, StatusItem.APROVADO])
         linha = self.session.execute(
             select(
                 *colunas,
-                func.sum(ImportacaoItem.valor)
-                .filter(and_(pendente, despesa))
-                .label("total_pendente"),
-                func.sum(ImportacaoItem.valor).filter(and_(despesa, lida)).label("soma_lida"),
+                func.sum(liquido).filter(and_(pendente, despesa)).label("total_pendente"),
+                func.sum(liquido).filter(and_(despesa, lida)).label("soma_lida"),
             ).where(vivo)
         ).one()
         return {

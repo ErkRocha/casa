@@ -25,6 +25,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.faixas_orcamento import faixa_orcamento
+from app.gasto import GASTO_TIPOS_SQL, gasto_liquido_sql
 from app.medias import media_mensal_despesas
 from app.schemas.insights import (
     Cobertura,
@@ -126,7 +127,7 @@ def resumo_mensal(sessao: Session, competencia: date, hoje: date | None = None) 
             SELECT tipo::text AS tipo, sum(valor) AS total, count(*) AS quantidade
             FROM vw_transacoes_completa
             WHERE competencia = :competencia
-              AND tipo IN ('despesa', 'receita')
+              AND tipo IN ('despesa', 'receita', 'estorno')
             GROUP BY tipo
         """),
         {"competencia": competencia},
@@ -134,7 +135,9 @@ def resumo_mensal(sessao: Session, competencia: date, hoje: date | None = None) 
 
     por_tipo = {linha.tipo: (_dec(linha.total), linha.quantidade) for linha in linhas}
     receitas = por_tipo.get("receita", (ZERO, 0))[0]
-    despesas = por_tipo.get("despesa", (ZERO, 0))[0]
+    # Gasto líquido (D-34): o estorno abate a despesa e nunca entra em receita.
+    estornos = por_tipo.get("estorno", (ZERO, 0))[0]
+    despesas = por_tipo.get("despesa", (ZERO, 0))[0] - estornos
 
     return ResumoMensal(
         competencia=competencia,
@@ -154,13 +157,15 @@ def cobertura_categorias(sessao: Session, competencia: date) -> Cobertura:
     é sobre alimentação ou transporte — é "categorize o mês".
     """
     linha = sessao.execute(
-        text("""
+        text(f"""
             SELECT
-              coalesce(sum(valor), 0) AS total,
-              coalesce(sum(valor) FILTER (WHERE categoria_id IS NOT NULL), 0) AS categorizado,
+              coalesce(sum({gasto_liquido_sql("v")}), 0) AS total,
+              coalesce(
+                sum({gasto_liquido_sql("v")}) FILTER (WHERE categoria_id IS NOT NULL), 0
+              ) AS categorizado,
               count(*) FILTER (WHERE categoria_id IS NULL) AS sem_categoria
-            FROM vw_transacoes_completa
-            WHERE competencia = :competencia AND tipo = 'despesa'
+            FROM vw_transacoes_completa v
+            WHERE competencia = :competencia AND tipo IN {GASTO_TIPOS_SQL}
         """),
         {"competencia": competencia},
     ).one()
@@ -185,14 +190,14 @@ def gasto_por_categoria(sessao: Session, competencia: date) -> GastoPorCategoria
     não é.
     """
     linhas = sessao.execute(
-        text("""
+        text(f"""
             SELECT
               categoria_raiz_id AS categoria_id,
               coalesce(categoria_pai_nome, categoria_nome, :sem_categoria) AS categoria,
-              sum(valor) AS total,
+              sum({gasto_liquido_sql("v")}) AS total,
               count(*) AS quantidade
-            FROM vw_transacoes_completa
-            WHERE competencia = :competencia AND tipo = 'despesa'
+            FROM vw_transacoes_completa v
+            WHERE competencia = :competencia AND tipo IN {GASTO_TIPOS_SQL}
             GROUP BY 1, 2
             ORDER BY 3 DESC
         """),
@@ -219,10 +224,10 @@ def gasto_por_categoria(sessao: Session, competencia: date) -> GastoPorCategoria
 def divisao_pessoas(sessao: Session, competencia: date) -> DivisaoPessoas:
     """Quanto cada balde gastou. `pessoa_id` nulo vira "Conjunto" (D-03)."""
     linhas = sessao.execute(
-        text("""
-            SELECT pessoa_nome AS pessoa, sum(valor) AS total
-            FROM vw_transacoes_completa
-            WHERE competencia = :competencia AND tipo = 'despesa'
+        text(f"""
+            SELECT pessoa_nome AS pessoa, sum({gasto_liquido_sql("v")}) AS total
+            FROM vw_transacoes_completa v
+            WHERE competencia = :competencia AND tipo IN {GASTO_TIPOS_SQL}
             GROUP BY 1
             ORDER BY 2 DESC
         """),
@@ -252,10 +257,10 @@ def comparar_periodos(
     inicio = somar_meses(competencia, -meses)
 
     mensais = sessao.execute(
-        text("""
-            SELECT competencia, sum(valor) AS total
-            FROM vw_transacoes_completa
-            WHERE tipo = 'despesa' AND competencia IN (:anterior, :competencia)
+        text(f"""
+            SELECT competencia, sum({gasto_liquido_sql("v")}) AS total
+            FROM vw_transacoes_completa v
+            WHERE tipo IN {GASTO_TIPOS_SQL} AND competencia IN (:anterior, :competencia)
             GROUP BY 1
         """),
         {"anterior": anterior, "competencia": competencia},
@@ -271,13 +276,13 @@ def comparar_periodos(
     media = media_mensal_despesas(sessao, inicio, anterior, base="caixa")
 
     categorias = sessao.execute(
-        text("""
+        text(f"""
             SELECT
               coalesce(categoria_pai_nome, categoria_nome, :sem_categoria) AS categoria,
-              sum(valor) FILTER (WHERE competencia = :competencia) AS atual,
-              sum(valor) FILTER (WHERE competencia = :anterior) AS anterior
-            FROM vw_transacoes_completa
-            WHERE tipo = 'despesa' AND competencia IN (:competencia, :anterior)
+              sum({gasto_liquido_sql("v")}) FILTER (WHERE competencia = :competencia) AS atual,
+              sum({gasto_liquido_sql("v")}) FILTER (WHERE competencia = :anterior) AS anterior
+            FROM vw_transacoes_completa v
+            WHERE tipo IN {GASTO_TIPOS_SQL} AND competencia IN (:competencia, :anterior)
             GROUP BY 1
         """),
         {
@@ -373,6 +378,9 @@ def transacoes_atipicas(
     inventa anomalias no primeiro mês perde a confiança de quem lê antes de
     ter chance de acertar. `meses_de_base` vai junto para o texto poder dizer
     por que não há achados.
+
+    Só `despesa` entra, de propósito (D-34): a mediana descreve o tamanho de uma
+    compra, e o estorno é um abatimento, não uma compra.
     """
     inicio = somar_meses(competencia, -meses_base)
 
@@ -490,6 +498,9 @@ def recorrencias_com_reajuste(
     (o "mesmo estabelecimento" é uma pessoa, e o valor é o que se combinou),
     e o que varia de mês a mês ou aparece várias vezes no mês (mercado,
     restaurante, combustível).
+
+    Estorno (D-34) não é cobrança: a consulta olha só `despesa` de propósito,
+    para o abatimento não passar por mês sem cobrança nem por reajuste.
     """
     inicio = somar_meses(competencia, -meses)
 
