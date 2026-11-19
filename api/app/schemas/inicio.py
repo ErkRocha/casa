@@ -27,6 +27,10 @@ SituacaoMes = Literal["corrente", "passado", "futuro"]
 #: crédito da Pluggy ou dia cadastrado na forma de pagamento.
 OrigemDatas = Literal["pluggy_fatura", "pluggy_conta", "cadastro"]
 
+#: De onde vem o valor de uma fatura (D-34): `fatura` é o total real da Pluggy;
+#: `estimativa` é a soma das compras, enquanto não há fatura fechada.
+ValorOrigem = Literal["fatura", "estimativa"]
+
 
 class PontoAcumulado(BaseModel):
     """Um dia do gráfico "o que sai da conta" (D-27).
@@ -46,12 +50,14 @@ class PontoAcumulado(BaseModel):
 
 
 class FaturaMes(BaseModel):
-    """Degrau de um cartão no mês: a soma das compras da competência."""
+    """Degrau de um cartão no mês: o valor da fatura da competência."""
 
     forma_pagamento_id: int
     cartao: str
-    #: Soma das compras do cartão na competência (não o total da Pluggy).
+    #: Total da fatura da Pluggy, quando ela existe; senão a soma das compras
+    #: do cartão na competência (D-34). `valor_origem` diz qual.
     valor: Decimal
+    valor_origem: ValorOrigem
     #: Dia do mês em que a fatura sai da conta: o do pagamento ou o do vencimento.
     dia: int
     situacao: Literal["paga", "a_pagar"]
@@ -75,6 +81,8 @@ class FaturaAberta(BaseModel):
     #: Compras com data depois de `desde` e até hoje, lançadas mais as
     #: pendentes (D-28).
     valor: Decimal
+    #: Fatura aberta é sempre estimativa: a soma das compras até hoje (D-34).
+    valor_origem: ValorOrigem = "estimativa"
     #: Parte de `valor` que ainda é pendente (só exibição, D-28).
     pendente: Decimal
     #: Último fechamento.

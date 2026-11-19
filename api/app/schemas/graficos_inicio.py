@@ -10,6 +10,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.schemas.inicio import ValorOrigem
+
 #: Jeito de pagar de uma série. `soma` é só a linha da soma das escolhidas.
 TipoSerie = Literal["cartao", "pix", "debito", "boleto", "outros", "soma"]
 
@@ -96,8 +98,10 @@ class CicloFatura(BaseModel):
     vencimento: date
     #: Dia do pagamento identificado (D-22), se houver.
     pago_em: date | None
-    #: Compras de `abertura` até o fechamento (ou hoje), com as pendentes.
+    #: Total da fatura da Pluggy, quando há; senão as compras de `abertura`
+    #: até o fechamento (ou hoje), com as pendentes (D-34).
     valor: Decimal
+    valor_origem: ValorOrigem
     #: Parte de `valor` que ainda é pendente.
     pendente: Decimal
     #: Ciclo de maior fechamento do cartão; os outros são anteriores.

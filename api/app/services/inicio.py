@@ -95,7 +95,9 @@ _CAIXA = f"""
           AS livre_antes
       FROM marcada
     ),
-    faturas_mes AS (SELECT coalesce(sum(valor), 0) AS total FROM degraus)
+    -- A curva usa a soma das compras (`valor_compras`): fecha com o total do
+    -- mês (D-02). O total real da fatura (D-34) aparece nas faturas e no a pagar.
+    faturas_mes AS (SELECT coalesce(sum(valor_compras), 0) AS total FROM degraus)
     SELECT
       f.total + a.livre_antes AS comprometido,
       CASE WHEN :corrente AND :dia_ref > 0
@@ -120,9 +122,9 @@ _SERIE = f"""
     CROSS JOIN LATERAL (
       SELECT
         (SELECT coalesce(sum(valor), 0) FROM livres WHERE dia <= least(d.dia, :dia_ref))
-        + (SELECT coalesce(sum(valor), 0) FROM degraus
+        + (SELECT coalesce(sum(valor_compras), 0) FROM degraus
            WHERE situacao = 'paga' AND dia <= d.dia) AS acumulado,
-        (SELECT coalesce(sum(valor), 0) FROM degraus
+        (SELECT coalesce(sum(valor_compras), 0) FROM degraus
          WHERE situacao = 'a_pagar' AND dia <= d.dia) AS a_pagar,
         (SELECT coalesce(sum(valor), 0) FROM livres
          WHERE dia > :dia_ref AND dia <= d.dia) AS futuras

@@ -357,3 +357,24 @@ def test_rota_devolve_a_janela(client: TestClient) -> None:
     assert resposta.status_code == 200
     corpo = resposta.json()
     assert set(corpo) == {"inicio", "hoje", "fim", "ciclos"}
+
+
+def test_ciclo_com_fatura_da_pluggy_usa_o_total_real(session: Session) -> None:
+    """D-34: o ciclo fechado com fatura vale o `totalAmount`, e a linha sobe até ele
+    no fechamento; o ciclo sem fatura segue a soma das compras, como estimativa."""
+    banco = _conta(session, "Banco")
+    a = _forma(session, "Cartão A", TipoPagamento.CREDITO, banco, fecha=2, vence=9)
+    _liga_pluggy(session, a, banco, "acc-a")
+    _comprovante(session, [_bills("acc-a", ("out", "2026-10-09", "2026-10-02", "163.40"))])
+    _gasto(session, a, date(2026, 9, 10), "100.00", OUTUBRO)
+    _gasto(session, a, date(2026, 9, 25), "50.00", OUTUBRO)
+    _gasto(session, a, date(2026, 10, 5), "30.00", NOVEMBRO)
+
+    ciclos = _por_fechamento(_ciclos(session), "Cartão A")
+    fechado = ciclos[date(2026, 10, 2)]
+    assert (fechado.valor, fechado.valor_origem) == (Decimal("163.40"), "fatura")
+    por_dia = {p.data: p.valor for p in fechado.pontos}
+    assert por_dia[date(2026, 10, 1)] == Decimal("150.00")
+    assert por_dia[date(2026, 10, 2)] == Decimal("163.40")
+    aberto = ciclos[date(2026, 11, 2)]
+    assert (aberto.valor, aberto.valor_origem) == (Decimal("30.00"), "estimativa")

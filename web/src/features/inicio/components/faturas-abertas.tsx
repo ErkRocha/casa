@@ -79,6 +79,9 @@ export function FaturasAbertas({ i, className }: { i: Inicio; className?: string
               <span className="text-apoio font-forte">{nomeCurtoCartao(f.cartao)}</span>
               <span className="text-apoio font-forte">
                 {toNumero(f.valor) > 0 ? reais(f.valor) : "sem compras ainda"}
+                {f.valor_origem === "estimativa" && toNumero(f.valor) > 0 ? (
+                  <span className="text-pequeno text-texto-2 font-normal"> · estimativa</span>
+                ) : null}
               </span>
             </div>
             <span className="text-pequeno text-texto-2">

@@ -101,8 +101,12 @@ def _comprovante(session: Session, respostas: list[dict[str, Any]]) -> None:
     session.flush()
 
 
-def _bills(conta_pluggy: str, *faturas: tuple[str, str, str]) -> dict[str, Any]:
-    """Resposta `/bills`: cada fatura é (id, dueDate, billClosingDate), em AAAA-MM-DD."""
+def _bills(conta_pluggy: str, *faturas: tuple[str, ...]) -> dict[str, Any]:
+    """Resposta `/bills`: cada fatura é (id, dueDate, billClosingDate[, totalAmount]).
+
+    Datas em AAAA-MM-DD. Sem o total, a fatura vem sem `totalAmount` e o valor
+    do cartão segue sendo a estimativa pela soma das compras (D-34).
+    """
     return {
         "metodo": "GET",
         "caminho": "/bills",
@@ -111,13 +115,13 @@ def _bills(conta_pluggy: str, *faturas: tuple[str, str, str]) -> dict[str, Any]:
         "corpo": {
             "results": [
                 {
-                    "id": id_,
-                    "dueDate": f"{vence}T00:00:00.000Z",
-                    "billClosingDate": f"{fecha}T00:00:00.000Z",
-                    "totalAmount": 9999.99,
+                    "id": f[0],
+                    "dueDate": f"{f[1]}T00:00:00.000Z",
+                    "billClosingDate": f"{f[2]}T00:00:00.000Z",
+                    **({"totalAmount": float(f[3])} if len(f) > 3 else {}),
                     "payments": [],
                 }
-                for id_, vence, fecha in faturas
+                for f in faturas
             ]
         },
     }
@@ -243,8 +247,9 @@ def test_vencimento_real_da_pluggy_vale_mais_que_o_cadastro(session: Session) ->
     assert por_cartao["Cartão A"].vencimento == date(2026, 10, 11)
     assert por_cartao["Cartão A"].dia == 11
     assert por_cartao["Cartão A"].origem_vencimento == "pluggy_fatura"
-    # O valor é a soma das compras, não o totalAmount (9999,99) da Pluggy.
+    # Fatura sem totalAmount: o valor é a estimativa pela soma das compras.
     assert por_cartao["Cartão A"].valor == Decimal("80.00")
+    assert por_cartao["Cartão A"].valor_origem == "estimativa"
     assert por_cartao["Cartão B"].vencimento == date(2026, 10, 14)
     assert por_cartao["Cartão B"].origem_vencimento == "pluggy_conta"
     assert por_cartao["Cartão C"].vencimento == date(2026, 10, 10)
@@ -692,3 +697,42 @@ class TestGastoDoMesD32:
         assert tools.resumo_mensal(session, NOVEMBRO, hoje=self.HOJE).despesas == Decimal(
             "1172.00"  # competência de novembro: 50+30+60+5+999+20+8, sem os 25 e 9
         )
+
+
+def test_fatura_da_pluggy_vale_o_total_real_e_a_curva_continua_fechando(session: Session) -> None:
+    """D-34: com a fatura, o valor é o `totalAmount`; sem ela, a soma marcada como
+    estimativa. A curva do caixa segue a soma das compras e fecha com o total do mês."""
+    banco = _conta(session, "Banco")
+    a = _forma(session, "Cartão A", TipoPagamento.CREDITO, banco, fecha=2, vence=7)
+    b = _forma(session, "Cartão B", TipoPagamento.CREDITO, banco, fecha=3, vence=10)
+    _liga_pluggy(session, a, banco, "acc-a")
+    _gasto(session, a, date(2026, 9, 25), "100.00", OUTUBRO)
+    _gasto(session, a, date(2026, 10, 1), "50.00", OUTUBRO)
+    _gasto(session, b, date(2026, 9, 28), "200.00", OUTUBRO)
+    _comprovante(session, [_bills("acc-a", ("bill-a", "2026-10-09", "2026-10-02", "163.40"))])
+    session.commit()
+
+    r = _resumo(session)
+    por_cartao = {f.cartao: f for f in r.caixa.faturas}
+    assert (por_cartao["Cartão A"].valor, por_cartao["Cartão A"].valor_origem) == (
+        Decimal("163.40"),
+        "fatura",
+    )
+    assert por_cartao["Cartão A"].origem_vencimento == "pluggy_fatura"
+    assert (por_cartao["Cartão B"].valor, por_cartao["Cartão B"].valor_origem) == (
+        Decimal("200.00"),
+        "estimativa",
+    )
+    # O que falta pagar é o real; a curva fecha com o total do mês (350,00).
+    assert r.caixa.a_pagar == Decimal("363.40")
+    assert r.caixa.serie[-1].com_a_pagar == Decimal("350.00")
+
+
+def test_fatura_aberta_e_sempre_estimativa(session: Session) -> None:
+    banco = _conta(session, "Banco")
+    a = _forma(session, "Cartão A", TipoPagamento.CREDITO, banco, fecha=2, vence=9)
+    _gasto(session, a, date(2026, 10, 5), "30.00", NOVEMBRO)
+    session.commit()
+
+    (aberta,) = _resumo(session).faturas_abertas
+    assert aberta.valor_origem == "estimativa"

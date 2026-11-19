@@ -266,7 +266,10 @@ function Corpo({ dados }: { dados: FaturasCiclos }) {
                       : "fechada, sem pagamento"}
                   {c.atual ? "" : ", fatura anterior"}
                 </td>
-                <td>{reais(c.valor)}</td>
+                <td>
+                  {reais(c.valor)}
+                  {c.valor_origem === "estimativa" ? " (estimativa)" : ""}
+                </td>
               </tr>
             ))}
           </tbody>

@@ -7,6 +7,9 @@ export type SituacaoMes = "corrente" | "passado" | "futuro";
 
 export type OrigemDatas = "pluggy_fatura" | "pluggy_conta" | "cadastro";
 
+/** `fatura` é o total real da Pluggy; `estimativa` é a soma das compras (D-34). */
+export type ValorOrigem = "fatura" | "estimativa";
+
 export interface PontoAcumulado {
   dia: number;
   /** O que já saiu da conta até o dia. */
@@ -19,6 +22,7 @@ export interface FaturaMes {
   forma_pagamento_id: number;
   cartao: string;
   valor: Dinheiro;
+  valor_origem: ValorOrigem;
   dia: number;
   situacao: "paga" | "a_pagar";
   vencimento: string;
@@ -36,6 +40,8 @@ export interface FaturaAberta {
   cartao: string;
   /** Lançadas e pendentes (D-28). */
   valor: Dinheiro;
+  /** Fatura aberta é sempre estimativa (D-34). */
+  valor_origem: ValorOrigem;
   /** Parte de `valor` ainda pendente no banco. */
   pendente: Dinheiro;
   desde: string;
@@ -191,6 +197,7 @@ export interface CicloFatura {
   vencimento: string;
   pago_em: string | null;
   valor: Dinheiro;
+  valor_origem: ValorOrigem;
   pendente: Dinheiro;
   /** Ciclo de maior fechamento do cartão; os outros são anteriores. */
   atual: boolean;

@@ -219,7 +219,8 @@ _CICLOS = f"""
     ),
     cand_a AS (
       SELECT v.fid, fa.fechamento AS fecha, fa.vencimento AS vence,
-             'pluggy_fatura' AS o_fecha, 'pluggy_fatura' AS o_vence, 1 AS prio
+             'pluggy_fatura' AS o_fecha, 'pluggy_fatura' AS o_vence, 1 AS prio,
+             fa.total
       FROM vences v
       JOIN faturas fa ON fa.account_id = v.account_id
       WHERE fa.fechamento IS NOT NULL
@@ -227,7 +228,8 @@ _CICLOS = f"""
     cand_b AS (
       SELECT v.fid, v.fecha,
              coalesce(v.vence, v.fecha + {VENCIMENTO_APOS_FECHAMENTO_DIAS}) AS vence,
-             v.o_fecha, coalesce(v.o_vence, 'derivada') AS o_vence, 2 AS prio
+             v.o_fecha, coalesce(v.o_vence, 'derivada') AS o_vence, 2 AS prio,
+             NULL::numeric AS total
       FROM vences v
       WHERE NOT EXISTS (
         SELECT 1 FROM cand_a a WHERE a.fid = v.fid AND abs(a.fecha - v.fecha) <= {_PROXIMO}
@@ -240,7 +242,7 @@ _CICLOS = f"""
                ELSE m.fecha + {VENCIMENTO_APOS_FECHAMENTO_DIAS} END AS vence,
              'cadastro' AS o_fecha,
              CASE WHEN v.dia_vencimento IS NOT NULL THEN 'cadastro' ELSE 'derivada' END AS o_vence,
-             3 AS prio
+             3 AS prio, NULL::numeric AS total
       FROM vences v
       CROSS JOIN LATERAL (
         SELECT {caixa.no_mes("g.mes::date", "v.dia_fechamento")} AS fecha
@@ -257,7 +259,7 @@ _CICLOS = f"""
         )
     ),
     ordenados AS (
-      SELECT x.fid, x.fecha, x.vence, x.o_fecha, x.o_vence,
+      SELECT x.fid, x.fecha, x.vence, x.o_fecha, x.o_vence, x.total,
         lag(x.fecha) OVER w AS fecha_ant,
         lag(x.o_fecha) OVER w AS o_ant,
         max(x.fecha) OVER (PARTITION BY x.fid) AS ultimo
@@ -267,7 +269,7 @@ _CICLOS = f"""
       WINDOW w AS (PARTITION BY x.fid ORDER BY x.fecha)
     ),
     ciclos AS (
-      SELECT o.fid, o.fecha, o.vence, o.o_fecha, o.o_vence,
+      SELECT o.fid, o.fecha, o.vence, o.o_fecha, o.o_vence, o.total,
         coalesce(o.fecha_ant + 1, (o.fecha - interval '1 month')::date + 1) AS abertura,
         CASE WHEN o.fecha_ant IS NULL THEN 'derivada' ELSE o.o_ant END AS o_abertura,
         o.fecha = o.ultimo AS atual
@@ -294,10 +296,16 @@ _CICLOS = f"""
         LIMIT 1
       ) c
     ),
+    -- D-34: com a fatura da Pluggy, o valor é o `totalAmount` dela; a soma das
+    -- compras (`valor_compras`) é a estimativa do ciclo sem fatura. A diferença
+    -- (encargos, créditos) entra na linha no dia do fechamento.
     valorados AS (
       SELECT c.*,
         (SELECT coalesce(sum(a.valor), 0) FROM atribuidas a
-          WHERE a.fid = c.fid AND a.ciclo = c.fecha) AS valor,
+          WHERE a.fid = c.fid AND a.ciclo = c.fecha) AS valor_compras,
+        coalesce(c.total, (SELECT coalesce(sum(a.valor), 0) FROM atribuidas a
+          WHERE a.fid = c.fid AND a.ciclo = c.fecha)) AS valor,
+        CASE WHEN c.total IS NOT NULL THEN 'fatura' ELSE 'estimativa' END AS valor_origem,
         (SELECT coalesce(sum(a.pendente), 0) FROM atribuidas a
           WHERE a.fid = c.fid AND a.ciclo = c.fecha) AS pendente
       FROM ciclos c
@@ -365,7 +373,7 @@ _CICLOS = f"""
     ),
     resultado AS (
       SELECT v.apelido, e.fid, coalesce(cc.cor, 'serie-outros') AS cor,
-        e.abertura, e.fecha, e.vence, e.pago_em, e.valor, e.pendente, e.atual,
+        e.abertura, e.fecha, e.vence, e.pago_em, e.valor, e.valor_origem, e.pendente, e.atual,
         CASE WHEN e.fecha > {_HOJE} THEN 'aberta'
              WHEN e.pago_em IS NOT NULL THEN 'paga' ELSE 'fechada' END AS situacao,
         e.o_abertura, e.o_fecha, e.o_vence,
@@ -376,7 +384,9 @@ _CICLOS = f"""
       CROSS JOIN LATERAL (
         SELECT d.dia,
           (SELECT coalesce(sum(a.valor), 0) FROM atribuidas a
-            WHERE a.fid = e.fid AND a.ciclo = e.fecha AND a.efetiva <= d.dia) AS valor_dia,
+            WHERE a.fid = e.fid AND a.ciclo = e.fecha AND a.efetiva <= d.dia)
+          + CASE WHEN e.total IS NOT NULL AND d.dia >= e.fecha
+              THEN e.total - e.valor_compras ELSE 0 END AS valor_dia,
           d.dia > {_HOJE} AS tracejado, 0 AS ordem
         FROM (
           SELECT e.comeco + g.n AS dia FROM generate_series(0, e.fim_linha - e.comeco) AS g(n)
@@ -493,6 +503,7 @@ class GraficosInicioService:
                     vencimento=linha["vence"],
                     pago_em=linha["pago_em"],
                     valor=Decimal(linha["valor"]),
+                    valor_origem=linha["valor_origem"],
                     pendente=Decimal(linha["pendente"]),
                     atual=linha["atual"],
                     situacao=linha["situacao"],

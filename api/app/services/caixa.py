@@ -163,7 +163,8 @@ CTES_FATURAS = f"""
       SELECT DISTINCT ON (b ->> 'id')
         r.resp -> 'params' ->> 'accountId' AS account_id,
         {_data_do_json("b ->> 'dueDate'")} AS vencimento,
-        {_data_do_json("b ->> 'billClosingDate'")} AS fechamento
+        {_data_do_json("b ->> 'billClosingDate'")} AS fechamento,
+        nullif(b ->> 'totalAmount', '')::numeric AS total
       FROM respostas r
       CROSS JOIN LATERAL {_resultados("r.resp")} AS b
       WHERE r.resp ->> 'caminho' = '/bills'
@@ -201,15 +202,18 @@ CTES_FATURAS = f"""
 
 #: Degraus do mês `:c`, um por cartão com despesa na competência e alguma data
 #: de vencimento (D-27). `degraus`: `fid`, `apelido`, `valor` (soma das
-#: compras, não o `totalAmount`), `dia`, `situacao` ('paga'|'a_pagar'),
-#: `vencimento`, `pago_em` e `origem` ('pluggy_fatura'|'pluggy_conta'|'cadastro').
+#: compras ou, havendo a fatura da Pluggy, o `totalAmount` dela — D-34),
+#: `valor_compras` (sempre a soma das compras: a curva do caixa fecha com o
+#: total do mês, D-02/D-27), `valor_origem` ('fatura'|'estimativa'), `dia`,
+#: `situacao` ('paga'|'a_pagar'), `vencimento`, `pago_em` e `origem`
+#: ('pluggy_fatura'|'pluggy_conta'|'cadastro').
 CTES_DEGRAUS = (
     CTES_FATURAS
     + f""",
     vencs AS (
       SELECT cm.fid, cm.valor, k.apelido, k.conta_id, k.dia_fechamento, k.dia_vencimento,
              k.cc_fecha, k.cc_vence, k.ult_fech, fb.vencimento AS bill_venc,
-             fb.fechamento AS bill_fech
+             fb.fechamento AS bill_fech, fb.total AS bill_total
       FROM (
         SELECT t.forma_pagamento_id AS fid, sum(t.valor) AS valor
         FROM vw_transacoes_completa t
@@ -218,7 +222,7 @@ CTES_DEGRAUS = (
       ) cm
       JOIN cartao_conta k ON k.fid = cm.fid
       LEFT JOIN LATERAL (
-        SELECT fa.vencimento, fa.fechamento FROM faturas fa
+        SELECT fa.vencimento, fa.fechamento, fa.total FROM faturas fa
         WHERE fa.account_id = k.account_id
           AND fa.vencimento >= {_C} AND fa.vencimento < {_C} + {_UM_MES}
         ORDER BY fa.vencimento DESC
@@ -255,7 +259,10 @@ CTES_DEGRAUS = (
       WHERE d.venc IS NOT NULL
     ),
     degraus AS (
-      SELECT j.fid, j.apelido, j.valor, j.venc AS vencimento, j.origem, pg.data AS pago_em,
+      SELECT j.fid, j.apelido, coalesce(j.bill_total, j.valor) AS valor,
+        j.valor AS valor_compras,
+        CASE WHEN j.bill_total IS NOT NULL THEN 'fatura' ELSE 'estimativa' END AS valor_origem,
+        j.venc AS vencimento, j.origem, pg.data AS pago_em,
         CASE WHEN pg.data IS NULL THEN 'a_pagar' ELSE 'paga' END AS situacao,
         CASE
           WHEN pg.data IS NULL THEN extract(day FROM j.venc)::int
@@ -280,7 +287,7 @@ CTES_DEGRAUS = (
         ORDER BY
           CASE WHEN position(CAST(:obs_conta AS text) IN coalesce(i.observacao, '')) > 0
                 AND fs.tipo <> 'credito' AND fs.conta_id = j.conta_id THEN 0 ELSE 1 END,
-          abs(i.valor - j.valor),
+          abs(i.valor - coalesce(j.bill_total, j.valor)),
           abs(i.data - j.venc)
         LIMIT 1
       ) pg ON true
@@ -290,7 +297,7 @@ CTES_DEGRAUS = (
 
 _FATURAS_DO_MES = f"""
     WITH {CTES_DEGRAUS}
-    SELECT fid, apelido, valor, dia, situacao, vencimento, pago_em, origem
+    SELECT fid, apelido, valor, valor_origem, dia, situacao, vencimento, pago_em, origem
     FROM degraus
     ORDER BY dia, fid
 """
@@ -435,6 +442,7 @@ def faturas_do_mes(session: Session, competencia: date) -> list[FaturaMes]:
             forma_pagamento_id=linha["fid"],
             cartao=linha["apelido"],
             valor=Decimal(linha["valor"]),
+            valor_origem=linha["valor_origem"],
             dia=int(linha["dia"]),
             situacao=linha["situacao"],
             vencimento=linha["vencimento"],
@@ -461,6 +469,7 @@ def faturas_abertas(session: Session, hoje: date) -> list[FaturaAberta]:
                 forma_pagamento_id=linha["fid"],
                 cartao=linha["apelido"],
                 valor=Decimal(linha["valor"]),
+                valor_origem="estimativa",
                 pendente=Decimal(linha["pendente"]),
                 desde=linha["desde"],
                 fecha=linha["fecha"],
