@@ -114,9 +114,9 @@ class TestCartao:
         assert item.confianca < Decimal("0.80")
         assert item.observacao is not None and "rejeite" in item.observacao
 
-    def test_estorno_vira_receita_com_confianca_baixa(self) -> None:
+    def test_estorno_abate_o_gasto_e_vai_para_a_revisao(self) -> None:
         item = _cartao("estorno")
-        assert item.tipo is TipoTransacao.RECEITA
+        assert item.tipo is TipoTransacao.ESTORNO
         assert item.valor == Decimal("35.50")
         assert item.confianca < Decimal("0.80")
         assert item.observacao is not None and "estorno" in item.observacao

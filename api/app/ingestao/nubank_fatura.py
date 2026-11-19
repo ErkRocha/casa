@@ -170,8 +170,9 @@ class NubankFaturaParser:
         if valor == 0:
             return None
 
-        # Valor negativo numa fatura é estorno: dinheiro voltando.
-        tipo = TipoTransacao.RECEITA if negativo else TipoTransacao.DESPESA
+        # Valor negativo numa fatura é estorno: dinheiro voltando, que abate o
+        # gasto (D-34). Não é receita.
+        tipo = TipoTransacao.ESTORNO if negativo else TipoTransacao.DESPESA
 
         return ItemExtraido(
             linha_bruta=linha,

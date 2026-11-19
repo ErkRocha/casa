@@ -47,11 +47,14 @@ from app.models import (
 from app.services.base import Conflito, NaoEncontrado, RegraViolada, _mensagem_integridade
 from app.services.cadastros import normalizar_nome, primeiro_dia_do_mes
 from app.services.categorias_pluggy import carregar_mapa as carregar_categorias_pluggy
+from app.services.estorno import localizar_original, titular_do_cartao
 from app.services.regras import reforcar_regra
 
 #: Confiança da categoria vinda do mapeamento da Pluggy: abaixo da regra do
 #: usuário (0.95), que é decisão explícita, e acima do local (0.80).
 CONFIANCA_CATEGORIA_PLUGGY = Decimal("0.90")
+#: `origem_sugestao` do item cuja categoria ou pessoa o usuário escolheu na revisão.
+ORIGEM_USUARIO = "usuario"
 
 
 class IngestaoService:
@@ -436,6 +439,10 @@ class IngestaoService:
         item = self._item_pendente(item_id)
         for campo, valor in dados.items():
             setattr(item, campo, valor)
+        if {"categoria_sugerida_id", "pessoa_sugerida_id"} & dados.keys():
+            # Marca a escolha do usuário: a promoção do estorno (D-34) não a
+            # troca pela categoria e pela pessoa da compra original.
+            item.origem_sugestao = ORIGEM_USUARIO
 
         if item.categoria_sugerida_id is not None and item.descricao_original:
             self._reforcar_regra(item)
@@ -517,7 +524,13 @@ class IngestaoService:
         duplicados: list[int] = []
         erros: list[dict[str, Any]] = []
 
-        for item_id in ids:
+        # O estorno por último: achar a compra original exige que ela já esteja
+        # lançada, e ela pode vir no mesmo lote (D-34).
+        def _estorno_por_ultimo(item_id: int) -> bool:
+            item = self.session.get(ImportacaoItem, item_id)
+            return item is not None and item.tipo_sugerido is TipoTransacao.ESTORNO
+
+        for item_id in sorted(ids, key=_estorno_por_ultimo):
             item = self._item_pendente(item_id)
             try:
                 with self.session.begin_nested():
@@ -585,6 +598,12 @@ class IngestaoService:
                 "cartão já vem detalhado pela fatura (D-05)."
             )
 
+        categoria_id = None if transferencia else item.categoria_sugerida_id
+        pessoa_id = item.pessoa_sugerida_id
+        estorno_de_id = None
+        if tipo is TipoTransacao.ESTORNO:
+            categoria_id, pessoa_id, estorno_de_id = self._destino_do_estorno(item)
+
         transacao = Transacao(
             data=item.data,
             competencia=item.competencia_sugerida or primeiro_dia_do_mes(item.data),
@@ -594,8 +613,9 @@ class IngestaoService:
             # Texto cru do extrato, imutável (regra 11).
             descricao_original=item.linha_bruta,
             # Transferência não tem categoria (check `transferencia_coerente`).
-            categoria_id=None if transferencia else item.categoria_sugerida_id,
-            pessoa_id=item.pessoa_sugerida_id,
+            categoria_id=categoria_id,
+            pessoa_id=pessoa_id,
+            estorno_de_id=estorno_de_id,
             forma_pagamento_id=item.forma_pagamento_sugerida_id,
             local_id=item.local_sugerido_id,
             importacao_id=item.importacao_id,
@@ -605,6 +625,36 @@ class IngestaoService:
         self.session.add(transacao)
         self.session.flush()
         return transacao
+
+    def _destino_do_estorno(
+        self, item: ImportacaoItem
+    ) -> tuple[int | None, int | None, int | None]:
+        """Categoria, pessoa e compra original do estorno que vai ser lançado (D-34).
+
+        Achando a compra original (`app.services.estorno`), o estorno abate na
+        categoria e na pessoa dela, a menos que o usuário tenha escolhido uma
+        delas na revisão (`origem_sugestao` = usuário). Sem original, ficam a
+        categoria sugerida (a da Pluggy) e a pessoa do item, ou o titular do
+        cartão quando o item não tem pessoa.
+        """
+        assert item.data is not None and item.valor is not None
+        original = localizar_original(
+            self.session,
+            valor=item.valor,
+            data=item.data,
+            forma_pagamento_id=item.forma_pagamento_sugerida_id,
+            descricao_original=item.linha_bruta,
+            local_id=item.local_sugerido_id,
+        )
+        categoria_id, pessoa_id = item.categoria_sugerida_id, item.pessoa_sugerida_id
+        if original is not None:
+            if item.origem_sugestao != ORIGEM_USUARIO:
+                categoria_id = original.categoria_id or categoria_id
+                pessoa_id = original.pessoa_id
+            return categoria_id, pessoa_id, original.id
+        if pessoa_id is None:
+            pessoa_id = titular_do_cartao(self.session, item.forma_pagamento_sugerida_id)
+        return categoria_id, pessoa_id, None
 
     def _atualizar_contadores(self, ids: Sequence[int]) -> None:
         if not ids:
@@ -948,7 +998,9 @@ class _ContextoEnriquecimento:
             and tipo is not TipoTransacao.TRANSFERENCIA
         ):
             mapeada = self.categorias_pluggy.get(categoria_externa_id)
-            if mapeada is not None and mapeada[1] is tipo:
+            # O estorno usa categoria de despesa (D-34).
+            tipo_da_categoria = TipoTransacao.DESPESA if tipo is TipoTransacao.ESTORNO else tipo
+            if mapeada is not None and mapeada[1] is tipo_da_categoria:
                 sugestao.categoria_id = mapeada[0]
                 sugestao.origem = "pluggy"
                 sugestao.confianca = CONFIANCA_CATEGORIA_PLUGGY

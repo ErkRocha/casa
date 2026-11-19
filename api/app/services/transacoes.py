@@ -35,7 +35,7 @@ from app.models import Conta, FormaPagamento, Money, Transacao
 from app.schemas.common import Paginacao
 from app.schemas.transacoes import TransacaoFiltros
 from app.services import caixa
-from app.services.base import Conflito, NaoEncontrado, _mensagem_integridade
+from app.services.base import Conflito, NaoEncontrado, RegraViolada, _mensagem_integridade
 from app.services.cadastros import primeiro_dia_do_mes
 from app.services.ingestao import _padrao_de
 from app.services.regras import reforcar_regra
@@ -367,6 +367,7 @@ class TransacaoService:
         else:
             dados["competencia"] = primeiro_dia_do_mes(dados["competencia"])
 
+        self._conferir_original(dados.get("estorno_de_id"))
         obj = Transacao(**dados)
         self.session.add(obj)
         self._flush()
@@ -396,6 +397,11 @@ class TransacaoService:
             else:
                 dados.pop("competencia", None)
 
+        if dados.get("estorno_de_id") is not None:
+            if obj.tipo is not TipoTransacao.ESTORNO:
+                raise RegraViolada("estorno_de_id só vale para transação do tipo estorno.")
+            self._conferir_original(dados["estorno_de_id"])
+
         aprender = _aprende_categoria(obj, dados.get("categoria_id"), dados.get("tipo", obj.tipo))
         for campo, valor in dados.items():
             setattr(obj, campo, valor)
@@ -407,6 +413,20 @@ class TransacaoService:
             )
         self._flush()
         return self.get(id_)
+
+    def _conferir_original(self, original_id: int | None) -> None:
+        """A compra que o estorno desfez precisa ser uma despesa viva (D-34)."""
+        if original_id is None:
+            return
+        original = self.session.get(Transacao, original_id)
+        if (
+            original is None
+            or original.deleted_em is not None
+            or original.tipo is not TipoTransacao.DESPESA
+        ):
+            raise RegraViolada(
+                f"estorno_de_id {original_id}: a compra original precisa ser uma despesa viva."
+            )
 
     def remover(self, id_: int) -> None:
         obj = self.session.get(Transacao, id_)

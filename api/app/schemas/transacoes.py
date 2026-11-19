@@ -44,6 +44,9 @@ class TransacaoCreate(BaseModel):
     conta_origem_id: int | None = None
     conta_destino_id: int | None = None
 
+    #: Só para `tipo = estorno`: a compra (despesa) que ele desfez (D-34).
+    estorno_de_id: int | None = None
+
     parcela_num: Annotated[int, Field(ge=1)] | None = None
     parcela_total: Annotated[int, Field(ge=1)] | None = None
     grupo_parcelamento_id: UUID | None = None
@@ -67,6 +70,9 @@ class TransacaoCreate(BaseModel):
                 raise ValueError("transferência não tem categoria")
         elif self.conta_origem_id is not None or self.conta_destino_id is not None:
             raise ValueError("origem e destino só valem para transferência")
+
+        if self.estorno_de_id is not None and self.tipo is not TipoTransacao.ESTORNO:
+            raise ValueError("estorno_de_id só vale para estorno")
 
         if (self.parcela_num is None) != (self.parcela_total is None):
             raise ValueError("parcela_num e parcela_total andam juntos")
@@ -103,6 +109,9 @@ class TransacaoUpdate(BaseModel):
 
     desconto_total: Annotated[Dinheiro, Field(ge=0)] | None = None
     observacao: str | None = None
+    #: Liga o estorno à compra original (D-34). O service confere que a
+    #: transação é um estorno e que a original é uma despesa viva.
+    estorno_de_id: int | None = None
 
 
 class TransacaoRead(BaseModel):

@@ -144,7 +144,7 @@ OBS_APLICACAO_RESGATE = (
 
 _OBS_ESTORNO = (
     "Crédito no cartão que a Pluggy não marca como pagamento de fatura: "
-    "tratado como estorno. Confira."
+    "tratado como estorno, que abate o gasto da compra original (D-34). Confira."
 )
 
 
@@ -434,7 +434,7 @@ def _valor(transacao: Transacao, observacoes: list[str], confiancas: list[Decima
 def _classificar(
     transacao: Transacao, conta: Conta, entrada: bool, observacoes: list[str]
 ) -> tuple[TipoTransacao, str | None, Decimal]:
-    """Despesa, receita ou transferência — pelo que os dados sustentam.
+    """Despesa, receita, estorno ou transferência — pelo que os dados sustentam.
 
     Na dúvida, confiança abaixo de 0.80 e uma observação, para a revisão
     olhar. Nunca confiança alta em cima de palpite.
@@ -450,7 +450,7 @@ def _classificar(
             observacoes.append(_OBS_PAGAMENTO_NO_CARTAO)
             return TipoTransacao.TRANSFERENCIA, direcao, CONFIANCA_INTERPRETADA
         observacoes.append(_OBS_ESTORNO)
-        return TipoTransacao.RECEITA, None, CONFIANCA_INTERPRETADA
+        return TipoTransacao.ESTORNO, None, CONFIANCA_INTERPRETADA
 
     chave = sem_acento(transacao.description or transacao.description_raw or "").lower().strip()
     if (
