@@ -232,6 +232,11 @@ class Transacao(IdMixin, TimestampMixin, SoftDeleteMixin, Base):
     #: Nulo = lançamento manual. FK criada na fase 5, junto de `importacoes`.
     importacao_id: Mapped[int | None] = mapped_column(BigInteger)
 
+    #: Só quando tipo = estorno: a compra original que ele desfez, se achada (D-34).
+    estorno_de_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("transacoes.id", ondelete="RESTRICT"), index=True
+    )
+
     #: Só quando tipo = transferencia.
     conta_origem_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("contas.id", ondelete="RESTRICT")
@@ -282,6 +287,7 @@ class Transacao(IdMixin, TimestampMixin, SoftDeleteMixin, Base):
             """,
             name="transferencia_coerente",
         ),
+        CheckConstraint("estorno_de_id is null or tipo = 'estorno'", name="estorno_de_so_estorno"),
         CheckConstraint(
             """
             (parcela_num is null and parcela_total is null)

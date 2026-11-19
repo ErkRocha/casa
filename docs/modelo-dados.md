@@ -9,7 +9,7 @@ Tabelas de domínio editável têm também `deleted_em timestamptz` (soft delete
 ## Enums
 
 ```
-tipo_transacao      : despesa | receita | transferencia
+tipo_transacao      : despesa | receita | transferencia | estorno
 tipo_conta          : corrente | poupanca | carteira | investimento | cartao
 tipo_pagamento      : credito | debito | pix | dinheiro | boleto | transferencia
 tipo_pessoa         : individual | conjunta
@@ -47,7 +47,7 @@ Hierárquica por auto-relacionamento. Profundidade prática: 2 níveis.
 |---|---|---|
 | nome | text not null | |
 | categoria_pai_id | fk categorias | null = categoria raiz |
-| tipo | tipo_transacao | despesa ou receita |
+| tipo | tipo_transacao | despesa ou receita (o estorno usa categoria de despesa) |
 | cor | text | usada nos gráficos |
 | ativo | boolean default true | |
 
@@ -92,6 +92,7 @@ Coração do sistema. Uma linha por movimento.
 | conta_id | fk contas | |
 | local_id | fk locais | |
 | importacao_id | fk importacoes | null = lançamento manual |
+| estorno_de_id | fk transacoes | só quando tipo = estorno: a compra original que ele desfez, se achada (D-34); `on delete restrict` |
 | conta_origem_id | fk contas | só quando tipo = transferencia |
 | conta_destino_id | fk contas | só quando tipo = transferencia |
 | parcela_num | smallint | |
@@ -102,7 +103,7 @@ Coração do sistema. Uma linha por movimento.
 | deleted_em | timestamptz | |
 
 **Índices**: `data`, `competencia`, `categoria_id`, `pessoa_id`, `local_id`,
-`forma_pagamento_id`, e o único parcial de deduplicação:
+`forma_pagamento_id`, `estorno_de_id`, e o único parcial de deduplicação:
 
 ```sql
 create unique index uq_transacoes_dedup
@@ -113,7 +114,10 @@ create unique index uq_transacoes_dedup
 `data | valor | descricao_original | forma_pagamento_id | parcela_num`.
 
 **Checks**: `valor > 0`; transferência exige origem e destino preenchidos e
-`categoria_id` nulo; despesa/receita exige `conta_origem_id` nulo.
+`categoria_id` nulo; despesa/receita/estorno exige `conta_origem_id` e `conta_destino_id`
+nulos; `estorno_de_id` só existe quando `tipo = 'estorno'`
+(`ck_transacoes_estorno_de_so_estorno`). O estorno tem valor positivo, como
+os demais: o sinal vem do tipo (D-34).
 
 ## `orcamentos`
 | coluna | tipo | notas |
@@ -413,8 +417,11 @@ Arquivo em disco no volume, caminho e hash na tabela.
 - `vw_transacoes_completa` — transação com nomes já resolvidos por join,
   usada pela listagem e pelos filtros.
 - `vw_gasto_por_pessoa` — três baldes que somam o total:
-  `COALESCE(pessoa_id::text, 'conjunto')`. Transferências ficam de fora.
-- `vw_orcamento_mes` — meta contra realizado por categoria.
+  `COALESCE(pessoa_id::text, 'conjunto')`. Transferências ficam de fora. O total é
+  o gasto líquido: despesa menos estorno (D-34).
+- `vw_orcamento_mes` — meta contra realizado por categoria; o realizado é
+  líquido de estornos (D-34).
 
 **Regra de ouro do analytics**: `tipo = 'transferencia'` é excluído de todo
-cálculo de gasto. Pagar fatura não é despesa nova.
+cálculo de gasto. Pagar fatura não é despesa nova. O estorno entra em todo
+cálculo de gasto com sinal negativo (`despesa - estorno`) e nunca em receita.

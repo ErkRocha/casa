@@ -10,6 +10,9 @@ from enum import StrEnum
 class TipoTransacao(StrEnum):
     DESPESA = "despesa"
     RECEITA = "receita"
+    #: Crédito no cartão que não é pagamento de fatura (D-34). Abate o gasto:
+    #: nas somas vale despesa menos estorno. Usa categoria de despesa.
+    ESTORNO = "estorno"
     #: Pagar fatura não é despesa nova. Fica fora de todo cálculo de gasto.
     TRANSFERENCIA = "transferencia"
 
