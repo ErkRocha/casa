@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: test-db help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-remover-abertas pluggy-resgates compras-role compras-migrate compras-seed compras-carga-cardapio compras-test compras-lint financas-role conferir
+.PHONY: test-db help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-remover-abertas pluggy-resgates d34-reaplicar compras-role compras-migrate compras-seed compras-carga-cardapio compras-test compras-lint financas-role conferir
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -90,6 +90,11 @@ pluggy-remover-abertas: ## Remove as compras em aberto da D-23 (D-28) — use: m
 # Só lê: aplicações e resgates da Pluggy, contraparte no mesmo dia e conclusão.
 pluggy-resgates: ## Investiga os resgates e aplicações da Pluggy (somente leitura)
 	$(COMPOSE) run --rm api python -m scripts.pluggy_resgates
+
+# D-34: simula por padrão (estornos e aplicações/resgates); executar=1 grava SÓ
+# as aplicações/resgates (devolvidas à revisão) e recusa os estornos.
+d34-reaplicar: ## Reaplica a D-34 nos dados gravados — use: make d34-reaplicar [executar=1]
+	$(COMPOSE) run --rm api python -m scripts.d34_reaplicar $(if $(executar),--executar,)
 
 relatorio-seco: ## Mesmo relatório, só com os números (sem chamar modelo)
 	$(COMPOSE) run --rm api python -m scripts.relatorio --sem-ia $(if $(m),--competencia $(m),)

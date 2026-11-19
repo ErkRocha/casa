@@ -481,10 +481,14 @@ def e_aplicacao_ou_resgate(transacao: Transacao) -> bool:
     """
     if (transacao.category or "") == CATEGORIA_RENDIMENTO:
         return False
-    return bool(
-        _OPERACAO_APLICACAO.search((transacao.operation_type or "").upper())
-        or (transacao.category or "") in CATEGORIAS_INVESTIMENTO
+    return e_operacao_de_aplicacao(transacao.operation_type) or (
+        (transacao.category or "") in CATEGORIAS_INVESTIMENTO
     )
+
+
+def e_operacao_de_aplicacao(operacao: str | None) -> bool:
+    """A operação da Pluggy é de aplicação ou resgate (`RESGATE_APLIC_FINANCEIRA`...)."""
+    return bool(_OPERACAO_APLICACAO.search((operacao or "").upper()))
 
 
 def e_pagamento_de_fatura(transacao: Transacao) -> bool:
