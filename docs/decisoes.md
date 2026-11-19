@@ -38,6 +38,7 @@ leia o motivo — ele costuma ser a parte que não é óbvia.
 - D-31 — Início pela data da compra; o caixa vira bloco secundário
 - D-32 — Gasto até hoje do Início pela fatura atual, com as pendentes
 - D-33 — Nota fiscal lida em casa como fonte da verdade da compra
+- D-34 — Estorno, aplicação e resgate, fatura real e compra manual no cartão
 
 ---
 
@@ -1413,3 +1414,63 @@ transação" acima:
 
 Pede migration em finanças (`transacoes.lancada_pela_nota` e
 `substituida_por_id`), descrita em `modelo-notas.md`, "Nota sem despesa".
+
+
+---
+
+## D-34 — Estorno, aplicação e resgate, fatura real e compra manual no cartão
+
+Decisão do usuário, 19/11/2026 (grupo 2 do financeiro). Ajusta a D-27 (valor
+da fatura) e a D-21 (o que a sync promove).
+
+**1. Estorno abate o gasto. [aguarda schema]** O estorno deixa de ser
+receita: abate o gasto na mesma categoria e pessoa da compra original quando
+der para identificá-la, senão na categoria sugerida (a da Pluggy) e no
+titular do cartão. Nas somas de gasto vale o valor líquido (despesa menos
+estorno). A compra original é a despesa da mesma forma de pagamento, até 90
+dias antes, de mesmo valor (desempate pelo estabelecimento); sem nenhuma, a
+única compra maior do mesmo estabelecimento (estorno parcial).
+**Não implementado:** precisa de mudança de schema (um tipo novo de
+transação e as duas views que somam gasto, `vw_gasto_por_pessoa` e
+`vw_orcamento_mes`), e a tarefa mandava parar nesse caso. Só a simulação
+existe (`make d34-reaplicar`); o `--executar` recusa os estornos.
+
+**2. Aplicação e resgate são transferência; rendimento segue receita.**
+Dinheiro mudando de lugar não é gasto nem receita.
+- **Rendimento:** categoria da Pluggy "Proceeds interests and dividends",
+  com qualquer operação. Continua receita.
+- **Aplicação ou resgate:** o que não é rendimento e tem operação de
+  aplicação ou resgate (`RESGATE_APLIC_FINANCEIRA`, `APLICACAO_FINANCEIRA`)
+  ou categoria de investimento da Pluggy (`Investments`, `Automatic
+  investment`, `Fixed income`, `Mutual funds`, `Variable income`, `Margin`).
+  Vira transferência e vai para a revisão (a transferência precisa das duas
+  contas e a Pluggy só dá uma), com a observação da D-34.
+- **Por que a categoria e não a operação:** nos dados reais, os 46 créditos
+  `RESGATE_APLIC_FINANCEIRA` do Mercado Pago têm a mesma operação, mas 44
+  são centavos com a categoria de rendimento, sem saída no dia que os
+  explique: é o rendimento da conta remunerada. Só 2 (R$ 65,24) são resgate
+  de verdade.
+
+**3. Fatura pelo total real.** Nos gráficos e blocos de fatura, o valor da
+fatura é o `totalAmount` da fatura da Pluggy quando ela existe (a mesma que
+a D-27 casa pelo vencimento); a soma das compras é só a **estimativa** da
+fatura ainda aberta, marcada assim na tela e na API (`valor_origem`). A
+diferença entre o total e as compras continua virando encargo na sync. A
+curva de caixa do Início continua pela soma das compras, para fechar com o
+total do mês (D-02); o encargo entra nela quando aprovado na revisão.
+Revê a D-27, que usava a soma das compras também no degrau da fatura.
+
+**4. Compra manual no cartão: competência pela fatura.** Lançamento manual
+com forma de crédito ganha a competência da fatura do cartão, pelas mesmas
+fontes da D-27: a fatura real da Pluggy que fecha depois da compra, as datas
+da conta de crédito e, por último, os dias de fechamento e vencimento da
+forma. Sem nenhuma, o mês da compra, como antes. Competência informada pelo
+usuário vale. Ao editar a data ou a forma de um lançamento manual, recalcula;
+a transação importada mantém a competência da fatura de onde veio.
+
+**5. Dados existentes:** `make d34-reaplicar` simula (padrão) a reaplicação
+de 1 e 2, pulando o que o usuário editou à mão (a mesma detecção do
+retroativo da D-21). Com `executar=1` só o item 2 grava: a transação vira
+item `pendente` de transferência na revisão. Simulação de 19/11/2026: 7
+estornos (R$ 958,71; 6 com a compra original achada) e 2 resgates
+(R$ 65,24) mudariam; 44 rendimentos ficam.
