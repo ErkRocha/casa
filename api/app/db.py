@@ -4,6 +4,7 @@ Nunca há `create_all()` fora de teste: o schema é do Alembic (regra 4).
 """
 
 from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 
 from sqlalchemy import BigInteger, DateTime, Enum, MetaData, create_engine, func, text
@@ -79,15 +80,25 @@ engine = create_engine(
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
-def get_session() -> Iterator[Session]:
-    """Dependência do FastAPI: uma sessão por request.
+def marcar_autor(session: Session, autor: str) -> None:
+    """Fixa `app.autor` na sessão do Postgres — é de lá que o trigger de
+    auditoria tira quem fez a escrita. Sem isso, a linha sai `desconhecido`."""
+    session.execute(text("SELECT set_config('app.autor', :autor, false)"), {"autor": autor})
 
-    Fixa `app.autor` na sessão do Postgres — é de lá que o trigger de
-    auditoria tira quem fez a escrita.
+
+@contextmanager
+def sessao_com_autor(autor: str | None = None) -> Iterator[Session]:
+    """Sessão fora da API (script de correção) que audita como a API.
+
+    Sem `autor`, vale o mesmo da API (`app_autor_padrao`, "usuario"): é o
+    caso da correção pedida pelo usuário. Script automático passa o nome dele.
     """
     with SessionLocal() as session:
-        session.execute(
-            text("SELECT set_config('app.autor', :autor, false)"),
-            {"autor": _settings.app_autor_padrao},
-        )
+        marcar_autor(session, autor or _settings.app_autor_padrao)
+        yield session
+
+
+def get_session() -> Iterator[Session]:
+    """Dependência do FastAPI: uma sessão por request, com o autor marcado."""
+    with sessao_com_autor() as session:
         yield session

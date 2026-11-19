@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: test-db help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-remover-abertas pluggy-resgates d34-reaplicar compras-role compras-migrate compras-seed compras-carga-cardapio compras-test compras-lint financas-role conferir
+.PHONY: test-db help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-remover-abertas pluggy-resgates d34-reaplicar corrigir-transacao compras-role compras-migrate compras-seed compras-carga-cardapio compras-test compras-lint financas-role conferir
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -93,6 +93,9 @@ pluggy-resgates: ## Investiga os resgates e aplicações da Pluggy (somente leit
 
 # D-34: simula por padrão (estornos e aplicações/resgates); executar=1 grava SÓ
 # as aplicações/resgates (devolvidas à revisão) e recusa os estornos.
+corrigir-transacao: ## Corrige uma transação pelo service, auditando como o painel — use: make corrigir-transacao args="..." [executar=1]
+	$(COMPOSE) run --rm api python -m scripts.corrigir_transacao $(if $(executar),--executar,) $(args)
+
 d34-reaplicar: ## Reaplica a D-34 nos dados gravados — use: make d34-reaplicar [executar=1]
 	$(COMPOSE) run --rm api python -m scripts.d34_reaplicar $(if $(executar),--executar,)
 
