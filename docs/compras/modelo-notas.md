@@ -5,10 +5,11 @@ documento descreve para o schema `compras` já existe no banco: variantes,
 códigos por mercado, preço comparável (as duas views), fechamento do item da
 lista, marco da conferência e ligação da nota com a compra pendente. O que
 ainda é só plano é o comportamento que usa as colunas novas de
-`itens_lista`, `notas_fiscais` e `nota_itens.item_lista_id` (conferência,
-"aguardando nota", ligação e lançamento da despesa) e as colunas de finanças
-(`transacoes.lancada_pela_nota` e `substituida_por_id`). Variantes e preços
-já têm API (`api-notas.md`). Convenções do serviço em `modelo-dados.md`:
+`itens_lista` e `nota_itens.item_lista_id` (conferência,
+"aguardando nota"; a ligação e o lançamento da despesa já têm API) e as
+colunas de finanças (`transacoes.lancada_pela_nota` e `substituida_por_id`,
+migration `0010` de finanças, existem). Variantes, preços e ligação à
+despesa já têm API (`api-notas.md`). Convenções do serviço em `modelo-dados.md`:
 `numeric` para dinheiro e quantidade, soft delete, `*_por text`, auditoria
 por trigger, só `casa_compras` escreve.
 

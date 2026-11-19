@@ -51,6 +51,7 @@ from compras.deps import consulta_publica  # noqa: E402
 from compras.main import app  # noqa: E402
 from compras.seed import run as rodar_seed  # noqa: E402
 from scripts.aplicar_role import aplicar as aplicar_role  # noqa: E402
+from tests.financas_apoio import fin  # noqa: E402, F401  (a fixture de finanças falsa)
 from tests.nfce_apoio import ConsultaFalsa  # noqa: E402
 
 _TABELAS = (

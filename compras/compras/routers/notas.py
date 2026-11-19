@@ -2,20 +2,25 @@
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from compras.deps import ConsultaDep, FinancasDep, LeitorDep, QuemDep, SessionDep
+from compras.financas import FinancasIndisponivel
 from compras.models import NotaFiscal, NotaItem
 from compras.schemas import (
     AssociarItem,
     AssociarVariante,
+    ConsolidacaoResultado,
+    LancarDespesa,
     NotaDetalhe,
     NotaEntrada,
     NotaItemLeitura,
     NotaResumo,
-    TransacaoSugerida,
+    PreviaLancamento,
+    SugestaoLigacao,
     VincularTransacao,
 )
+from compras.services.ligacao_notas import LigacaoNotaService
 from compras.services.notas import NotaService
 
 router = APIRouter(prefix="/notas", tags=["nota fiscal"])
@@ -68,6 +73,18 @@ def ler(
 def listar(session: SessionDep, limite: Annotated[int, Query(ge=1, le=200)] = 50) -> Any:
     """As notas, da mais recente para a mais antiga (as sem data primeiro)."""
     return [NotaResumo.de(n) for n in NotaService(session).listar(limite)]
+
+
+@router.post("/consolidar-ligacoes", response_model=ConsolidacaoResultado)
+def consolidar_ligacoes(session: SessionDep, financas: FinancasDep) -> Any:
+    """Idempotente. Nota ligada a uma pendente que já virou transação passa a
+    transação; pendente sumida sem virar transação desfaz a ligação; nota
+    ligada a uma transação juntada pela revisão passa para a substituta. Chamado
+    pela tela de notas e pelo agendador de finanças depois da sync; por isso
+    não exige `X-Quem` (a auditoria sai como `leitura_nfce`)."""
+    resultado = LigacaoNotaService(session).consolidar(financas)
+    session.commit()
+    return resultado
 
 
 @router.get("/itens-sem-produto", response_model=list[NotaItemLeitura])
@@ -141,20 +158,14 @@ def associar(
     return _item_resposta(servico, item)
 
 
-@router.get("/{id_}/sugestoes-transacao", response_model=list[TransacaoSugerida])
+@router.get("/{id_}/sugestoes-transacao", response_model=list[SugestaoLigacao])
 def sugestoes(id_: int, session: SessionDep, financas: FinancasDep) -> Any:
-    """Despesas de finanças do mesmo dia e com o mesmo valor. Só sugestão:
-    vincular é o `PUT /notas/{id}/transacao`, que o usuário confirma."""
-    return [
-        TransacaoSugerida(
-            id=t.id,
-            data=t.data,
-            valor=t.valor,
-            descricao=t.descricao,
-            forma_pagamento=t.forma_pagamento,
-        )
-        for t in NotaService(session).sugestoes_transacao(id_, financas)
-    ]
+    """Despesas de finanças de um dia antes a um dia depois da emissão, com o
+    valor exato, nas transações e nas compras pendentes do cartão (D-28). A
+    forma do mesmo tipo que a da página vem primeiro, depois o dia mais
+    próximo; nada é filtrado. Só sugestão: ligar é o `PUT /notas/{id}/transacao`,
+    que o usuário confirma."""
+    return LigacaoNotaService(session).sugestoes(id_, financas)
 
 
 @router.put("/{id_}/transacao", response_model=NotaResumo)
@@ -165,8 +176,43 @@ def vincular(
     _quem: QuemDep,
     financas: FinancasDep,
 ) -> Any:
-    """Confirma a transação de finanças desta nota (nulo desfaz)."""
-    nota = NotaService(session).vincular_transacao(id_, payload.transacao_id, financas)
+    """Confirma a despesa da nota: `{"transacao_id": 7}` ou
+    `{"pendente_id_externo": "..."}` (um dos dois). Os dois nulos desfazem. O
+    que se liga precisa existir em finanças."""
+    nota = LigacaoNotaService(session).vincular(
+        id_, payload.transacao_id, payload.pendente_id_externo, financas
+    )
+    session.commit()
+    return NotaResumo.de(nota)
+
+
+@router.get("/{id_}/lancar-despesa", response_model=PreviaLancamento)
+def previa_lancamento(id_: int, session: SessionDep, financas: FinancasDep) -> Any:
+    """A prévia de "lançar despesa pela nota": valor e data da nota, o mercado
+    como descrição, a forma da página, a categoria sugerida pelos itens e as
+    formas de pagamento de finanças. Nota já ligada: 409."""
+    try:
+        return LigacaoNotaService(session).previa(id_, financas)
+    except FinancasIndisponivel as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+
+
+@router.post("/{id_}/lancar-despesa", response_model=NotaResumo)
+def lancar_despesa(
+    id_: int,
+    payload: LancarDespesa,
+    session: SessionDep,
+    _quem: QuemDep,
+    financas: FinancasDep,
+) -> Any:
+    """Cria a despesa em finanças (`POST /api/transacoes`, `lancada_pela_nota`),
+    liga a nota a ela e marca `despesa_lancada_pela_nota`. Nota já ligada: 409.
+    Finanças fora do ar: 503, e nada é gravado."""
+    try:
+        nota = LigacaoNotaService(session).lancar(id_, payload, financas)
+    except FinancasIndisponivel as exc:
+        session.rollback()
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
     session.commit()
     return NotaResumo.de(nota)
 

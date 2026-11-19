@@ -21,7 +21,6 @@ texto: a próxima nota com o mesmo código ou texto já vem associada (D-09).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -31,7 +30,6 @@ from sqlalchemy.orm import Session
 
 from compras.db import definir_autor
 from compras.enums import OrigemAssociacao, StatusNota
-from compras.financas import Financas, TransacaoResumo
 from compras.models import (
     Apelido,
     NotaFiscal,
@@ -43,7 +41,6 @@ from compras.models import (
 from compras.nfce.chave import Chave, validar
 from compras.nfce.consulta import ConsultaFalhou, ConsultaPublica
 from compras.nfce.entrada import EntradaInvalida, interpretar, urls_de_consulta
-from compras.nfce.html import FUSO
 from compras.nfce.leitor import FormatoDesconhecido, LeitorNota
 from compras.normalizar import normalizar
 from compras.services.base import Conflito, NaoEncontrado, RegraViolada
@@ -522,29 +519,4 @@ class NotaService:
         nota.deleted_em = agora
         self.session.flush()
         self.session.refresh(nota)
-        return nota
-
-    # --- finanças ----------------------------------------------------------------
-
-    def sugestoes_transacao(self, id_: int, financas: Financas) -> list[TransacaoResumo]:
-        """Despesas de finanças do mesmo dia e com o mesmo valor da nota.
-
-        Só sugestão: nada é vinculado sem o usuário confirmar.
-        """
-        nota = self.get(id_)
-        if nota.status != StatusNota.LIDA or nota.emitida_em is None or nota.valor_total is None:
-            raise RegraViolada("A nota precisa estar lida, com data e valor, para sugerir.")
-        dia: date = nota.emitida_em.astimezone(FUSO).date()
-        return financas.despesas(dia, nota.valor_total)
-
-    def vincular_transacao(
-        self, id_: int, transacao_id: int | None, financas: Financas
-    ) -> NotaFiscal:
-        """Confirma (ou desfaz, com nulo) a transação de finanças da nota. A
-        transação precisa existir em finanças; o id fica sem FK (D-25)."""
-        nota = self.get(id_)
-        if transacao_id is not None and not financas.existe(transacao_id):
-            raise RegraViolada(f"A transação {transacao_id} não existe em finanças.")
-        nota.transacao_id = transacao_id
-        self.session.flush()
         return nota

@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, status
 
-from compras.deps import QuemDep, SessionDep
+from compras.deps import FinancasDep, QuemDep, SessionDep
 from compras.schemas import SecaoAtualizar, SecaoCriar, SecaoLeitura, SecoesOrdem
 from compras.services.secoes import SecaoService
 
@@ -34,8 +34,18 @@ def reordenar(payload: SecoesOrdem, session: SessionDep, _quem: QuemDep) -> Any:
 
 
 @router.patch("/{id_}", response_model=SecaoLeitura)
-def renomear(id_: int, payload: SecaoAtualizar, session: SessionDep, _quem: QuemDep) -> Any:
-    secao = SecaoService(session).renomear(id_, payload.nome)
+def atualizar(
+    id_: int,
+    payload: SecaoAtualizar,
+    session: SessionDep,
+    _quem: QuemDep,
+    financas: FinancasDep,
+) -> Any:
+    """Renomeia e/ou define a categoria de finanças sugerida para os itens da
+    seção (D-33). Só o que veio muda; `categoria_id_financas: null` limpa. A
+    categoria precisa ser de despesa em finanças (422 se não for)."""
+    campos = payload.model_dump(exclude_unset=True)
+    secao = SecaoService(session).atualizar(id_, campos, financas)
     session.commit()
     return SecaoLeitura.de(secao)
 

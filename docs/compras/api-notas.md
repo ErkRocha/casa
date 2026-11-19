@@ -1,8 +1,9 @@
 # API — notas fiscais, conferência e preços (D-33)
 
-**Implementado: variantes e preços** (seções "Reconhecer os itens
-(variantes)" e "Preços", com os ajustes anotados nelas). **Plano, não
-implementado:** ligação à despesa, conferência e "aguardando nota". Amplia a seção "Nota fiscal e preços" de
+**Implementado: variantes, preços e ligação à despesa** (seções "Reconhecer
+os itens (variantes)", "Preços" e "Ligação à despesa", com os ajustes
+anotados nelas). **Plano, não implementado:** conferência e "aguardando
+nota". Amplia a seção "Nota fiscal e preços" de
 `api.md`, que continua valendo onde este documento não diz o contrário.
 Modelo em `modelo-notas.md`. Convenções de `api.md`: caminhos sem o prefixo
 `/api/compras`, toda escrita exige `X-Quem`, dinheiro e quantidade como
@@ -67,6 +68,40 @@ a promoveu). Para o lançamento pela nota, finanças ganha uma migration:
 devolve o `substituida_por_id`, e a sync põe na revisão, como possível
 duplicata, o item da Pluggy com a mesma data, valor e forma de uma transação
 lançada pela nota. "Juntar" na revisão de duplicata mantém a do banco.
+
+**Como ficou (ligação à despesa).**
+
+- `GET /notas/{id}/sugestoes-transacao` devolve uma lista de `{tipo,
+  transacao_id | id_externo, data, valor, descricao, cartao, forma_tipo,
+  forma_combina, lancada_pela_nota}`. Mapa da forma da página para o tipo de
+  forma de finanças: Cartão de Crédito -> `credito`, Cartão de Débito ->
+  `debito`, Pix -> `pix`, Dinheiro -> `dinheiro`; qualquer outra, sem
+  preferência. A ordem é `forma_combina` primeiro, depois a distância em
+  dias, transações antes de pendentes no empate.
+- `PUT /notas/{id}/transacao` aceita `{"transacao_id": n}` ou
+  `{"pendente_id_externo": "..."}`; os dois juntos: 422; os dois nulos (ou
+  corpo vazio) desfazem. Trocar de uma para a outra limpa a anterior e
+  `despesa_lancada_pela_nota`. O que se liga precisa existir em finanças (422).
+- `POST /notas/consolidar-ligacoes` não exige `X-Quem` (quem chama é a
+  finanças, depois da sync, ou a tela) e grava com o autor `leitura_nfce`.
+  Resposta: `{"verificadas", "consolidadas", "desfeitas", "movidas"}`.
+  Finanças fora do ar: 502, nada muda. A finanças o chama em
+  `COMPRAS_API_URL` (no compose, `http://compras:8000`, sem o prefixo do
+  nginx), com 5 s de limite, e só registra em log se falhar.
+- `GET /notas/{id}/lancar-despesa` devolve `{valor, data, descricao,
+  forma_pagamento_nota, forma_pagamento_id_sugerida, categoria_id_sugerida,
+  categoria_origem ("itens" | "ultima_do_mercado" | null),
+  formas_pagamento}`. `POST` devolve a nota. Finanças fora do ar: 503 (nos
+  dois), nada gravado; finanças recusar o lançamento (forma inexistente,
+  duplicata): 422. A categoria enviada precisa ser de despesa (422).
+- `PATCH /secoes/{id}` aceita `categoria_id_financas` (nulo limpa), conferida
+  em `GET /categorias/{id}` de finanças (precisa ser de despesa e ativa).
+- Finanças ganhou, para isto: `GET /transacoes/candidatas-nota`, `GET
+  /transacoes/pendentes-cartao` (e `/{id_externo}`), `GET
+  /transacoes/por-pluggy/{id_externo}` e `GET /transacoes/{id}/situacao` (a
+  transação apagada continua legível, com `substituida_por_id`). Na revisão,
+  `GET /revisar/duplicatas` traz `lancadas_pela_nota` por grupo e `POST
+  /revisar/duplicatas/resolver` aceita `juntar_lancada_pela_nota_id`.
 
 ## Reconhecer os itens (variantes)
 

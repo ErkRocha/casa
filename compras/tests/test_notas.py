@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Iterator
-from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -21,40 +19,17 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
-from compras.deps import consulta_publica, financas
-from compras.financas import FinancasIndisponivel, TransacaoResumo
+from compras.deps import consulta_publica
+from compras.financas import TransacaoResumo
 from compras.main import app
 from compras.nfce.consulta import ConsultaFalhou, Resposta
 from compras.nfce.leitor_svrs import FUSO
 from tests.apoio import ERIK, LAURA, produto_id
+from tests.financas_apoio import FinancasFalsa
 from tests.nfce_apoio import CNPJ_A, CNPJ_B, ConsultaFalsa, Item, chave, pagina, url_qr
 
 LEITE = Item("LEITE INTEG FICTICIO 1L", "2", "9.98", codigo="7891234567895")
 BANANA = Item("BANANA PRATA KG", "1.5", "10.50", unidade="KG", valor_unitario="7.00")
-
-
-@dataclass
-class FinancasFalsa:
-    transacoes: list[TransacaoResumo] = field(default_factory=list)
-    indisponivel: bool = False
-    pedidos: list[tuple[date, Decimal]] = field(default_factory=list)
-
-    def despesas(self, dia: date, valor: Decimal) -> list[TransacaoResumo]:
-        if self.indisponivel:
-            raise FinancasIndisponivel("A API de finanças não respondeu: ConnectError.")
-        self.pedidos.append((dia, valor))
-        return [t for t in self.transacoes if t.data == dia and t.valor == valor]
-
-    def existe(self, transacao_id: int) -> bool:
-        return any(t.id == transacao_id for t in self.transacoes)
-
-
-@pytest.fixture
-def fin() -> Iterator[FinancasFalsa]:
-    falsa = FinancasFalsa()
-    app.dependency_overrides[financas] = lambda: falsa
-    yield falsa
-    app.dependency_overrides.pop(financas, None)
 
 
 def ler(client: TestClient, entrada: str, quem: dict[str, str] = LAURA) -> Any:
@@ -520,7 +495,7 @@ def test_preco_ignora_item_sem_produto_e_nota_apagada(
 # --- sugestão de transação de finanças -------------------------------------------------------
 
 
-def test_sugere_despesa_do_mesmo_dia_e_valor_e_vincula_quando_confirmado(
+def test_sugere_despesa_na_janela_de_um_dia_e_vincula_quando_confirmado(
     client: TestClient, consulta: ConsultaFalsa, fin: FinancasFalsa
 ) -> None:
     nota = nota_lida(client, consulta, [LEITE], emissao="02/11/2026 23:30:00")
@@ -528,12 +503,13 @@ def test_sugere_despesa_do_mesmo_dia_e_valor_e_vincula_quando_confirmado(
         TransacaoResumo(7, date(2026, 11, 2), Decimal("9.98"), "MERCADO FICTICIO", "Nubank"),
         TransacaoResumo(8, date(2026, 11, 2), Decimal("50.00"), "OUTRA", None),
         TransacaoResumo(9, date(2026, 11, 3), Decimal("9.98"), "DIA SEGUINTE", None),
+        TransacaoResumo(10, date(2026, 11, 4), Decimal("9.98"), "DOIS DIAS DEPOIS", None),
     ]
     r = client.get(f"/notas/{nota['id']}/sugestoes-transacao")
     assert r.status_code == 200, r.text
-    assert [t["id"] for t in r.json()] == [7]
+    assert [t["transacao_id"] for t in r.json()] == [7, 9]
     # 23h30 em São Paulo continua sendo dia 2 (em UTC já seria dia 3).
-    assert fin.pedidos == [(date(2026, 11, 2), Decimal("9.98"))]
+    assert fin.pedidos == [(date(2026, 11, 1), date(2026, 11, 3), Decimal("9.98"))]
     # Sugerir não vincula.
     assert client.get(f"/notas/{nota['id']}").json()["transacao_id"] is None
 

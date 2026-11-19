@@ -54,6 +54,8 @@ class Linha(BaseModel):
 class SecaoLeitura(Linha):
     nome: str
     ordem: int
+    #: A categoria de finanças sugerida para os itens da seção (D-33); sem FK.
+    categoria_id_financas: int | None = None
 
     @classmethod
     def de(cls, s: Secao) -> Self:
@@ -61,6 +63,7 @@ class SecaoLeitura(Linha):
             id=s.id,
             nome=s.nome,
             ordem=s.ordem,
+            categoria_id_financas=s.categoria_id_financas,
             criado_em=s.criado_em,
             atualizado_em=s.atualizado_em,
             deleted_em=s.deleted_em,
@@ -233,7 +236,10 @@ class SecaoCriar(BaseModel):
 
 
 class SecaoAtualizar(BaseModel):
-    nome: Nome
+    """Só o que veio muda. `categoria_id_financas: null` limpa a sugestão."""
+
+    nome: Nome | None = None
+    categoria_id_financas: int | None = None
 
 
 class SecoesOrdem(BaseModel):
@@ -420,6 +426,11 @@ class NotaResumo(Linha):
     status: StatusNota
     erro_mensagem: str | None
     transacao_id: int | None
+    #: O id da Pluggy da compra pendente a que a nota está ligada (D-28); nunca
+    #: junto com `transacao_id`.
+    pendente_id_externo: str | None
+    #: A transação ligada foi criada por "lançar despesa pela nota".
+    despesa_lancada_pela_nota: bool
     lida_por: str
     forma_pagamento_nota: str | None
 
@@ -439,6 +450,8 @@ class NotaResumo(Linha):
             status=n.status,
             erro_mensagem=n.erro_mensagem,
             transacao_id=n.transacao_id,
+            pendente_id_externo=n.pendente_id_externo,
+            despesa_lancada_pela_nota=n.despesa_lancada_pela_nota,
             lida_por=n.lida_por,
             forma_pagamento_nota=n.forma_pagamento_nota,
             criado_em=n.criado_em,
@@ -493,16 +506,80 @@ class AssociarVariante(BaseModel):
 
 
 class VincularTransacao(BaseModel):
-    #: Nulo desfaz o vínculo.
-    transacao_id: int | None
+    """Um dos dois confirma a ligação; os dois nulos (ou ausentes) a desfazem."""
+
+    transacao_id: int | None = None
+    pendente_id_externo: Annotated[
+        str | None, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
+    ] = None
+
+    @model_validator(mode="after")
+    def _um_so(self) -> Self:
+        if self.transacao_id is not None and self.pendente_id_externo is not None:
+            raise ValueError("Informe transacao_id ou pendente_id_externo, não os dois.")
+        return self
 
 
-class TransacaoSugerida(BaseModel):
-    id: int
+class SugestaoLigacao(BaseModel):
+    """Uma candidata a despesa da nota: transação, ou compra pendente do cartão."""
+
+    tipo: Literal["transacao", "pendente"]
+    #: Preenchido quando `tipo = transacao`.
+    transacao_id: int | None = None
+    #: O id da Pluggy, quando `tipo = pendente`.
+    id_externo: str | None = None
     data: date
     valor: Decimal
     descricao: str
-    forma_pagamento: str | None
+    #: A forma de pagamento (o cartão) como finanças a chama.
+    cartao: str | None
+    forma_tipo: str | None
+    #: A forma é do mesmo tipo que a da página da nota (ordena, não filtra).
+    forma_combina: bool
+    lancada_pela_nota: bool = False
+
+
+class FormaPagamentoOpcao(BaseModel):
+    id: int
+    apelido: str
+    tipo: str
+
+
+class PreviaLancamento(BaseModel):
+    """O que "lançar despesa pela nota" vai propor, para o usuário confirmar."""
+
+    valor: Decimal
+    data: date
+    descricao: str
+    forma_pagamento_nota: str | None
+    #: A forma de finanças do mesmo tipo que a da nota, quando só há uma.
+    forma_pagamento_id_sugerida: int | None
+    categoria_id_sugerida: int | None
+    #: `itens` (seções dos itens) ou `ultima_do_mercado`; nulo sem sugestão.
+    categoria_origem: Literal["itens", "ultima_do_mercado"] | None
+    formas_pagamento: list[FormaPagamentoOpcao]
+
+
+class LancarDespesa(BaseModel):
+    data: date
+    valor: Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=2)]
+    descricao: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
+    ]
+    #: Nulo = gasto conjunto.
+    pessoa_id: int | None = None
+    forma_pagamento_id: int
+    categoria_id: int | None = None
+
+
+class ConsolidacaoResultado(BaseModel):
+    verificadas: int
+    #: Pendente que virou transação: `transacao_id` preenchido.
+    consolidadas: int
+    #: Pendente que sumiu sem virar transação: a nota voltou a "sem despesa".
+    desfeitas: int
+    #: Transação juntada pela revisão: a nota passou para a substituta.
+    movidas: int
 
 
 class PrecoLinha(BaseModel):

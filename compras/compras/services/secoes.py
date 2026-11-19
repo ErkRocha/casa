@@ -1,9 +1,12 @@
 """Seções do mercado e a ordem do percurso (uma ordem só, D-25)."""
 
+from typing import Any
+
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from compras.financas import Financas
 from compras.models import SEM_SECAO, Produto, Secao
 from compras.services.base import Conflito, NaoEncontrado, RegraViolada
 
@@ -61,6 +64,26 @@ class SecaoService:
         secao = self._editavel(id_)
         secao.nome = nome
         self._flush(nome)
+        return secao
+
+    def atualizar(self, id_: int, campos: dict[str, Any], financas: Financas) -> Secao:
+        """O nome e/ou a categoria de finanças (D-33), só o que veio em `campos`.
+
+        A categoria é um id sem FK (D-25): finanças diz se existe e é de despesa.
+        """
+        if not campos or campos.get("nome", "") is None:
+            raise RegraViolada("Informe nome ou categoria_id_financas.")
+        secao = self.get(id_)
+        if "nome" in campos:
+            secao = self.renomear(id_, campos["nome"])
+        if "categoria_id_financas" in campos:
+            categoria = campos["categoria_id_financas"]
+            if categoria is not None and not financas.categoria_de_despesa(categoria):
+                raise RegraViolada(
+                    f"A categoria {categoria} não existe em finanças como categoria de despesa."
+                )
+            secao.categoria_id_financas = categoria
+            self.session.flush()
         return secao
 
     def reordenar(self, ids: list[int]) -> list[Secao]:
