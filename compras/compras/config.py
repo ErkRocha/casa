@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     #: Comprados que o `GET /lista` mostra quando o celular não diz desde quando.
     comprados_recentes_h: int = 6
 
+    #: Dias de "comprado, aguardando nota" até a pergunta única (D-33).
+    pergunta_nota_dias: int = 7
+
     #: A API de finanças, para sugerir a transação de uma nota (só leitura,
     #: por HTTP; D-25). No compose, o serviço `api`; no modo local, a porta
     #: dela. `COMPRAS_FINANCAS_URL`.

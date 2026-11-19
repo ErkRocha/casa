@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from compras.enums import (
     EstadoDespensa,
+    FechamentoItem,
     MedidaBase,
     OrigemAssociacao,
     OrigemItem,
@@ -111,6 +112,12 @@ class ItemLeitura(Linha):
     comprado_por: str | None
     comprado_em: datetime | None
     id_cliente: uuid.UUID | None
+    #: Nulo no comprado = "aguardando nota" (D-33).
+    fechamento: FechamentoItem | None
+    fechado_em: datetime | None
+    fechado_por: str | None
+    #: Quando a pergunta dos 7 dias foi dispensada ou respondida.
+    perguntado_em: datetime | None
 
     @classmethod
     def de(cls, i: ItemLista) -> Self:
@@ -130,6 +137,10 @@ class ItemLeitura(Linha):
             comprado_por=i.comprado_por,
             comprado_em=i.comprado_em,
             id_cliente=i.id_cliente,
+            fechamento=i.fechamento,
+            fechado_em=i.fechado_em,
+            fechado_por=i.fechado_por,
+            perguntado_em=i.perguntado_em,
             criado_em=i.criado_em,
             atualizado_em=i.atualizado_em,
             deleted_em=i.deleted_em,
@@ -177,6 +188,11 @@ class ListaResposta(BaseModel):
     itens: list[ItemLeitura]
     #: "Acabando em casa" que ainda não está na lista (D-25: só sugestão).
     sugestoes: list[DespensaLeitura]
+    #: Comprados com `fechamento` nulo, de qualquer idade (D-33). Os recentes
+    #: também vêm em `itens`; a tela separa pelo id.
+    aguardando_nota: list[ItemLeitura] = []
+    #: Os aguardando nota há mais de 7 dias e ainda sem `perguntado_em`.
+    perguntas: list[ItemLeitura] = []
 
 
 class DespensaResposta(BaseModel):
@@ -289,6 +305,12 @@ class ItemAtualizar(BaseModel):
     quantidade: Quantidade | None = None
     unidade: TextoCurto | None = None
     observacao: Observacao | None = None
+
+
+class ItemFechar(BaseModel):
+    """Como o item "aguardando nota" deixa de esperar (D-33)."""
+
+    como: Literal["sem_nota", "nao_comprei"]
 
 
 class DespensaDefinir(BaseModel):

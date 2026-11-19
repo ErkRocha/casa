@@ -7,11 +7,13 @@ from fastapi import APIRouter, Query, Response, status
 
 from compras.config import get_settings
 from compras.deps import QuemDep, SessionDep
+from compras.enums import FechamentoItem
 from compras.schemas import (
     DespensaLeitura,
     HistoricoPagina,
     ItemAtualizar,
     ItemCriar,
+    ItemFechar,
     ItemLeitura,
     ItemResposta,
     ListaResposta,
@@ -35,10 +37,14 @@ def listar(
     da despensa ("acabando") e o cursor para `/mudancas`."""
     cursor = agora(session)
     desde = comprados_desde or cursor - timedelta(hours=get_settings().comprados_recentes_h)
+    lista = ListaService(session)
+    perguntar_antes_de = cursor - timedelta(days=get_settings().pergunta_nota_dias)
     return ListaResposta(
         cursor=cursor,
-        itens=[ItemLeitura.de(i) for i in ListaService(session).listar(desde)],
+        itens=[ItemLeitura.de(i) for i in lista.listar(desde)],
         sugestoes=[DespensaLeitura.de(d) for d in DespensaService(session).sugestoes()],
+        aguardando_nota=[ItemLeitura.de(i) for i in lista.aguardando_nota()],
+        perguntas=[ItemLeitura.de(i) for i in lista.perguntas(perguntar_antes_de)],
     )
 
 
@@ -103,8 +109,28 @@ def comprar(id_: int, session: SessionDep, quem: QuemDep) -> Any:
 
 @router.post("/itens/{id_}/desfazer", response_model=ItemLeitura)
 def desfazer(id_: int, session: SessionDep, quem: QuemDep) -> Any:
-    """Volta a pendente; na despensa, o produto volta a "acabou"."""
+    """Volta a pendente; na despensa, o produto volta a "acabou". Item já
+    confirmado por uma nota: 409 (a nota é a fonte da verdade)."""
     item = ListaService(session, quem).desfazer(id_)
+    session.commit()
+    return ItemLeitura.de(item)
+
+
+@router.post("/itens/{id_}/fechar", response_model=ItemLeitura)
+def fechar(id_: int, payload: ItemFechar, session: SessionDep, quem: QuemDep) -> Any:
+    """Resolve o "comprado, aguardando nota": `sem_nota` fecha como comprado;
+    `nao_comprei` volta a pendente (ou remove, se já há outro pendente do
+    produto) e leva a despensa para "acabou". Item já fechado: 409."""
+    item = ListaService(session, quem).fechar(id_, FechamentoItem(payload.como))
+    session.commit()
+    return ItemLeitura.de(item)
+
+
+@router.post("/itens/{id_}/dispensar-pergunta", response_model=ItemLeitura)
+def dispensar_pergunta(id_: int, session: SessionDep, quem: QuemDep) -> Any:
+    """Grava `perguntado_em` sem fechar: a pergunta dos 7 dias não volta e o
+    item continua aguardando nota. Item já fechado: 409."""
+    item = ListaService(session, quem).dispensar_pergunta(id_)
     session.commit()
     return ItemLeitura.de(item)
 

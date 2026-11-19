@@ -16,10 +16,10 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from compras.enums import OrigemItem, SituacaoItem
+from compras.enums import FechamentoItem, OrigemItem, SituacaoItem
 from compras.models import ItemLista, Produto, Secao
 from compras.schemas import ItemLeitura
-from compras.services.base import Conflito, NaoEncontrado
+from compras.services.base import Conflito, NaoEncontrado, RegraViolada
 from compras.services.despensa import DespensaService
 from compras.services.produtos import ProdutoService
 
@@ -45,6 +45,31 @@ class ListaService:
                     (ItemLista.situacao == SituacaoItem.PENDENTE)
                     | (ItemLista.comprado_em >= comprados_desde),
                 )
+            )
+        )
+
+    def aguardando_nota(self) -> list[ItemLista]:
+        """Comprados que ainda esperam nota (`fechamento` nulo), os mais antigos primeiro."""
+        return list(
+            self.session.scalars(
+                select(ItemLista)
+                .where(*self._aguardando())
+                .order_by(ItemLista.comprado_em, ItemLista.id)
+            )
+        )
+
+    def perguntas(self, comprados_antes_de: datetime) -> list[ItemLista]:
+        """Os aguardando nota comprados antes de `comprados_antes_de` (agora menos
+        7 dias) e nunca perguntados: a pergunta aparece uma vez (D-33)."""
+        return list(
+            self.session.scalars(
+                select(ItemLista)
+                .where(
+                    *self._aguardando(),
+                    ItemLista.perguntado_em.is_(None),
+                    ItemLista.comprado_em <= comprados_antes_de,
+                )
+                .order_by(ItemLista.comprado_em, ItemLista.id)
             )
         )
 
@@ -158,7 +183,8 @@ class ListaService:
         return self._vivo(id_)
 
     def desfazer(self, id_: int) -> ItemLista:
-        """Volta a pendente. Já pendente: devolve como está."""
+        """Volta a pendente. Já pendente: devolve como está. Item fechado por
+        nota: 409, porque a nota é a fonte da verdade (D-33)."""
         try:
             with self.session.begin_nested():
                 feito = self.session.execute(
@@ -167,6 +193,7 @@ class ListaService:
                         ItemLista.id == id_,
                         ItemLista.situacao == SituacaoItem.COMPRADO,
                         ItemLista.deleted_em.is_(None),
+                        ItemLista.fechamento.is_distinct_from(FechamentoItem.NOTA),
                     )
                     .values(
                         situacao=SituacaoItem.PENDENTE,
@@ -175,6 +202,7 @@ class ListaService:
                         fechamento=None,
                         fechado_em=None,
                         fechado_por=None,
+                        perguntado_em=None,
                     )
                     .returning(ItemLista.produto_id)
                 ).scalar()
@@ -187,7 +215,86 @@ class ListaService:
         if feito is not None:
             self.despensa.compra_desfeita(feito)
             return self.get(id_)
-        return self._vivo(id_)
+        item = self._vivo(id_)
+        if item.fechamento == FechamentoItem.NOTA:
+            raise Conflito(
+                f'"{item.produto.nome}" foi confirmado por uma nota; a nota é a fonte da verdade.',
+                {"item": ItemLeitura.de(item).model_dump(mode="json")},
+            )
+        return item
+
+    def fechar(self, id_: int, como: FechamentoItem) -> ItemLista:
+        """Resolve o "comprado, aguardando nota" (D-33).
+
+        * `sem_nota`: comprou e não vai haver nota; fecha como comprado;
+        * `nao_comprei`: volta a pendente, ou, se o produto já tem outro
+          pendente (pendente único), é removido com `fechamento = nao_comprei`.
+          A despensa vai para `acabou`, como no desfazer.
+        """
+        if como not in (FechamentoItem.SEM_NOTA, FechamentoItem.NAO_COMPREI):
+            raise RegraViolada("Feche com `sem_nota` ou `nao_comprei`.")
+        self._aguardando_vivo(id_)
+        aguardando = (
+            ItemLista.id == id_,
+            ItemLista.situacao == SituacaoItem.COMPRADO,
+            ItemLista.fechamento.is_(None),
+            ItemLista.deleted_em.is_(None),
+        )
+        if como == FechamentoItem.SEM_NOTA:
+            feito = self.session.execute(
+                update(ItemLista)
+                .where(*aguardando)
+                .values(fechamento=como, fechado_em=func.now(), fechado_por=self.quem)
+                .returning(ItemLista.produto_id)
+            ).scalar()
+            if feito is None:
+                self._aguardando_vivo(id_)
+            return self.get(id_)
+
+        produto_id: int | None
+        try:
+            with self.session.begin_nested():
+                produto_id = self.session.execute(
+                    update(ItemLista)
+                    .where(*aguardando)
+                    .values(
+                        situacao=SituacaoItem.PENDENTE,
+                        comprado_por=None,
+                        comprado_em=None,
+                        perguntado_em=None,
+                    )
+                    .returning(ItemLista.produto_id)
+                ).scalar()
+        except IntegrityError:
+            # O produto já tem outro pendente: este sai da lista.
+            produto_id = self.session.execute(
+                update(ItemLista)
+                .where(*aguardando)
+                .values(
+                    fechamento=FechamentoItem.NAO_COMPREI,
+                    fechado_em=func.now(),
+                    fechado_por=self.quem,
+                    deleted_em=func.now(),
+                )
+                .returning(ItemLista.produto_id)
+            ).scalar()
+        if produto_id is None:
+            self._aguardando_vivo(id_)
+        else:
+            self.despensa.compra_desfeita(produto_id)
+        return self.get(id_)
+
+    def dispensar_pergunta(self, id_: int) -> ItemLista:
+        """Grava `perguntado_em` sem fechar: não pergunta de novo e o item
+        continua aguardando nota. Repetir mantém a primeira data."""
+        item = self._aguardando_vivo(id_)
+        if item.perguntado_em is None:
+            self.session.execute(
+                update(ItemLista)
+                .where(ItemLista.id == id_, ItemLista.perguntado_em.is_(None))
+                .values(perguntado_em=func.now())
+            )
+        return self.get(id_)
 
     def remover(self, id_: int) -> ItemLista:
         """Tira da lista (soft delete). Já tirado: devolve como está."""
@@ -209,6 +316,24 @@ class ListaService:
                 {"item": ItemLeitura.de(item).model_dump(mode="json")},
             )
         return item
+
+    def _aguardando_vivo(self, id_: int) -> ItemLista:
+        """O item comprado que ainda espera nota; senão, 409 com ele."""
+        item = self._vivo(id_)
+        corpo = {"item": ItemLeitura.de(item).model_dump(mode="json")}
+        if item.situacao != SituacaoItem.COMPRADO:
+            raise Conflito(f'"{item.produto.nome}" não está comprado.', corpo)
+        if item.fechamento is not None:
+            raise Conflito(f'"{item.produto.nome}" já está fechado ({item.fechamento}).', corpo)
+        return item
+
+    @staticmethod
+    def _aguardando() -> tuple[Any, ...]:
+        return (
+            ItemLista.deleted_em.is_(None),
+            ItemLista.situacao == SituacaoItem.COMPRADO,
+            ItemLista.fechamento.is_(None),
+        )
 
     def _ordenada(self) -> Any:
         return (
