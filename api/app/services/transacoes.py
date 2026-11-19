@@ -21,16 +21,19 @@ from sqlalchemy import (
     func,
     or_,
     select,
+    text,
     update,
 )
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.conversao_pluggy import estimar_competencia
 from app.enums import TipoTransacao
 from app.models import Conta, FormaPagamento, Money, Transacao
 from app.schemas.common import Paginacao
 from app.schemas.transacoes import TransacaoFiltros
+from app.services import caixa
 from app.services.base import Conflito, NaoEncontrado, _mensagem_integridade
 from app.services.cadastros import primeiro_dia_do_mes
 from app.services.ingestao import _padrao_de
@@ -42,6 +45,65 @@ BALDE_CONJUNTO = "conjunto"
 
 #: Marca "pessoa não muda" no lote — `None` já quer dizer conjunto (D-03).
 _SEM_TROCA = object()
+
+
+#: Fechamento mais distante da compra (dias) que ainda vale como o da fatura
+#: dela: além disso falta uma fatura no meio e a data não diz de qual é.
+JANELA_FATURA_DIAS = 40
+
+_DATAS_DO_CARTAO = f"""
+    WITH {caixa.CTES_FATURAS}
+    SELECT k.dia_fechamento, k.dia_vencimento, k.cc_fecha, k.cc_vence, k.ult_fech,
+           fa.fechamento, fa.vencimento
+    FROM cartao_conta k
+    LEFT JOIN faturas fa ON fa.account_id = k.account_id
+    WHERE k.fid = :fid
+    ORDER BY fa.fechamento
+"""
+
+
+def competencia_do_cartao(
+    session: Session, forma_pagamento_id: int | None, data: date
+) -> date | None:
+    """Mês do vencimento da fatura em que a compra no cartão cai (D-34, D-02).
+
+    Mesmas fontes de data da D-27 e da conversão da Pluggy, da mais firme para
+    a mais fraca: as faturas da Pluggy (a primeira que fecha depois da compra),
+    as datas da conta de crédito, os dias de fechamento e vencimento da forma
+    de pagamento (`estimar_competencia`). `None` se a forma não é de crédito
+    ou não há data nenhuma: o chamador mantém o mês da compra.
+    """
+    if forma_pagamento_id is None:
+        return None
+    linhas = session.execute(text(_DATAS_DO_CARTAO), {"fid": forma_pagamento_id}).mappings().all()
+    if not linhas:
+        return None
+    k = linhas[0]
+
+    # Compra no dia do fechamento ou depois vai para a fatura seguinte.
+    seguintes = [
+        (r["fechamento"], r["vencimento"])
+        for r in linhas
+        if r["fechamento"] is not None and r["vencimento"] is not None and r["fechamento"] > data
+    ]
+    if seguintes:
+        fecha, vence = seguintes[0]
+        if (fecha - data).days <= JANELA_FATURA_DIAS:
+            return primeiro_dia_do_mes(vence)
+
+    cc_fecha, cc_vence, ult_fech = k["cc_fecha"], k["cc_vence"], k["ult_fech"]
+    if (
+        cc_fecha is not None
+        and cc_vence is not None
+        and cc_vence > cc_fecha
+        and data < cc_fecha
+        and (ult_fech is None or data >= ult_fech)
+    ):
+        return primeiro_dia_do_mes(cc_vence)
+
+    if k["dia_fechamento"] and k["dia_vencimento"]:
+        return estimar_competencia(data, k["dia_fechamento"], k["dia_vencimento"])
+    return None
 
 
 def _aprende_categoria(
@@ -290,9 +352,12 @@ class TransacaoService:
     # -- escrita ---------------------------------------------------------
 
     def criar(self, dados: dict[str, Any]) -> dict[str, Any]:
-        # Sem competência explícita, vale o mês da data do fato (D-02).
+        # Competência explícita do usuário vale sempre. Sem ela: compra no
+        # cartão segue a fatura (D-34); o resto, o mês da data do fato (D-02).
         if dados.get("competencia") is None:
-            dados["competencia"] = primeiro_dia_do_mes(dados["data"])
+            dados["competencia"] = competencia_do_cartao(
+                self.session, dados.get("forma_pagamento_id"), dados["data"]
+            ) or primeiro_dia_do_mes(dados["data"])
         else:
             dados["competencia"] = primeiro_dia_do_mes(dados["competencia"])
 
@@ -306,8 +371,20 @@ class TransacaoService:
         if obj is None or obj.deleted_em is not None:
             raise NaoEncontrado("transação", id_)
 
-        if "competencia" in dados and dados["competencia"] is not None:
+        if dados.get("competencia") is not None:
             dados["competencia"] = primeiro_dia_do_mes(dados["competencia"])
+        elif "data" in dados or "forma_pagamento_id" in dados:
+            # Mudou a data ou a forma sem fixar a competência: no cartão, ela
+            # acompanha a fatura (D-34). Fora do cartão, fica como estava.
+            recalculada = competencia_do_cartao(
+                self.session,
+                dados.get("forma_pagamento_id", obj.forma_pagamento_id),
+                dados.get("data", obj.data),
+            )
+            if recalculada is not None:
+                dados["competencia"] = recalculada
+            else:
+                dados.pop("competencia", None)
 
         aprender = _aprende_categoria(obj, dados.get("categoria_id"), dados.get("tipo", obj.tipo))
         for campo, valor in dados.items():
