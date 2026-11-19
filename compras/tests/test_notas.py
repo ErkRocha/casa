@@ -12,6 +12,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -23,7 +24,7 @@ from sqlalchemy.orm import Session
 from compras.deps import consulta_publica, financas
 from compras.financas import FinancasIndisponivel, TransacaoResumo
 from compras.main import app
-from compras.nfce.consulta import Resposta
+from compras.nfce.consulta import ConsultaFalhou, Resposta
 from compras.nfce.leitor_svrs import FUSO
 from tests.apoio import ERIK, LAURA, produto_id
 from tests.nfce_apoio import CNPJ_A, CNPJ_B, ConsultaFalsa, Item, chave, pagina, url_qr
@@ -248,16 +249,19 @@ def test_leitor_nao_entendeu_guarda_o_conteudo_e_rele_sem_buscar(
         text("SELECT conteudo_original IS NOT NULL FROM compras.notas_fiscais")
     ).scalar_one()
 
+    # A leitura tentou o QR code e, sem entender, a chave.
+    assert len(consulta.buscas) == 2
+
     # Releitura do conteúdo guardado: continua não entendendo, e não busca.
     r = client.post(f"/notas/{nota['id']}/reler", headers=LAURA)
     assert r.json()["status"] == "erro"
-    assert len(consulta.buscas) == 1
+    assert len(consulta.buscas) == 2
 
-    # Pedindo, busca de novo.
+    # Pedindo, busca de novo (a primeira URL já lê).
     consulta.paginas[chave()] = pagina([LEITE])
     r = client.post(f"/notas/{nota['id']}/reler?buscar_de_novo=true", headers=LAURA)
     assert r.json()["status"] == "lida"
-    assert len(consulta.buscas) == 2
+    assert len(consulta.buscas) == 3
 
 
 def test_pagina_de_outro_cnpj_e_erro(client: TestClient, consulta: ConsultaFalsa) -> None:
@@ -266,6 +270,73 @@ def test_pagina_de_outro_cnpj_e_erro(client: TestClient, consulta: ConsultaFalsa
     assert nota["status"] == "erro"
     assert "não é o da chave" in nota["erro_mensagem"]
     assert nota["itens"] == []
+
+
+AMOSTRA_COMPLETA = Path(__file__).parent / "amostras" / "nfce_rs_anonimizada.html"
+CNPJ_AMOSTRA = "93015006002914"
+HASH_INVALIDO = "<html><body>100 - Hash QR Code inválido.</body></html>".encode()
+
+
+def url_chave(c: str) -> str:
+    return f"https://www.sefaz.rs.gov.br/ASP/AAE_ROOT/NFE/SAT-WEB-NFE-NFC_1.asp?chaveNFe={c}"
+
+
+def test_qr_code_com_hash_invalido_cai_para_a_chave(
+    client: TestClient, consulta: ConsultaFalsa
+) -> None:
+    c = chave(cnpj=CNPJ_AMOSTRA)
+    consulta.por_url["NFCE-COM.aspx"] = HASH_INVALIDO
+    consulta.por_url["SAT-WEB-NFE-NFC_1.asp"] = AMOSTRA_COMPLETA.read_bytes()
+    r = ler(client, url_qr(c))
+    assert r.status_code == 201, r.text
+    nota = r.json()
+    assert nota["status"] == "lida", nota
+    assert nota["erro_mensagem"] is None
+    assert nota["leitor_versao"] == "sefaz-rs-completa-1"
+    assert len(nota["itens"]) == 24
+    assert consulta.buscas == [url_qr(c), url_chave(c)]
+
+
+def test_qr_code_que_falha_cai_para_a_chave(client: TestClient, consulta: ConsultaFalsa) -> None:
+    c = chave(cnpj=CNPJ_AMOSTRA)
+    consulta.por_url["NFCE-COM.aspx"] = ConsultaFalhou("Redirecionou para o login.")
+    consulta.por_url["SAT-WEB-NFE-NFC_1.asp"] = AMOSTRA_COMPLETA.read_bytes()
+    nota = ler(client, url_qr(c)).json()
+    assert nota["status"] == "lida", nota
+    assert nota["leitor_versao"] == "sefaz-rs-completa-1"
+    assert consulta.buscas == [url_qr(c), url_chave(c)]
+
+
+def test_qr_code_que_le_nao_busca_pela_chave(client: TestClient, consulta: ConsultaFalsa) -> None:
+    c = chave()
+    consulta.paginas[c] = pagina([LEITE])
+    nota = ler(client, url_qr(c)).json()
+    assert nota["status"] == "lida"
+    assert nota["leitor_versao"] == "svrs-html-1"
+    assert consulta.buscas == [url_qr(c)]
+
+
+def test_qr_code_e_chave_falham_e_a_mensagem_diz_os_dois(
+    client: TestClient, consulta: ConsultaFalsa
+) -> None:
+    c = chave()
+    consulta.por_url["NFCE-COM.aspx"] = HASH_INVALIDO
+    consulta.por_url["SAT-WEB-NFE-NFC_1.asp"] = ConsultaFalhou("A SEFAZ respondeu 500.")
+    nota = ler(client, url_qr(c)).json()
+    assert nota["status"] == "erro"
+    assert nota["itens"] == []
+    assert "QR code" in nota["erro_mensagem"]
+    assert "chave" in nota["erro_mensagem"]
+    assert "500" in nota["erro_mensagem"]
+    assert consulta.buscas == [url_qr(c), url_chave(c)]
+
+
+def test_so_a_chave_busca_uma_vez(client: TestClient, consulta: ConsultaFalsa) -> None:
+    c = chave()
+    consulta.paginas[c] = pagina([LEITE])
+    nota = ler(client, c).json()
+    assert nota["status"] == "lida"
+    assert consulta.buscas == [url_chave(c)]
 
 
 def test_remover_e_ler_de_novo(client: TestClient, consulta: ConsultaFalsa) -> None:

@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from compras.nfce.chave import ChaveInvalida, digito_verificador, validar
-from compras.nfce.entrada import EntradaInvalida, interpretar
+from compras.nfce.entrada import EntradaInvalida, interpretar, urls_de_consulta
 from compras.nfce.leitor import FormatoDesconhecido
 from compras.nfce.leitor_rs import LeitorSefazRs
 from compras.nfce.leitor_svrs import FUSO, VERSAO, LeitorSvrsHtml
@@ -91,6 +91,26 @@ def test_entrada_pela_chave_monta_a_url() -> None:
     assert e.url_consulta == (
         f"https://www.sefaz.rs.gov.br/ASP/AAE_ROOT/NFE/SAT-WEB-NFE-NFC_1.asp?chaveNFe={numero}"
     )
+
+
+def test_entrada_expoe_a_url_por_chave_nos_dois_casos() -> None:
+    numero = chave()
+    por_chave = interpretar(numero)
+    do_qr = interpretar(url_qr(numero))
+    esperada = (
+        f"https://www.sefaz.rs.gov.br/ASP/AAE_ROOT/NFE/SAT-WEB-NFE-NFC_1.asp?chaveNFe={numero}"
+    )
+    assert por_chave.url_por_chave == esperada
+    assert por_chave.url_consulta == por_chave.url_por_chave
+    assert do_qr.url_por_chave == esperada
+    assert do_qr.url_consulta != do_qr.url_por_chave
+
+
+def test_urls_de_consulta_qr_primeiro_chave_de_reserva_sem_repetir() -> None:
+    numero = chave()
+    qr = interpretar(url_qr(numero))
+    assert urls_de_consulta(qr.url_consulta, numero) == [qr.url_consulta, qr.url_por_chave]
+    assert urls_de_consulta(qr.url_por_chave, numero) == [qr.url_por_chave]
 
 
 def test_entrada_pela_url_publica_com_a_chave() -> None:

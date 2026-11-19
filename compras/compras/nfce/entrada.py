@@ -41,6 +41,17 @@ class Entrada:
     url_consulta: str
     #: Veio a URL do QR code (True) ou só a chave (False)?
     do_qr_code: bool
+    #: A consulta pela chave, sempre possível (reserva da URL do QR code).
+    url_por_chave: str
+
+
+def urls_de_consulta(url_consulta: str, chave: str) -> list[str]:
+    """As URLs a tentar, em ordem: a do QR code primeiro, a da chave de reserva.
+
+    Sem URL de QR code (só a chave), a lista tem uma URL só.
+    """
+    por_chave = URL_FORMULARIO_POR_CHAVE.format(chave=chave)
+    return [url_consulta] if url_consulta == por_chave else [url_consulta, por_chave]
 
 
 def _chave_da_url(url: str) -> str:
@@ -83,9 +94,6 @@ def interpretar(texto: str) -> Entrada:
         )
     if chave.uf not in UFS_SUPORTADAS:
         raise EntradaInvalida(f"Nota de {chave.uf}: por enquanto só a consulta do RS é lida.")
-    url = (
-        urlsplit(bruto)._replace(scheme="https").geturl()
-        if do_qr
-        else URL_FORMULARIO_POR_CHAVE.format(chave=chave.numero)
-    )
-    return Entrada(chave=chave, url_consulta=url, do_qr_code=do_qr)
+    url_por_chave = URL_FORMULARIO_POR_CHAVE.format(chave=chave.numero)
+    url = urlsplit(bruto)._replace(scheme="https").geturl() if do_qr else url_por_chave
+    return Entrada(chave=chave, url_consulta=url, do_qr_code=do_qr, url_por_chave=url_por_chave)

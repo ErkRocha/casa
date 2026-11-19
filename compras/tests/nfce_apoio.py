@@ -116,11 +116,18 @@ class ConsultaFalsa:
     tipo: str = "text/html"
     falhar: bool = False
     buscas: list[str] = field(default_factory=list)
+    #: Resposta (ou erro) por trecho da URL, conferida antes de `paginas`.
+    por_url: dict[str, bytes | Exception] = field(default_factory=dict)
 
     def buscar(self, url: str) -> Resposta:
         self.buscas.append(url)
         if self.falhar:
             raise ConsultaFalhou("A SEFAZ não respondeu: ConnectTimeout.")
+        for trecho, resposta in self.por_url.items():
+            if trecho in url:
+                if isinstance(resposta, Exception):
+                    raise resposta
+                return Resposta(resposta, self.tipo, url)
         for chave_, conteudo in self.paginas.items():
             if chave_ in url:
                 return Resposta(conteudo, self.tipo, url)

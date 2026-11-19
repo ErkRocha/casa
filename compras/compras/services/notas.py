@@ -33,7 +33,7 @@ from compras.financas import Financas, TransacaoResumo
 from compras.models import Apelido, NotaFiscal, NotaItem, Produto
 from compras.nfce.chave import Chave, validar
 from compras.nfce.consulta import ConsultaFalhou, ConsultaPublica
-from compras.nfce.entrada import EntradaInvalida, interpretar
+from compras.nfce.entrada import EntradaInvalida, interpretar, urls_de_consulta
 from compras.nfce.html import FUSO
 from compras.nfce.leitor import FormatoDesconhecido, LeitorNota
 from compras.normalizar import normalizar
@@ -119,14 +119,28 @@ class NotaService:
 
     def _buscar_e_interpretar(self, nota: NotaFiscal, chave: Chave) -> None:
         assert self.consulta is not None, "NotaService sem consulta pública"
-        try:
-            resposta = self.consulta.buscar(nota.url_consulta)
-        except ConsultaFalhou as exc:
-            nota.status = StatusNota.ERRO
-            nota.erro_mensagem = f"Consulta à SEFAZ: {exc}"
+        # A URL do QR code primeiro; a da chave é a reserva. Qualquer resultado
+        # que não seja nota lida leva à próxima. Itens só são gravados na
+        # leitura bem-sucedida, então uma tentativa falha não deixa nada a duplicar.
+        urls = urls_de_consulta(nota.url_consulta, chave.numero)
+        erros: list[str] = []
+        for url in urls:
+            try:
+                resposta = self.consulta.buscar(url)
+            except ConsultaFalhou as exc:
+                nota.status = StatusNota.ERRO
+                nota.erro_mensagem = f"Consulta à SEFAZ: {exc}"
+                self.session.flush()
+            else:
+                self._interpretar(nota, chave, resposta.conteudo, resposta.tipo)
+            if nota.status == StatusNota.LIDA:
+                return
+            erros.append(nota.erro_mensagem or "erro sem mensagem")
+        if len(erros) > 1:
+            nota.erro_mensagem = (
+                f"Pelo QR code: {erros[0].rstrip('.')}. Pela chave: {erros[1].rstrip('.')}."
+            )
             self.session.flush()
-            return
-        self._interpretar(nota, chave, resposta.conteudo, resposta.tipo)
 
     def _interpretar(
         self, nota: NotaFiscal, chave: Chave, conteudo: bytes, tipo: str | None
