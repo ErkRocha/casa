@@ -414,6 +414,43 @@ class TransacaoService:
         self._flush()
         return self.get(id_)
 
+    def virar_transferencia(
+        self, id_: int, conta_origem_id: int, conta_destino_id: int
+    ) -> dict[str, Any]:
+        """Corrige uma despesa ou receita que era dinheiro entre contas da casa.
+
+        Vira transferência entre as duas contas (fica fora de gasto e de
+        receita), sem categoria nem ligação de estorno, como pede o
+        `ck_transacoes_transferencia_coerente`. Valor, data, descrição e
+        competência ficam; a auditoria registra a correção pelo trigger.
+        """
+        obj = self.session.get(Transacao, id_)
+        if obj is None or obj.deleted_em is not None:
+            raise NaoEncontrado("transação", id_)
+        if obj.tipo is TipoTransacao.TRANSFERENCIA:
+            raise Conflito(f"A transação {id_} já é uma transferência.")
+        if conta_origem_id == conta_destino_id:
+            raise RegraViolada("A transferência precisa de duas contas diferentes.")
+        for conta_id in (conta_origem_id, conta_destino_id):
+            conta = self.session.get(Conta, conta_id)
+            if conta is None or conta.deleted_em is not None:
+                raise NaoEncontrado("conta", conta_id)
+        if self.session.scalar(
+            select(func.count())
+            .select_from(Transacao)
+            .where(Transacao.estorno_de_id == id_, Transacao.deleted_em.is_(None))
+        ):
+            raise RegraViolada(
+                f"A transação {id_} é a compra original de um estorno: desfaça a ligação antes."
+            )
+        obj.tipo = TipoTransacao.TRANSFERENCIA
+        obj.categoria_id = None
+        obj.estorno_de_id = None
+        obj.conta_origem_id = conta_origem_id
+        obj.conta_destino_id = conta_destino_id
+        self._flush()
+        return self.get(id_)
+
     def _conferir_original(self, original_id: int | None) -> None:
         """A compra que o estorno desfez precisa ser uma despesa viva (D-34)."""
         if original_id is None:
