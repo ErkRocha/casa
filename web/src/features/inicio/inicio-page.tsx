@@ -7,6 +7,7 @@ import { usePessoas } from "@/features/cadastros/queries";
 import { useRevisarResumo } from "@/features/revisar/queries";
 import { ApiError } from "@/lib/api";
 import { competenciaDe, mesPorExtenso, somarMeses } from "@/lib/format";
+import { AvisoSyncAtrasada } from "@/features/sincronizacao/aviso-sync-atrasada";
 import { href } from "@/lib/rotas";
 import {
   Avisos,
@@ -40,6 +41,8 @@ export function InicioPage() {
 
   return (
     <div className="flex max-w-[1100px] flex-col gap-7 md:gap-8">
+      <AvisoSyncAtrasada />
+
       <header className="flex items-center gap-5 pb-1 md:pb-2">
         <BotaoIcone
           rotulo="Mês anterior"

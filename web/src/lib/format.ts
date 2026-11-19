@@ -236,6 +236,15 @@ export function quandoRelativo(iso: string, agora: Date = new Date()): string {
   return `${diaEMes(isoLocal)} às ${hora(momento)}`;
 }
 
+const SEMANA_CURTA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+/** `seg, 10 nov às 6h`: o dia da semana junto, para o aviso de sync parada. */
+export function quandoComSemana(iso: string): string {
+  const momento = new Date(iso);
+  const isoLocal = `${momento.getFullYear()}-${momento.getMonth() + 1}-${momento.getDate()}`;
+  return `${SEMANA_CURTA[momento.getDay()]}, ${diaEMes(isoLocal)} às ${hora(momento)}`;
+}
+
 // --------------------------------------------------------------------------
 // Geometria
 // --------------------------------------------------------------------------

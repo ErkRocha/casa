@@ -128,6 +128,39 @@ def test_estado_da_sincronizacao(client: TestClient, session: Session) -> None:
     assert corpo["automatica"] is False
 
 
+def test_estado_marca_atrasada_pela_ultima_sync(client: TestClient, session: Session) -> None:
+    from datetime import timedelta
+
+    # Sem mapeamentos ativos: nada a atrasar.
+    assert client.get("/sincronizacao/estado").json()["atrasada"] is False
+
+    conta = Conta(nome="Banco", tipo=TipoConta.CORRENTE)
+    session.add(conta)
+    session.flush()
+    forma = FormaPagamento(apelido="Pix Banco", tipo=TipoPagamento.PIX, conta_id=conta.id)
+    session.add(forma)
+    session.flush()
+    mapa = ContaPluggy(
+        pluggy_item_id="item",
+        pluggy_account_id="a",
+        conta_id=conta.id,
+        forma_pagamento_id=forma.id,
+        sincronizar_desde=date(2025, 10, 1),
+        ultimo_sync_em=None,
+    )
+    session.add(mapa)
+    session.commit()
+
+    # Ativo e nunca sincronizado: atrasada.
+    assert client.get("/sincronizacao/estado").json()["atrasada"] is True
+
+    agora = datetime.now(UTC)
+    for horas, esperado in ((2, False), (31, True)):
+        mapa.ultimo_sync_em = agora - timedelta(hours=horas)
+        session.commit()
+        assert client.get("/sincronizacao/estado").json()["atrasada"] is esperado, horas
+
+
 def test_transacao_traz_a_conta_da_forma(client: TestClient, session: Session) -> None:
     conta = Conta(nome="Nubank", tipo=TipoConta.CORRENTE)
     session.add(conta)

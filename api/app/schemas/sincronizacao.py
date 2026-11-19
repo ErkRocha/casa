@@ -26,6 +26,9 @@ class ExecucaoSync(BaseModel):
 class EstadoSincronizacao(BaseModel):
     #: O `ultimo_sync_em` mais recente entre os mapeamentos ativos.
     ultima_atualizacao: datetime | None
+    #: Há mapeamentos ativos e a última sync bem-sucedida é nula ou tem mais de
+    #: 30 h: o painel avisa que os bancos pararam de atualizar.
+    atrasada: bool = False
     #: Mapeamentos de conta da Pluggy ativos.
     conexoes_ativas: int
     #: A sync roda sozinha (há agenda, `SYNC_AGENDA`)? Fase 5b, passo 10.

@@ -61,7 +61,13 @@ def test_laco_dorme_ate_a_hora_e_roda_uma_por_dia() -> None:
         return ResultadoSync(simulado=False)
 
     agendador.laco(
-        Settings(), SEIS, executor=executor, agora=relogio, dormir=relogio.dormir, vezes=2
+        Settings(),
+        SEIS,
+        executor=executor,
+        agora=relogio,
+        dormir=relogio.dormir,
+        ultima_sync=lambda: relogio.agora,  # em dia: sem recuperação
+        vezes=2,
     )
     assert rodadas == [
         datetime(2026, 11, 2, 9, 0, tzinfo=UTC),
@@ -90,3 +96,64 @@ def test_uma_execucao_registra_e_nao_propaga(
 
     assert agendador.uma_execucao(Settings(), executor) == codigo
     assert trecho in capsys.readouterr().out
+
+
+def _laco_com_recuperacao(
+    ultima: datetime | None, efeito: Exception | None = None
+) -> tuple[list[datetime], Relogio]:
+    relogio = Relogio(datetime(2026, 11, 17, 15, 0, tzinfo=UTC))  # 12:00 local
+    rodadas: list[datetime] = []
+
+    def executor(cfg: Settings) -> ResultadoSync:
+        rodadas.append(relogio.agora)
+        if efeito:
+            raise efeito
+        return ResultadoSync(simulado=False)
+
+    agendador.laco(
+        Settings(),
+        SEIS,
+        executor=executor,
+        agora=relogio,
+        dormir=relogio.dormir,
+        ultima_sync=lambda: ultima,
+        vezes=1,
+    )
+    return rodadas, relogio
+
+
+def test_recupera_no_boot_quando_a_ultima_tem_mais_de_20_h(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    ultima = datetime(2026, 11, 8, 9, 0, tzinfo=UTC)
+    rodadas, _ = _laco_com_recuperacao(ultima)
+    saida = capsys.readouterr().out
+    assert "última sync bem-sucedida há 222 h (08/11 06:00); rodando a de recuperação" in saida
+    # A de recuperação (12:00 local) e depois a das 6h do dia seguinte.
+    assert rodadas == [
+        datetime(2026, 11, 17, 15, 0, tzinfo=UTC),
+        datetime(2026, 11, 18, 9, 0, tzinfo=UTC),
+    ]
+
+
+def test_recupera_no_boot_quando_nunca_houve_sync(capsys: pytest.CaptureFixture[str]) -> None:
+    rodadas, _ = _laco_com_recuperacao(None)
+    assert "nenhuma sync registrada" in capsys.readouterr().out
+    assert len(rodadas) == 2
+
+
+def test_nao_recupera_quando_a_ultima_tem_menos_de_20_h() -> None:
+    ultima = datetime(2026, 11, 16, 20, 0, tzinfo=UTC)  # 19 h antes
+    rodadas, relogio = _laco_com_recuperacao(ultima)
+    assert rodadas == [datetime(2026, 11, 18, 9, 0, tzinfo=UTC)]
+    assert relogio.sonos  # dormiu até as 6h
+
+
+def test_recuperacao_ocupada_vira_log_e_o_laco_segue(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    rodadas, relogio = _laco_com_recuperacao(None, SyncOcupada("x"))
+    assert "outra sincronização estava rodando" in capsys.readouterr().out
+    assert len(rodadas) == 2  # tentou a de recuperação e a das 6h
+    assert max(relogio.sonos) <= agendador.PEDACO_DE_SONO_S
+    assert relogio.agora == datetime(2026, 11, 18, 9, 0, tzinfo=UTC)

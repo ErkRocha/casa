@@ -2,6 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Icone } from "@/components/ui/icone";
 import { ITENS_MAIS } from "@/components/layout/navegacao";
 import { useEstadoSincronizacao } from "@/features/sincronizacao/queries";
+import { textoSyncAtrasada } from "@/features/sincronizacao/textos";
 import { quandoRelativo } from "@/lib/format";
 import { href } from "@/lib/rotas";
 
@@ -33,7 +34,11 @@ export function MaisPage() {
           ))}
         </ul>
       </Card>
-      {estado.data?.ultima_atualizacao ? (
+      {estado.data?.atrasada ? (
+        <p className="text-pequeno text-atencao-selo m-0 px-1 font-semibold">
+          {textoSyncAtrasada(estado.data.ultima_atualizacao)}
+        </p>
+      ) : estado.data?.ultima_atualizacao ? (
         <p className="text-pequeno text-texto-2 m-0 px-1">
           Bancos atualizados {quandoRelativo(estado.data.ultima_atualizacao)}
         </p>

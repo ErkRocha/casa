@@ -9,7 +9,7 @@ diz que a atualização é manual, em vez de inventar uma hora.
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
@@ -19,6 +19,27 @@ from app.models import ContaPluggy
 from app.schemas.sincronizacao import EstadoSincronizacao, ExecucaoSync, LinhaHistorico
 from app.services import execucao_sync
 from app.services.execucao_sync import EmSegundoPlano, hora_da_agenda, proxima_execucao
+
+#: Sem sync bem-sucedida há mais que isto, o painel avisa (a agenda é diária).
+HORAS_DE_ATRASO = 30
+
+
+def ultima_sync_bem_sucedida(session: Session) -> datetime | None:
+    """O `ultimo_sync_em` mais recente entre os mapeamentos ativos."""
+    return session.execute(
+        select(func.max(ContaPluggy.ultimo_sync_em)).where(
+            ContaPluggy.deleted_em.is_(None), ContaPluggy.ativo.is_(True)
+        )
+    ).scalar_one()
+
+
+def ultima_sync_no_banco() -> datetime | None:
+    """Lê `ultima_sync_bem_sucedida` numa sessão própria (o agendador)."""
+    from app.db import SessionLocal
+
+    with SessionLocal() as session:
+        return ultima_sync_bem_sucedida(session)
+
 
 #: As importações do período, com o que cada uma trouxe. Conta os itens
 #: mesmo apagados: depois de desfeita, a linha mostra o que ela tinha trazido.
@@ -63,16 +84,20 @@ class SincronizacaoService:
         self.execucoes = execucoes or execucao_sync.em_segundo_plano
 
     def estado(self, agora: datetime | None = None) -> EstadoSincronizacao:
-        ultima, ativas = self.session.execute(
-            select(func.max(ContaPluggy.ultimo_sync_em), func.count()).where(
+        ultima = ultima_sync_bem_sucedida(self.session)
+        ativas = self.session.execute(
+            select(func.count()).where(
                 ContaPluggy.deleted_em.is_(None), ContaPluggy.ativo.is_(True)
             )
-        ).one()
+        ).scalar_one()
+        agora = agora or datetime.now(UTC)
         hora = hora_da_agenda(self.cfg.sync_agenda)
-        proxima = proxima_execucao(agora or datetime.now(UTC), hora) if hora else None
+        proxima = proxima_execucao(agora, hora) if hora else None
         execucao = self.execucoes.estado()
         return EstadoSincronizacao(
             ultima_atualizacao=ultima,
+            atrasada=bool(ativas)
+            and (ultima is None or agora - ultima > timedelta(hours=HORAS_DE_ATRASO)),
             conexoes_ativas=int(ativas or 0),
             automatica=hora is not None,
             proxima_execucao=proxima,

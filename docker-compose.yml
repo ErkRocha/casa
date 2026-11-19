@@ -99,7 +99,9 @@ services:
   # processo que dorme até a hora e roda; nunca dois ao mesmo tempo (a
   # trava do Postgres recusa a sync se o painel ou um `make sync` estiver
   # rodando). Log: `docker compose logs agendador`. Falha vira log, e a
-  # próxima tentativa é no dia seguinte.
+  # próxima tentativa é no dia seguinte. Ao subir, se a última sync
+  # bem-sucedida for nula ou tiver mais de 20 h (Docker ficou desligado),
+  # roda uma de recuperação na hora, em vez de esperar a próxima hora.
   agendador:
     image: casa-api:local
     build:

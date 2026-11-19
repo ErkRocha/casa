@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Conferência geral da casa, SÓ LEITURA: containers, health das APIs, última
-# sync do agendador, servidor MCP, túnel do ngrok e tailscale serve.
+# Conferência geral da casa, SÓ LEITURA: containers, health das APIs, sync
+# (critério do Início), agendador, servidor MCP, túnel do ngrok e tailscale serve.
 #
 # Chamado por `make conferir`. Uma linha por item: OK, AVISO ou FALHA.
 # Nunca imprime o token do MCP nem endereços (ngrok, tailnet).
@@ -53,27 +53,55 @@ health() { # rótulo caminho
 health "/api/health" "/api/health"
 health "/api/compras/health" "/api/compras/health"
 
-# --- agendador --------------------------------------------------------------
+# --- sync (mesmo critério do Início: `atrasada` da API) ---------------------
+estado_sync="$(curl -s -m 5 "$WEB/api/sincronizacao/estado" 2>/dev/null)"
+if [[ "$estado_sync" != *'"atrasada"'* ]]; then
+    linha AVISO "sync: a API não respondeu o estado (ou está sem o campo atrasada; rebuild da api)"
+else
+    # python lê o JSON: "atrasada|dd/mm/aaaa hh:mm|horas" (data vazia = nunca).
+    leitura="$(python -c '
+import json, sys
+from datetime import datetime, timezone
+d = json.loads(sys.stdin.read())
+u = d.get("ultima_atualizacao")
+if u:
+    t = datetime.fromisoformat(u)
+    print("%s|%s|%d" % (d["atrasada"], t.astimezone().strftime("%d/%m/%Y %H:%M"),
+          (datetime.now(timezone.utc) - t).total_seconds() // 3600))
+else:
+    print("%s||" % d["atrasada"])
+' <<<"$estado_sync" 2>/dev/null)"
+    IFS='|' read -r atrasada quando horas <<<"${leitura%$''}"
+    if [ -z "$atrasada" ]; then
+        linha AVISO "sync: não consegui ler o estado da sincronização"
+    elif [ "$atrasada" = True ]; then
+        if [ -n "$quando" ]; then
+            linha FALHA "sync: última bem-sucedida em $quando (há ${horas} h): atrasada; confira o Docker Desktop e rode make sync ou Atualizar agora"
+        else
+            linha FALHA "sync: nenhuma bem-sucedida registrada: atrasada; confira o Docker Desktop e rode make sync ou Atualizar agora"
+        fi
+    elif [ -n "$quando" ]; then
+        linha OK "sync: última bem-sucedida em $quando (há ${horas} h)"
+    else
+        linha OK "sync: sem conexões ativas com a Pluggy"
+    fi
+fi
+
+# --- agendador (informativo; o critério de atraso é o da linha acima) -------
 logs_ag="$(docker logs casa_agendador 2>&1)"
 ultima="$(grep 'sync: ' <<<"$logs_ag" | tail -1)"
 proxima="$(grep 'próxima sync em' <<<"$logs_ag" | tail -1 | sed 's/.*próxima sync em //')"
 if [ -z "$ultima" ]; then
-    linha AVISO "agendador: nenhuma sync desde que o container subiu; próxima ${proxima:-?}"
+    linha AVISO "agendador: nenhuma execução nos logs desde que o container subiu; próxima ${proxima:-?}"
 else
     quando="${ultima:0:16}"   # dd/mm/aaaa hh:mm
-    iso="${quando:6:4}-${quando:3:2}-${quando:0:2} ${quando:11:5}"
-    idade_h=$(( ( $(date +%s) - $(date -d "$iso" +%s 2>/dev/null || date +%s) ) / 3600 ))
     resumo="${ultima#*sync: }"
     if [[ "$ultima" == *"sync: ok"* && "$ultima" != *"erros:"* ]]; then
-        if [ "$idade_h" -gt 26 ]; then
-            linha FALHA "agendador: última sync há ${idade_h} h ($quando): atrasada; próxima ${proxima:-?}"
-        else
-            linha OK "agendador: última sync $quando: $resumo; próxima ${proxima:-?}"
-        fi
+        linha OK "agendador: última execução $quando: $resumo; próxima ${proxima:-?}"
     elif [[ "$ultima" == *"começando"* ]]; then
         linha AVISO "agendador: sync começou em $quando e ainda não terminou"
     else
-        linha FALHA "agendador: última sync $quando: $resumo"
+        linha AVISO "agendador: última execução $quando: $resumo"
     fi
 fi
 

@@ -10,7 +10,9 @@ Windows (`scripts/local/agendar.sh`), que chama o `pluggy_sync` direto.
   Postgres (`execucao_sync`) recusa a sync se o "Atualizar agora" do painel
   ou um `make sync` estiver rodando: esta desiste e registra, sem esperar.
 * **Falha vira log, não retentativa infinita** (roadmap): uma tentativa por
-  dia; a seguinte é amanhã, na mesma hora.
+  dia; a seguinte é amanhã, na mesma hora. A exceção é a sync de recuperação:
+  ao subir, se a última bem-sucedida for nula ou tiver mais de 20 h (o Docker
+  ficou desligado), roda uma agora em vez de esperar a próxima hora da agenda.
 * **Log** numa linha por execução, na saída padrão (`docker compose logs
   agendador`), com o que entrou, o que foi para a revisão e os erros.
 """
@@ -36,9 +38,12 @@ from app.services.execucao_sync import (
     hora_da_agenda,
     proxima_execucao,
 )
+from app.services.sincronizacao import ultima_sync_no_banco
 from app.services.sync_pluggy import ResultadoSync
 
 HORA_PADRAO = time(6, 0)
+#: Ao subir, sem sync bem-sucedida há mais que isto, roda uma na hora.
+HORAS_PARA_RECUPERAR = 20
 #: O sono é em pedaços: o `docker compose stop` não espera um dia inteiro.
 PEDACO_DE_SONO_S = 60.0
 
@@ -81,6 +86,35 @@ def dormir_ate(
         dormir(min(falta, PEDACO_DE_SONO_S))
 
 
+def recuperar_se_preciso(
+    cfg: Settings,
+    executor: Callable[[Settings], ResultadoSync],
+    ultima_sync: Callable[[], datetime | None],
+    agora: datetime,
+) -> None:
+    """Sync de recuperação no boot: última bem-sucedida nula ou > 20 h.
+
+    `SyncOcupada` (painel ou `make sync` rodando) vira log em `uma_execucao`.
+    Falha ao ler o banco também só vira log: o laço normal segue.
+    """
+    try:
+        ultima = ultima_sync()
+    except Exception as exc:
+        log(f"agendador: não consegui ler a última sync ({type(exc).__name__}: {exc})")
+        return
+    if ultima is None:
+        log("agendador: nenhuma sync registrada; rodando a de recuperação agora")
+    else:
+        horas = (agora - ultima).total_seconds() / 3600
+        if horas <= HORAS_PARA_RECUPERAR:
+            return
+        log(
+            f"agendador: última sync bem-sucedida há {int(horas)} h "
+            f"({ultima.astimezone(FUSO):%d/%m %H:%M}); rodando a de recuperação agora"
+        )
+    uma_execucao(cfg, executor)
+
+
 def laco(
     cfg: Settings,
     hora: time,
@@ -88,9 +122,12 @@ def laco(
     executor: Callable[[Settings], ResultadoSync] = executar,
     agora: Callable[[], datetime] = lambda: datetime.now(UTC),
     dormir: Callable[[float], None] = relogio.sleep,
+    ultima_sync: Callable[[], datetime | None] = ultima_sync_no_banco,
     vezes: int | None = None,
 ) -> None:
-    """Dorme até a próxima `hora`, roda, repete. `vezes` limita (teste)."""
+    """Recupera no boot se preciso, depois dorme até a próxima `hora`, roda,
+    repete. `vezes` limita (teste) e não conta a sync de recuperação."""
+    recuperar_se_preciso(cfg, executor, ultima_sync, agora())
     feitas = 0
     while vezes is None or feitas < vezes:
         alvo = proxima_execucao(agora(), hora)

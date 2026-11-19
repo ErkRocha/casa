@@ -15,6 +15,8 @@ export interface ExecucaoSync {
 
 export interface EstadoSincronizacao {
   ultima_atualizacao: string | null;
+  /** Há conexões ativas e a última sync tem mais de 30 h (ou nunca houve). */
+  atrasada: boolean;
   conexoes_ativas: number;
   /** A sync roda sozinha (há agenda)? */
   automatica: boolean;

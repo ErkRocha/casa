@@ -1,6 +1,7 @@
 import { Icone } from "@/components/ui/icone";
 import { useRevisarResumo } from "@/features/revisar/queries";
 import { useEstadoSincronizacao } from "@/features/sincronizacao/queries";
+import { textoSyncAtrasada } from "@/features/sincronizacao/textos";
 import { quandoRelativo } from "@/lib/format";
 import { href, type Rota } from "@/lib/rotas";
 import { cn } from "@/lib/utils";
@@ -105,9 +106,16 @@ export function BarraLateral({
 
       {/* `sr-only` no span, não no parágrafo: o `not-sr-only` zera margem e
           padding, e levaria junto o `mt-auto` que prende o texto no rodapé. */}
-      <p className="text-pequeno text-texto-2 mt-auto mb-0 px-6 leading-normal">
+      <p
+        className={cn(
+          "text-pequeno mt-auto mb-0 px-6 leading-normal",
+          estado.data?.atrasada ? "text-atencao-selo font-semibold" : "text-texto-2",
+        )}
+      >
         <span className={someNoRecolhido}>
-          {estado.data?.ultima_atualizacao
+          {estado.data?.atrasada
+            ? textoSyncAtrasada(estado.data.ultima_atualizacao)
+            : estado.data?.ultima_atualizacao
             ? `Bancos atualizados ${quandoRelativo(estado.data.ultima_atualizacao)}`
             : estado.data
               ? "Bancos ainda não sincronizados"
