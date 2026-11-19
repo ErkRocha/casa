@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: test-db help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-remover-abertas pluggy-resgates d34-reaplicar corrigir-transacao compras-role compras-migrate compras-seed compras-carga-cardapio compras-test compras-lint financas-role conferir
+.PHONY: test-db help up dev down logs migrate revision seed test lint fmt shell psql reset roles relatorio relatorio-seco dossie validar pluggy-diagnostico pluggy-mapear sync pluggy-categorias pluggy-diagnostico-importacao pluggy-reprocessar pluggy-retroativo pluggy-remover-abertas pluggy-resgates d34-reaplicar corrigir-transacao compras-role compras-migrate compras-seed compras-carga-cardapio compras-test compras-lint notas-simular financas-role conferir
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -151,6 +151,10 @@ compras-carga-cardapio: ## Pessoas, produtos com medida e 15 receitas do cardáp
 
 compras-test: test-db ## Roda o pytest do serviço de compras (no banco casa_test)
 	$(COMPOSE) run --rm compras-role sh -c 'TEST_DATABASE_URL="$${COMPRAS_DONO_DATABASE_URL%/*}/casa_test" pytest'
+
+# D-33: lê as duas notas reais anonimizadas de ponta a ponta contra os dados reais, tudo em uma transação desfeita; finanças só por leitura. Não grava nada.
+notas-simular: ## Simula o fluxo das notas reais (D-33) sem gravar nada
+	$(COMPOSE) run --rm compras python -m scripts.simular_notas_reais
 
 compras-lint: ## ruff + mypy do serviço de compras
 	$(COMPOSE) run --rm compras ruff check .
