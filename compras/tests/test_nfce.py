@@ -18,6 +18,7 @@ from compras.nfce.leitor_svrs import FUSO, VERSAO, LeitorSvrsHtml
 from tests.nfce_apoio import CNPJ_A, Item, chave, pagina, url_qr
 
 AMOSTRA_REAL = Path(__file__).parent / "amostras" / "nfce_rs_anonimizada.html"
+AMOSTRA_QR = Path(__file__).parent / "amostras" / "nfce_rs_qrcode_anonimizada.html"
 
 # --- chave ----------------------------------------------------------------------
 
@@ -232,6 +233,32 @@ def test_leitor_com_amostra_real_anonimizada() -> None:
     assert segundo.unidade == "UN"
     assert segundo.valor_unitario == Decimal("11.98")
     assert segundo.valor_total == Decimal("23.96")
+
+
+def test_leitor_do_qr_code_com_amostra_real_anonimizada() -> None:
+    """A página do QR code (portal SVRS) de uma nota real (Boa Vista, 19/11/2026).
+
+    Diferente da Consulta Completa: UTF-8, código interno sem zeros à
+    esquerda e a forma de pagamento, que a página traz, ainda não é lida.
+    """
+    nota = LeitorSefazRs().ler(AMOSTRA_QR.read_bytes(), "text/html")
+    assert nota.versao == "svrs-html-1"
+    assert nota.cnpj == "91292987006232"
+    assert nota.razao_social == "BOA VISTA - PF MATRIZ- Loja 0062"
+    assert nota.cidade == "PASSO FUNDO"
+    assert nota.emitida_em == datetime(2026, 11, 19, 18, 42, 9, tzinfo=FUSO)
+    assert nota.valor_total == Decimal("16.99")
+    assert nota.desconto_total == Decimal("0")
+    assert nota.forma_pagamento is None
+    assert len(nota.itens) == 1
+    item = nota.itens[0]
+    assert item.descricao == "SALG FANDANGOS 160G PR"
+    assert item.quantidade == Decimal("1")
+    assert item.unidade == "UN"
+    assert item.valor_unitario == Decimal("16.99")
+    assert item.valor_total == Decimal("16.99")
+    assert item.codigo == "6528693"
+    assert item.gtin is None
 
 
 def test_composto_escolhe_o_leitor_do_qr_code() -> None:

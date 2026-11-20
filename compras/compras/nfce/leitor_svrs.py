@@ -1,9 +1,9 @@
 """Leitor da página da consulta pública da NFC-e no portal SVRS (RS).
 
-**Layout do QR code, ainda sem validação com uma nota real.** A consulta
-pela chave lê a "Consulta Completa" (``leitor_completa.py``), validada com
-uma nota real em 18/11/2026. Este leitor segue o layout conhecido da página
-"DANFE NFC-e" do portal SVRS, que a URL do QR code pode mostrar:
+**Layout do QR code, validado com uma nota real em 20/11/2026**
+(``tests/amostras/nfce_rs_qrcode_anonimizada.html``). A consulta pela chave
+lê a "Consulta Completa" (``leitor_completa.py``). Este leitor lê a página
+"DANFE NFC-e" do portal SVRS, que a URL do QR code mostra:
 
 * emitente: ``.txtTopo`` (razão social), e no mesmo bloco ``.text`` com o
   CNPJ e outro com o endereço;
@@ -13,9 +13,9 @@ uma nota real em 18/11/2026. Este leitor segue o layout conhecido da página
   R$:", "Descontos R$:");
 * emissão: o texto "Emissão: dd/mm/aaaa hh:mm:ss" em ``#infos``.
 
-Quando chegar uma amostra desse layout (anonimizada, ver
-``tests/amostras/README.md``), um teste passa a rodar contra ela. Se o
-layout real for outro, troque este leitor por outro com outra ``VERSAO``:
+A página também traz a forma de pagamento (``#linhaForma``), que este
+leitor ainda não lê. Se o layout mudar, troque este leitor por outro com
+outra ``VERSAO``:
 as notas lidas por esta versão continuam com o conteúdo guardado e podem
 ser relidas.
 """

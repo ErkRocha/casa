@@ -18,9 +18,14 @@ suco "SUCO NATURALE LARANJA INT 3L" tem o mesmo código interno nas duas
 notas; `test_notas_reais.py` usa as duas para provar que a variante
 aprendida na primeira reconhece o item na segunda.
 
-**Falta** uma amostra do layout do QR code (portal SVRS, `#tabResult`),
-lido por `leitor_svrs.py`, que hoje só é testado com páginas sintéticas
-(`tests/nfce_apoio.py`).
+`nfce_rs_qrcode_anonimizada.html` é a página do QR code (portal SVRS,
+`#tabResult`) de uma nota real (Boa Vista, 19/11/2026, 1 item, R$ 16,99),
+lida por `compras/nfce/leitor_svrs.py`. Anonimizada: chave, número, série e
+protocolo inventados (a chave inventada mantém UF, mês, CNPJ e modelo e tem
+dígito verificador válido); forma de pagamento trocada. A página não traz
+CPF ("Consumidor não identificado") nem o hash do QR. Vem em UTF-8. Testada
+em `test_nfce.py` (leitor) e `test_notas.py` (leitura pelo link do portal,
+sem cair para a chave).
 
 ## Como acrescentar uma amostra
 

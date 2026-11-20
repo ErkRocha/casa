@@ -283,6 +283,31 @@ def test_qr_code_que_le_nao_busca_pela_chave(client: TestClient, consulta: Consu
     assert consulta.buscas == [url_qr(c)]
 
 
+AMOSTRA_QR = Path(__file__).parent / "amostras" / "nfce_rs_qrcode_anonimizada.html"
+#: A chave inventada da amostra (CNPJ do mercado mantido) e um hash inventado.
+CHAVE_AMOSTRA_QR = "43261191292987006232650010000543211876543210"
+URL_QR_PORTAL = (
+    "https://dfe-portal.svrs.rs.gov.br/Dfe/QrCodeNFce?p="
+    f"{CHAVE_AMOSTRA_QR}|2|1|1|0123456789abcdef0123456789abcdef01234567"
+)
+
+
+def test_qr_code_do_portal_le_a_amostra_real_sem_buscar_pela_chave(
+    client: TestClient, consulta: ConsultaFalsa
+) -> None:
+    consulta.por_url["QrCodeNFce"] = AMOSTRA_QR.read_bytes()
+    r = ler(client, URL_QR_PORTAL)
+    assert r.status_code == 201, r.text
+    nota = r.json()
+    assert nota["status"] == "lida", nota
+    assert nota["leitor_versao"] == "svrs-html-1"
+    assert nota["chave_acesso"] == CHAVE_AMOSTRA_QR
+    assert nota["valor_total"] == "16.99"
+    assert nota["diferenca"] == "0.00"
+    assert [i["codigo"] for i in nota["itens"]] == ["6528693"]
+    assert consulta.buscas == [URL_QR_PORTAL]
+
+
 def test_qr_code_e_chave_falham_e_a_mensagem_diz_os_dois(
     client: TestClient, consulta: ConsultaFalsa
 ) -> None:

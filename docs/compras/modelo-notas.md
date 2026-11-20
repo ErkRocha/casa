@@ -51,8 +51,8 @@ Uma NFC-e real de supermercado do RS (24 itens, 15/11/2026), lida pela
 consulta por chave da SEFAZ-RS, que devolve a página "Consulta Completa da
 NFC-e". A amostra anonimizada está em
 `compras/tests/amostras/nfce_rs_anonimizada.html`. O layout do QR code
-(portal SVRS) ainda não foi visto com nota real; se ele trouxer algo a mais,
-entra aqui como diferença.
+(portal SVRS) foi visto com nota real em 20/11/2026; as diferenças estão em
+"Layout do QR code com nota real", abaixo.
 
 **As duas formas de ler.** O link do QR code é tentado primeiro; se a SEFAZ
 recusar (o hash do QR é conferido: um link inventado recebe "100 - Hash QR
@@ -82,6 +82,33 @@ A página traz também:
 O que isso muda, em resumo: a identidade da variante sem GTIN é o código do
 mercado; o desconto é sempre rateado; a sugestão de medida vem da descrição;
 a forma de pagamento ajuda a escolher a despesa.
+
+### Layout do QR code com nota real (20/11/2026)
+
+Uma NFC-e real de supermercado do RS (Boa Vista, Passo Fundo, 19/11/2026,
+1 item, R$ 16,99), lida pelo link do QR code
+(`dfe-portal.svrs.rs.gov.br/Dfe/QrCodeNFce?p=<chave>|2|1|1|<hash>`). **Leu
+pelo QR**, sem cair para a chave: `leitor_versao = svrs-html-1`, uma busca
+só. A amostra anonimizada está em
+`compras/tests/amostras/nfce_rs_qrcode_anonimizada.html` (chave, número,
+série e protocolo inventados; forma de pagamento trocada; a página não
+traz CPF nem o hash do QR).
+
+O que a página do QR traz de diferente da Consulta Completa:
+
+| ponto | QR code (`svrs-html-1`) | Consulta Completa (`sefaz-rs-completa-1`) |
+|---|---|---|
+| tamanho e codificação | ~4 KB, UTF-8 | 20–30 KB, iso-8859-1 |
+| código do item | "(Código: 6528693)", sem zeros à esquerda | 18 dígitos com zeros; o leitor tira os zeros, então o código é o mesmo nos dois e a variante casa |
+| código de barras | não traz | não traz |
+| desconto | não visto (nota sem desconto); o leitor procura "Descontos R$" em `#totalNota` | só o da nota |
+| forma de pagamento | **traz** ("Cartão de Crédito" e o valor, em `#totalNota`), mas o leitor **ainda não lê**: `forma_pagamento_nota` fica nulo | lida |
+| consumidor | "Consumidor não identificado" quando não há CPF | CPF quando informado |
+| extras | "Via Consumidor", versão do XML e do XSLT | — |
+
+O que isso muda: nada no modelo. Ler pelo QR perde só a forma de pagamento,
+que ajuda a escolher a despesa; fica pendente ensinar o `leitor_svrs.py` a
+lê-la (a linha `#linhaForma` seguida de `label.tx` com o valor).
 
 ---
 
