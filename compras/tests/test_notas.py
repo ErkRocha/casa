@@ -309,6 +309,120 @@ def test_qr_code_do_portal_le_a_amostra_real_sem_buscar_pela_chave(
     assert consulta.buscas == [URL_QR_PORTAL]
 
 
+# --- reler só a forma de pagamento ---------------------------------------------------
+
+
+def _nota_antiga_do_qr(client: TestClient, consulta: ConsultaFalsa, session: Session) -> int:
+    """A amostra lida como o leitor antigo lia: sem forma, ligada a uma transação."""
+    consulta.por_url["QrCodeNFce"] = AMOSTRA_QR.read_bytes()
+    nota = ler(client, URL_QR_PORTAL).json()
+    session.execute(
+        text(
+            "UPDATE compras.notas_fiscais SET forma_pagamento_nota = NULL, transacao_id = 77 "
+            "WHERE id = :i"
+        ),
+        {"i": nota["id"]},
+    )
+    session.commit()
+    return int(nota["id"])
+
+
+def _reler_forma(client: TestClient, id_: int, **params: Any) -> Any:
+    return client.post(f"/notas/{id_}/reler-forma-pagamento", params=params, headers=ERIK)
+
+
+def _itens_vivos(session: Session, id_: int) -> list[tuple[Any, ...]]:
+    return [
+        tuple(r)
+        for r in session.execute(
+            text(
+                "SELECT id, descricao_original, valor_total FROM compras.nota_itens "
+                "WHERE nota_fiscal_id = :i AND deleted_em IS NULL ORDER BY id"
+            ),
+            {"i": id_},
+        )
+    ]
+
+
+def test_reler_forma_preenche_so_a_forma_sem_tocar_itens_nem_despesa(
+    client: TestClient, consulta: ConsultaFalsa, session: Session
+) -> None:
+    id_ = _nota_antiga_do_qr(client, consulta, session)
+    itens_antes = _itens_vivos(session, id_)
+    buscas_antes = len(consulta.buscas)
+
+    r = _reler_forma(client, id_)
+    assert r.status_code == 200, r.text
+    nota = r.json()
+    assert nota["forma_pagamento_nota"] == "Cartão de Débito"
+    assert nota["transacao_id"] == 77
+    assert nota["status"] == "lida"
+    session.expire_all()
+    assert _itens_vivos(session, id_) == itens_antes
+    assert len(consulta.buscas) == buscas_antes  # não foi à SEFAZ
+    autor, antes, depois = session.execute(
+        text(
+            "SELECT autor, dados_antes->>'forma_pagamento_nota', "
+            "dados_depois->>'forma_pagamento_nota' FROM compras.auditoria "
+            "WHERE tabela = 'notas_fiscais' AND registro_id = :i AND acao = 'UPDATE' "
+            "ORDER BY id DESC LIMIT 1"
+        ),
+        {"i": id_},
+    ).one()
+    assert (autor, antes, depois) == ("Erik", None, "Cartão de Débito")
+
+
+def test_reler_forma_nao_sobrescreve_sem_pedir(
+    client: TestClient, consulta: ConsultaFalsa, session: Session
+) -> None:
+    id_ = _nota_antiga_do_qr(client, consulta, session)
+    session.execute(
+        text("UPDATE compras.notas_fiscais SET forma_pagamento_nota = 'Pix' WHERE id = :i"),
+        {"i": id_},
+    )
+    session.commit()
+
+    r = _reler_forma(client, id_)
+    assert r.status_code == 409, r.text
+    assert "Pix" in r.text
+    assert client.get(f"/notas/{id_}").json()["forma_pagamento_nota"] == "Pix"
+
+    r = _reler_forma(client, id_, sobrescrever="true")
+    assert r.status_code == 200, r.text
+    assert r.json()["forma_pagamento_nota"] == "Cartão de Débito"
+
+
+def test_reler_forma_recusa_nota_sem_pagina_guardada(
+    client: TestClient, consulta: ConsultaFalsa, session: Session
+) -> None:
+    id_ = _nota_antiga_do_qr(client, consulta, session)
+    session.execute(
+        text("UPDATE compras.notas_fiscais SET conteudo_original = NULL WHERE id = :i"),
+        {"i": id_},
+    )
+    session.commit()
+    r = _reler_forma(client, id_)
+    assert r.status_code == 422, r.text
+    assert "página guardada" in r.text
+
+
+def test_reler_forma_recusa_nota_com_erro(client: TestClient, consulta: ConsultaFalsa) -> None:
+    consulta.falhar = True
+    nota = ler(client, URL_QR_PORTAL).json()
+    assert nota["status"] == "erro"
+    assert _reler_forma(client, nota["id"]).status_code == 409
+
+
+def test_reler_forma_com_pagina_sem_forma_nao_muda_nada(
+    client: TestClient, consulta: ConsultaFalsa
+) -> None:
+    nota = nota_lida(client, consulta, [LEITE])
+    assert nota["forma_pagamento_nota"] is None
+    r = _reler_forma(client, nota["id"])
+    assert r.status_code == 200, r.text
+    assert r.json()["forma_pagamento_nota"] is None
+
+
 def test_qr_code_e_chave_falham_e_a_mensagem_diz_os_dois(
     client: TestClient, consulta: ConsultaFalsa
 ) -> None:

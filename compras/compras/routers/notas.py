@@ -137,6 +137,29 @@ def reler(
     return _detalhe(servico, nota, com_proximos=True)
 
 
+@router.post(
+    "/{id_}/reler-forma-pagamento",
+    response_model=NotaDetalhe,
+    responses={
+        409: {"description": "Nota não lida, ou forma já preenchida sem `sobrescrever`"},
+        422: {"description": "Sem página guardada, ou página que o leitor não entende"},
+    },
+)
+def reler_forma_pagamento(
+    id_: int,
+    session: SessionDep,
+    quem: QuemDep,
+    leitor: LeitorDep,
+    sobrescrever: Annotated[bool, Query()] = False,
+) -> Any:
+    """Relê só a forma de pagamento da página guardada, sem tocar nos itens
+    nem na despesa ligada. Página sem forma: a nota volta sem mudança."""
+    servico = NotaService(session, leitor=leitor)
+    nota = servico.reler_forma_pagamento(id_, sobrescrever)
+    session.commit()
+    return _detalhe(servico, nota)
+
+
 def _item_resposta(servico: NotaService, item: NotaItem) -> NotaItemLeitura:
     return NotaItemLeitura.de(item, servico.precos_da_nota(item.nota_fiscal_id).get(item.id))
 

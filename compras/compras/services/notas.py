@@ -131,6 +131,36 @@ class NotaService:
         definir_autor(self.session, quem)
         return nota
 
+    def reler_forma_pagamento(self, id_: int, sobrescrever: bool = False) -> NotaFiscal:
+        """Relê só `forma_pagamento_nota` da página guardada.
+
+        Para nota lida antes de o leitor saber a forma (o QR code antes de
+        20/11/2026). Não toca nos itens, nos totais nem na despesa ligada, e
+        não busca na SEFAZ. Nota com erro: 409 (use `reler`). Sem página
+        guardada ou página que o leitor não entende: 422. Campo já preenchido:
+        409, a não ser com `sobrescrever`. Página sem forma: nada muda. O
+        autor da auditoria é quem pediu (o `X-Quem` da requisição).
+        """
+        nota = self.get(id_)
+        if nota.status != StatusNota.LIDA:
+            raise Conflito("A nota não foi lida: use reler.")
+        if not nota.conteudo_original:
+            raise RegraViolada("A nota não tem a página guardada.")
+        if nota.forma_pagamento_nota and not sobrescrever:
+            raise Conflito(
+                f"A nota já tem forma de pagamento ({nota.forma_pagamento_nota}); "
+                "use sobrescrever para trocar."
+            )
+        assert self.leitor is not None, "NotaService sem leitor"
+        try:
+            lida = self.leitor.ler(nota.conteudo_original, nota.conteudo_tipo)
+        except FormatoDesconhecido as exc:
+            raise RegraViolada(f"Leitor {self.leitor.versao}: {exc}") from exc
+        if lida.forma_pagamento and lida.forma_pagamento != nota.forma_pagamento_nota:
+            nota.forma_pagamento_nota = lida.forma_pagamento
+            self.session.flush()
+        return nota
+
     def _buscar_e_interpretar(self, nota: NotaFiscal, chave: Chave) -> None:
         assert self.consulta is not None, "NotaService sem consulta pública"
         # A URL do QR code primeiro; a da chave é a reserva. Qualquer resultado

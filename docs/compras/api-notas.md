@@ -32,6 +32,7 @@ despesa dias depois.
 | POST | `/notas` | Como hoje. A resposta ganha `proximos`: `{"ligar_despesa": bool, "itens_sem_variante": n, "conferencia": "pendente" \| "sem_lista" \| "feita"}`, para a tela saber o que oferecer |
 | GET | `/notas?conferida=&com_transacao=&limite=&offset=` | Paginada com total. Os filtros servem às filas "notas sem despesa" e "notas sem conferência" |
 | GET | `/notas/{id}` | Como hoje, e cada item traz a variante, o preço cheio, o desconto (linha e rateado), o preço pago e o preço comparável (`"por": "kg" \| "l" \| "un"`) |
+| POST | `/notas/{id}/reler-forma-pagamento?sobrescrever=` | **Novo (20/11/2026).** Relê só `forma_pagamento_nota` da página guardada, para nota lida antes de o leitor do QR code saber a forma. Não toca nos itens, nos totais nem na despesa ligada, e não vai à SEFAZ. Nota com erro: 409 (use `reler`). Sem página guardada ou página que o leitor não entende: 422. Forma já preenchida: 409, a não ser com `sobrescrever=true`. Página sem forma: 200 sem mudança. Exige `X-Quem`, que vira o autor da auditoria |
 
 ## Ligação à despesa
 
