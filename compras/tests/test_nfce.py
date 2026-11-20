@@ -238,8 +238,8 @@ def test_leitor_com_amostra_real_anonimizada() -> None:
 def test_leitor_do_qr_code_com_amostra_real_anonimizada() -> None:
     """A página do QR code (portal SVRS) de uma nota real (Boa Vista, 19/11/2026).
 
-    Diferente da Consulta Completa: UTF-8, código interno sem zeros à
-    esquerda e a forma de pagamento, que a página traz, ainda não é lida.
+    Diferente da Consulta Completa: UTF-8 e código interno sem zeros à
+    esquerda. A forma de pagamento foi trocada na anonimização (era crédito).
     """
     nota = LeitorSefazRs().ler(AMOSTRA_QR.read_bytes(), "text/html")
     assert nota.versao == "svrs-html-1"
@@ -249,7 +249,7 @@ def test_leitor_do_qr_code_com_amostra_real_anonimizada() -> None:
     assert nota.emitida_em == datetime(2026, 11, 19, 18, 42, 9, tzinfo=FUSO)
     assert nota.valor_total == Decimal("16.99")
     assert nota.desconto_total == Decimal("0")
-    assert nota.forma_pagamento is None
+    assert nota.forma_pagamento == "Cartão de Débito"
     assert len(nota.itens) == 1
     item = nota.itens[0]
     assert item.descricao == "SALG FANDANGOS 160G PR"
@@ -259,6 +259,20 @@ def test_leitor_do_qr_code_com_amostra_real_anonimizada() -> None:
     assert item.valor_total == Decimal("16.99")
     assert item.codigo == "6528693"
     assert item.gtin is None
+
+
+def test_leitor_do_qr_code_sem_forma_de_pagamento() -> None:
+    # A página de teste tem o cabeçalho "Forma de pagamento" e nenhuma linha.
+    nota = LeitorSvrsHtml().ler(pagina([Item("ARROZ 5KG", "1", "25.90")]), "text/html")
+    assert nota.forma_pagamento is None
+
+
+def test_leitor_do_qr_code_com_varias_formas_fica_com_a_de_maior_valor() -> None:
+    itens = [Item("ARROZ 5KG", "1", "25.90"), Item("FEIJAO 1KG", "1", "8.10")]
+    formas = [("Pix", "10.00"), ("Cartão de Crédito", "24.00")]
+    nota = LeitorSvrsHtml().ler(pagina(itens, formas=formas), "text/html")
+    assert nota.forma_pagamento == "Cartão de Crédito"
+    assert nota.valor_total == Decimal("34.00")
 
 
 def test_composto_escolhe_o_leitor_do_qr_code() -> None:

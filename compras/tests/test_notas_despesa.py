@@ -150,6 +150,17 @@ def test_pix_e_dinheiro_e_debito_tem_tipo_proprio(
         assert achadas[0]["transacao_id"] == primeiro, forma
 
 
+def test_a_forma_lida_pelo_qr_code_ordena_a_sugestao(
+    client: TestClient, consulta: ConsultaFalsa, fin: FinancasFalsa
+) -> None:
+    # Sem UPDATE: a forma vem da página do QR code, pelo leitor.
+    nota = _nota(client, consulta, formas=[("Cartão de Débito", "9.98")])
+    assert nota["forma_pagamento_nota"] == "Cartão de Débito"
+    fin.transacoes = [_tx(1, DIA, tipo="credito"), _tx(2, date(2026, 11, 3), tipo="debito")]
+    achadas = client.get(f"/notas/{nota['id']}/sugestoes-transacao").json()
+    assert [(s["transacao_id"], s["forma_combina"]) for s in achadas] == [(2, True), (1, False)]
+
+
 # --- ligar --------------------------------------------------------------------------
 
 

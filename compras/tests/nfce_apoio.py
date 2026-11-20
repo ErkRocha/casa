@@ -60,6 +60,7 @@ def pagina(
     emissao: str = "02/11/2026 10:15:30",
     desconto: str = "0",
     total: str | None = None,
+    formas: list[tuple[str, str]] | None = None,
 ) -> bytes:
     """A página da consulta, no layout presumido do portal SVRS."""
     soma = sum((Decimal(i.valor_total) for i in itens), Decimal("0"))
@@ -100,12 +101,21 @@ def pagina(
     <div id="linhaTotal"><label>Descontos R$:</label><span class="totalNumb">{_br(desconto)}</span></div>
     <div id="linhaTotal" class="linhaShade"><label>Valor a pagar R$:</label><span class="totalNumb txtMax">{_br(str(a_pagar))}</span></div>
     <div id="linhaForma"><label>Forma de pagamento:</label><span class="totalNumb txtTitR">Valor pago R$:</span></div>
+    {"".join(_linha_forma(n, v) for n, v in formas or [])}
   </div>
   <div id="infos" class="txtCenter">
     <ul><li><strong>Número: </strong>1 <strong> Série: </strong>1 <strong> Emissão: </strong>{emissao} - Via Consumidor</li></ul>
   </div>
 </div></body></html>"""
     return html.encode("utf-8")
+
+
+def _linha_forma(nome: str, valor: str) -> str:
+    """Uma forma de pagamento como a página do QR code mostra (amostra de 20/11/2026)."""
+    return (
+        f'<div id="linhaTotal"><label class="tx">{nome}</label>'
+        f'<span class="totalNumb">{_br(valor)}</span></div>'
+    )
 
 
 @dataclass

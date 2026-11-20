@@ -102,13 +102,16 @@ O que a página do QR traz de diferente da Consulta Completa:
 | código do item | "(Código: 6528693)", sem zeros à esquerda | 18 dígitos com zeros; o leitor tira os zeros, então o código é o mesmo nos dois e a variante casa |
 | código de barras | não traz | não traz |
 | desconto | não visto (nota sem desconto); o leitor procura "Descontos R$" em `#totalNota` | só o da nota |
-| forma de pagamento | **traz** ("Cartão de Crédito" e o valor, em `#totalNota`), mas o leitor **ainda não lê**: `forma_pagamento_nota` fica nulo | lida |
+| forma de pagamento | traz ("Cartão de Crédito" e o valor, depois de `#linhaForma`); lida desde 20/11/2026 para `forma_pagamento_nota`, com mais de uma a de maior valor | lida |
+| bandeira e cartão | não traz | não traz |
 | consumidor | "Consumidor não identificado" quando não há CPF | CPF quando informado |
 | extras | "Via Consumidor", versão do XML e do XSLT | — |
 
-O que isso muda: nada no modelo. Ler pelo QR perde só a forma de pagamento,
-que ajuda a escolher a despesa; fica pendente ensinar o `leitor_svrs.py` a
-lê-la (a linha `#linhaForma` seguida de `label.tx` com o valor).
+O que isso muda: nada no modelo. Os dois caminhos preenchem os mesmos
+campos, inclusive `forma_pagamento_nota`, que ordena a sugestão de despesa.
+Nenhum dos dois traz bandeira, então não há o que guardar. Notas lidas pelo
+QR antes de 20/11/2026 ficaram sem a forma: o `reler` só aceita nota com
+erro, então ela não é preenchida depois.
 
 ---
 

@@ -305,6 +305,7 @@ def test_qr_code_do_portal_le_a_amostra_real_sem_buscar_pela_chave(
     assert nota["valor_total"] == "16.99"
     assert nota["diferenca"] == "0.00"
     assert [i["codigo"] for i in nota["itens"]] == ["6528693"]
+    assert nota["forma_pagamento_nota"] == "Cartão de Débito"
     assert consulta.buscas == [URL_QR_PORTAL]
 
 

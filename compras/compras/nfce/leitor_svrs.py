@@ -11,11 +11,12 @@ lê a "Consulta Completa" (``leitor_completa.py``). Este leitor lê a página
   ``.RCod`` ("Código: ..."), ``.Rqtd``, ``.RUN``, ``.RvlUnit`` e ``.valor``;
 * totais: ``#totalNota``, pares de rótulo e ``.totalNumb`` ("Valor a pagar
   R$:", "Descontos R$:");
-* emissão: o texto "Emissão: dd/mm/aaaa hh:mm:ss" em ``#infos``.
+* emissão: o texto "Emissão: dd/mm/aaaa hh:mm:ss" em ``#infos``;
+* forma de pagamento: depois de ``#linhaForma``, cada linha com
+  ``label.tx`` (o nome, "Cartão de Crédito") e ``.totalNumb`` (o valor);
+  com mais de uma, a de maior valor. A página não traz bandeira nem cartão.
 
-A página também traz a forma de pagamento (``#linhaForma``), que este
-leitor ainda não lê. Se o layout mudar, troque este leitor por outro com
-outra ``VERSAO``:
+Se o layout mudar, troque este leitor por outro com outra ``VERSAO``:
 as notas lidas por esta versão continuam com o conteúdo guardado e podem
 ser relidas.
 """
@@ -64,6 +65,7 @@ class LeitorSvrsHtml:
 
         razao, cnpj, endereco, cidade = self._emitente(raiz)
         valor_total, desconto = self._totais(raiz)
+        forma = self._forma_pagamento(raiz)
         return NotaLida(
             cnpj=cnpj,
             razao_social=razao,
@@ -74,6 +76,7 @@ class LeitorSvrsHtml:
             desconto_total=desconto or Decimal("0"),
             itens=itens,
             versao=VERSAO,
+            forma_pagamento=forma,
         )
 
     def _itens(self, tabela: _No) -> list[ItemLido]:
@@ -151,6 +154,36 @@ class LeitorSvrsHtml:
         total = next((v for r, v in valores.items() if "VALOR TOTAL" in r), None)
         desconto = next((v for r, v in valores.items() if "DESCONTO" in r), None)
         return a_pagar if a_pagar is not None else total, desconto
+
+    def _forma_pagamento(self, raiz: _No) -> str | None:
+        """A forma depois de ``#linhaForma``: ``label.tx`` e o valor pago.
+
+        Com mais de uma, a de maior valor (empate: a primeira). Só o nome da
+        forma, como a página mostra; nada de cartão.
+        """
+        bloco = raiz.por_id("totalNota")
+        if bloco is None:
+            return None
+        formas: list[tuple[Decimal, str]] = []
+        depois_da_forma = False
+        for no in bloco.filhos:
+            if not isinstance(no, _No) or no.tag != "div":
+                continue
+            if no.attrs.get("id") == "linhaForma":
+                depois_da_forma = True
+                continue
+            if not depois_da_forma:
+                continue
+            rotulos = [r for r in no.todos() if r.tag == "label" and "tx" in r.classes]
+            numeros = no.por_classe("totalNumb")
+            if len(rotulos) != 1 or len(numeros) != 1:
+                continue
+            nome, valor = rotulos[0].texto(), _decimal(numeros[0].texto())
+            if nome and valor is not None:
+                formas.append((valor, nome))
+        if not formas:
+            return None
+        return max(formas, key=lambda f: f[0])[1]
 
     def _emissao(self, raiz: _No) -> datetime | None:
         bloco = raiz.por_id("infos") or raiz
